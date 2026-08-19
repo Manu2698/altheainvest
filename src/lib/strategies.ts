@@ -139,7 +139,7 @@ const MOTIVAZIONI: Record<StrategyId, string[]> = {
     "Ribilanciamento difensivo del peso di portafoglio",
     "Presa di profitto parziale, capitale spostato su liquidità",
   ],
-  bilanciato: [
+  medio: [
     "Momentum a 12 settimane positivo, peso incrementato",
     "Rottura media a 50 giorni al rialzo confermata dai volumi",
     "Riduzione esposizione settoriale sopra il limite del 25%",
