@@ -146,10 +146,10 @@ const MOTIVAZIONI: Record<StrategyId, string[]> = {
     "Rotazione da difensivi verso tecnologia in trend",
   ],
   aggressivo: [
-    "Breakout su massimi a 60 giorni con volumi 3x",
+    "Prezzo a -2 dev. std dalla media: accumulo sul ribasso",
     "Stop loss automatico attivato al -7%",
-    "Segnale ad alta convinzione: leva 1.8x applicata",
-    "Chiusura rapida, il trend ha perso forza in intraday",
+    "Rimbalzo al target: chiudo prima che il momentum si esaurisca",
+    "RSI sotto 30 su forte volume: primo ingresso parziale",
   ],
 };
 
