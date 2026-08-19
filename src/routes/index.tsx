@@ -10,6 +10,8 @@ import {
   Sparkles,
   Zap,
 } from "lucide-react";
+import { BrokerConnect } from "@/components/BrokerConnect";
+import { CapitalAllocator, type Allocazioni } from "@/components/CapitalAllocator";
 import { EquityChart } from "@/components/EquityChart";
 import { RiskMeter } from "@/components/RiskMeter";
 import { TradeFeed } from "@/components/TradeFeed";
@@ -52,18 +54,29 @@ const ICONE: Record<StrategyId, typeof ShieldCheck> = {
   aggressivo: Zap,
 };
 
-const CAPITALE = 25000;
+
 
 function Index() {
   const [attiva, setAttiva] = useState<StrategyId>("medio");
+  const [capitale, setCapitale] = useState(25000);
+  const [allocazioni, setAllocazioni] = useState<Allocazioni>({
+    conservativo: 40,
+    medio: 40,
+    aggressivo: 10,
+  });
   const [reale, setReale] = useState(false);
 
   const strategia = getStrategia(attiva);
-  const equity = useMemo(() => generaEquity(strategia, CAPITALE), [strategia]);
+  const capitaleStrategia = Math.round((capitale * allocazioni[attiva]) / 100);
+  const equity = useMemo(
+    () => generaEquity(strategia, Math.max(1, capitaleStrategia)),
+    [strategia, capitaleStrategia],
+  );
   const operazioni = useMemo(() => generaOperazioni(strategia), [strategia]);
 
   const ultimo = equity[equity.length - 1]!;
-  const rendimento = ((ultimo.valore - CAPITALE) / CAPITALE) * 100;
+  const rendimento =
+    capitaleStrategia > 0 ? ((ultimo.valore - capitaleStrategia) / capitaleStrategia) * 100 : 0;
   const vsBenchmark = ((ultimo.valore - ultimo.benchmark) / ultimo.benchmark) * 100;
   const vincenti = operazioni.filter((o) => o.pnl > 0).length;
 
@@ -248,7 +261,11 @@ function Index() {
             <div>
               <h2 className="text-2xl font-semibold sm:text-3xl">Dashboard operativa</h2>
               <p className="mt-2 text-sm text-muted-foreground">
-                Profilo <span className="text-foreground">{strategia.nome}</span> · conto{" "}
+                Profilo <span className="text-foreground">{strategia.nome}</span> ·{" "}
+                <span className="numeric text-foreground">
+                  {formatEuro(capitaleStrategia)}
+                </span>{" "}
+                allocati · conto{" "}
                 <span className={reale ? "text-accent" : "text-primary"}>
                   {reale ? "reale" : "paper"}
                 </span>{" "}
@@ -272,7 +289,19 @@ function Index() {
             </div>
           )}
 
-          <div className="mt-6 grid gap-4 lg:grid-cols-4">
+          <div className="mt-6 grid gap-4 lg:grid-cols-2">
+            <CapitalAllocator
+              capitale={capitale}
+              setCapitale={setCapitale}
+              allocazioni={allocazioni}
+              setAllocazioni={setAllocazioni}
+              attiva={attiva}
+              onAttiva={setAttiva}
+            />
+            <BrokerConnect />
+          </div>
+
+          <div className="mt-4 grid gap-4 lg:grid-cols-4">
             {[
               { k: "Valore portafoglio", v: formatEuro(ultimo.valore), c: "" },
               {
