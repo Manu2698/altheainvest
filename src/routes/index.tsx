@@ -261,7 +261,11 @@ function Index() {
             <div>
               <h2 className="text-2xl font-semibold sm:text-3xl">Dashboard operativa</h2>
               <p className="mt-2 text-sm text-muted-foreground">
-                Profilo <span className="text-foreground">{strategia.nome}</span> · conto{" "}
+                Profilo <span className="text-foreground">{strategia.nome}</span> ·{" "}
+                <span className="numeric text-foreground">
+                  {formatEuro(capitaleStrategia)}
+                </span>{" "}
+                allocati · conto{" "}
                 <span className={reale ? "text-accent" : "text-primary"}>
                   {reale ? "reale" : "paper"}
                 </span>{" "}
