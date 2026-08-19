@@ -1,4 +1,4 @@
-export type StrategyId = "conservativo" | "bilanciato" | "aggressivo";
+export type StrategyId = "conservativo" | "medio" | "aggressivo";
 
 export interface Strategy {
   id: StrategyId;
@@ -36,20 +36,20 @@ export const STRATEGIE: Strategy[] = [
     drift: 0.00022,
   },
   {
-    id: "bilanciato",
-    nome: "Bilanciato",
-    claim: "Crescita costante con rischio sotto controllo",
+    id: "medio",
+    nome: "Medio",
+    claim: "Metà sicurezza, metà volatilità",
     descrizione:
-      "Mix di ETF ad ampia diffusione e blue chip in trend. L'IA ribilancia settimanalmente in base al momentum a medio termine, mantenendo sempre una quota di liquidità come cuscinetto.",
+      "L'IA divide il capitale tra titoli difensivi e titoli volatili in trend. La parte sicura protegge il portafoglio, la parte volatile fa la performance: il peso tra le due metà cambia ogni settimana in base al mercato.",
     rischio: 5,
-    rendimentoAtteso: "+9 / +14% annuo",
-    drawdownMax: "-15%",
+    rendimentoAtteso: "+9 / +16% annuo",
+    drawdownMax: "-18%",
     orizzonte: "6-24 mesi",
-    universo: ["VOO", "MSFT", "ASML", "LVMH", "AAPL", "GLD"],
+    universo: ["VOO", "MSFT", "ASML", "AAPL", "NVDA", "GLD"],
     regole: [
-      "Ribilanciamento momentum ogni lunedì",
-      "Cash buffer minimo del 10%",
-      "Riduzione esposizione del 50% se l'indice rompe la media a 200 giorni",
+      "Split target 60% titoli sicuri / 40% titoli volatili",
+      "Ribilanciamento settimanale in base al momentum",
+      "La quota volatile scende al 20% se l'indice rompe la media a 200 giorni",
     ],
     volatilita: 0.0085,
     drift: 0.00048,
@@ -57,22 +57,23 @@ export const STRATEGIE: Strategy[] = [
   {
     id: "aggressivo",
     nome: "Aggressivo",
-    claim: "Volatilità alta, potenziale alto",
+    claim: "Compra sui ribassi, vende prima del ritorno",
     descrizione:
-      "Caccia a trend esplosivi su growth, small cap e cripto. L'IA entra rapidamente e taglia le perdite ancora più rapidamente: poche operazioni vincenti devono pagare tutte le perdenti.",
+      "Opera solo su titoli estremamente volatili, ma con metodo: l'IA accumula quando il prezzo è sceso in modo eccessivo rispetto alla sua media e liquida sul rimbalzo, prima che il movimento si esaurisca. Nessuna posizione resta aperta oltre il necessario.",
     rischio: 9,
     rendimentoAtteso: "+20 / +45% annuo",
     drawdownMax: "-38%",
-    orizzonte: "1-6 mesi",
+    orizzonte: "giorni / settimane",
     universo: ["NVDA", "TSLA", "PLTR", "COIN", "BTC", "SOL"],
     regole: [
-      "Stop loss automatico al -7% per posizione",
-      "Leva massima 2x solo su segnali ad alta convinzione",
-      "Chiusura forzata di tutto se il drawdown mensile supera il 20%",
+      "Ingresso quando RSI < 30 e il prezzo è sotto -2 deviazioni standard",
+      "Uscita automatica sul rimbalzo target o all'esaurirsi del momentum",
+      "Stop loss fisso al -7%, chiusura totale se il drawdown mensile supera il 20%",
     ],
     volatilita: 0.021,
     drift: 0.00105,
   },
+
 ];
 
 export const getStrategia = (id: StrategyId): Strategy =>
