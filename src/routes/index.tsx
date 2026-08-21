@@ -86,7 +86,7 @@ function Index() {
       <header className="sticky top-0 z-20 border-b border-border/70 bg-background/80 backdrop-blur">
         <div className="mx-auto flex max-w-6xl items-center gap-3 px-5 py-3.5">
           <BrainCircuit className="size-5 text-primary" />
-          <span className="font-display text-base font-semibold tracking-tight">Aletheia</span>
+          <span className="font-display text-base font-semibold tracking-tight">Althea</span>
           <span className="numeric hidden rounded-full border border-border px-2 py-0.5 text-[10px] uppercase tracking-widest text-muted-foreground sm:inline">
             autonomous trading
           </span>
