@@ -298,7 +298,7 @@ function Index() {
               attiva={attiva}
               onAttiva={setAttiva}
             />
-            <BrokerConnect />
+            <BrokerConnect reale={reale} />
           </div>
 
           <div className="mt-4 grid gap-4 lg:grid-cols-4">
