@@ -350,18 +350,11 @@ function Index() {
             </div>
           </div>
 
-          <div className="panel mt-4 p-5">
-            <h3 className="text-sm font-semibold">Universo osservato</h3>
-            <div className="mt-3 flex flex-wrap gap-2">
-              {strategia.universo.map((t) => (
-                <span
-                  key={t}
-                  className="numeric rounded-lg border border-border bg-surface-2 px-3 py-1.5 text-xs"
-                >
-                  {t}
-                </span>
-              ))}
-            </div>
+          <div className="mt-4">
+            <AssetPicker
+              universo={universo}
+              onChange={(u) => setUniversi((prev) => ({ ...prev, [attiva]: u }))}
+            />
           </div>
         </div>
       </section>
