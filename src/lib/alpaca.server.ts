@@ -1,0 +1,156 @@
+import type {
+  AssetInvestibile,
+  AssetTipo,
+  ContoBroker,
+} from "./alpaca.types";
+
+const num = (v: unknown) => {
+  const n = Number(v);
+  return Number.isFinite(n) ? n : 0;
+};
+
+function credenziali() {
+  const keyId = process.env["APCA_API_KEY_ID"];
+  const secret = process.env["APCA_API_SECRET_KEY"];
+  if (!keyId || !secret) return null;
+  return {
+    "APCA-API-KEY-ID": keyId,
+    "APCA-API-SECRET-KEY": secret,
+    accept: "application/json",
+  };
+}
+
+export async function leggiConto(reale: boolean): Promise<ContoBroker> {
+  const headers = credenziali();
+  if (!headers) {
+    return {
+      stato: "non_configurato",
+      messaggio: "Chiavi API del broker non configurate.",
+    };
+  }
+
+  const base = reale
+    ? "https://api.alpaca.markets"
+    : "https://paper-api.alpaca.markets";
+
+  try {
+    const [accountRes, positionsRes] = await Promise.all([
+      fetch(`${base}/v2/account`, { headers }),
+      fetch(`${base}/v2/positions`, { headers }),
+    ]);
+
+    if (!accountRes.ok) {
+      const body = await accountRes.text();
+      console.error(`Alpaca /v2/account [${accountRes.status}]: ${body}`);
+      return {
+        stato: "errore",
+        messaggio:
+          accountRes.status === 401 || accountRes.status === 403
+            ? `Chiavi rifiutate dal broker (${accountRes.status}). Verifica che siano le chiavi ${reale ? "live" : "paper"}.`
+            : `Il broker ha risposto con errore ${accountRes.status}.`,
+      };
+    }
+
+    const account = (await accountRes.json()) as Record<string, unknown>;
+    const rawPositions = positionsRes.ok
+      ? ((await positionsRes.json()) as Record<string, unknown>[])
+      : [];
+
+    const equity = num(account["equity"]);
+    const lastEquity = num(account["last_equity"]);
+
+    return {
+      stato: "collegato",
+      ambiente: reale ? "reale" : "paper",
+      numeroConto: String(account["account_number"] ?? "—"),
+      valuta: String(account["currency"] ?? "USD"),
+      valorePortafoglio: equity,
+      liquidita: num(account["cash"]),
+      poterAcquisto: num(account["buying_power"]),
+      pnlGiornaliero: lastEquity > 0 ? ((equity - lastEquity) / lastEquity) * 100 : 0,
+      bloccato: Boolean(account["trading_blocked"]),
+      posizioni: rawPositions.map((p) => ({
+        ticker: String(p["symbol"] ?? ""),
+        quantita: num(p["qty"]),
+        prezzoMedio: num(p["avg_entry_price"]),
+        valore: num(p["market_value"]),
+        pnl: num(p["unrealized_pl"]),
+        pnlPct: num(p["unrealized_plpc"]) * 100,
+      })),
+    };
+  } catch (error) {
+    console.error("Alpaca request failed", error);
+    return {
+      stato: "errore",
+      messaggio: "Non riesco a raggiungere il broker in questo momento.",
+    };
+  }
+}
+
+type RawAsset = Record<string, unknown>;
+
+let cacheAssets: { at: number; items: AssetInvestibile[] } | null = null;
+const TTL = 1000 * 60 * 60 * 6;
+
+function mappa(a: RawAsset): AssetInvestibile {
+  const classe = String(a["class"] ?? "us_equity");
+  const nome = String(a["name"] ?? "");
+  const etf = classe !== "crypto" && /\b(ETF|ETN|Trust|Index Fund|Fund)\b/i.test(nome);
+  return {
+    ticker: String(a["symbol"] ?? ""),
+    nome,
+    tipo: classe === "crypto" ? "cripto" : etf ? "etf" : "azione",
+    borsa: String(a["exchange"] ?? ""),
+    frazionabile: Boolean(a["fractionable"]),
+    operabile: Boolean(a["tradable"]),
+  };
+}
+
+async function caricaAssets(): Promise<AssetInvestibile[]> {
+  if (cacheAssets && Date.now() - cacheAssets.at < TTL) return cacheAssets.items;
+
+  const headers = credenziali();
+  if (!headers) return [];
+
+  const base = "https://paper-api.alpaca.markets/v2/assets?status=active";
+  const [eq, cr] = await Promise.all([
+    fetch(`${base}&asset_class=us_equity`, { headers }),
+    fetch(`${base}&asset_class=crypto`, { headers }),
+  ]);
+
+  const raw: RawAsset[] = [];
+  if (eq.ok) raw.push(...((await eq.json()) as RawAsset[]));
+  if (cr.ok) raw.push(...((await cr.json()) as RawAsset[]));
+
+  const items = raw.map(mappa).filter((a) => a.ticker && a.operabile);
+  cacheAssets = { at: Date.now(), items };
+  return items;
+}
+
+export async function cercaAssets(
+  q: string,
+  tipo: AssetTipo | "tutti",
+): Promise<{ risultati: AssetInvestibile[]; totale: number }> {
+  try {
+    const tutti = await caricaAssets();
+    const pool = tipo === "tutti" ? tutti : tutti.filter((a) => a.tipo === tipo);
+    const query = q.toUpperCase();
+
+    const filtrati = query
+      ? pool.filter(
+          (a) => a.ticker.includes(query) || a.nome.toUpperCase().includes(query),
+        )
+      : pool;
+
+    const ordinati = [...filtrati].sort((a, b) => {
+      const pa = a.ticker === query ? 0 : a.ticker.startsWith(query) ? 1 : 2;
+      const pb = b.ticker === query ? 0 : b.ticker.startsWith(query) ? 1 : 2;
+      return pa - pb || a.ticker.localeCompare(b.ticker);
+    });
+
+    return { risultati: ordinati.slice(0, 40), totale: tutti.length };
+  } catch (error) {
+    console.error("Alpaca assets failed", error);
+    return { risultati: [], totale: 0 };
+  }
+}
