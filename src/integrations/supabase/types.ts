@@ -14,7 +14,48 @@ export type Database = {
   }
   public: {
     Tables: {
-      [_ in never]: never
+      event_log: {
+        Row: {
+          ambiente: string | null
+          contesto: Json | null
+          created_at: string
+          id: string
+          livello: string
+          messaggio: string
+          origine: string
+          stack: string | null
+          tipo: string
+          url: string | null
+          user_agent: string | null
+        }
+        Insert: {
+          ambiente?: string | null
+          contesto?: Json | null
+          created_at?: string
+          id?: string
+          livello?: string
+          messaggio: string
+          origine: string
+          stack?: string | null
+          tipo?: string
+          url?: string | null
+          user_agent?: string | null
+        }
+        Update: {
+          ambiente?: string | null
+          contesto?: Json | null
+          created_at?: string
+          id?: string
+          livello?: string
+          messaggio?: string
+          origine?: string
+          stack?: string | null
+          tipo?: string
+          url?: string | null
+          user_agent?: string | null
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
