@@ -4,6 +4,21 @@ import type {
   ContoBroker,
 } from "./alpaca.types";
 
+export function logServer(origine: string, error: unknown, contesto?: Record<string, unknown>) {
+  const err = error instanceof Error ? error : new Error(String(error));
+  console.error(
+    JSON.stringify({
+      at: new Date().toISOString(),
+      livello: "error",
+      origine,
+      tipo: err.name,
+      messaggio: err.message,
+      contesto,
+    }),
+  );
+  if (err.stack) console.error(err.stack);
+}
+
 const num = (v: unknown) => {
   const n = Number(v);
   return Number.isFinite(n) ? n : 0;
@@ -79,7 +94,7 @@ export async function leggiConto(reale: boolean): Promise<ContoBroker> {
       })),
     };
   } catch (error) {
-    console.error("Alpaca request failed", error);
+    logServer("alpaca.leggiConto", error, { reale });
     return {
       stato: "errore",
       messaggio: "Non riesco a raggiungere il broker in questo momento.",
@@ -150,7 +165,7 @@ export async function cercaAssets(
 
     return { risultati: ordinati.slice(0, 40), totale: tutti.length };
   } catch (error) {
-    console.error("Alpaca assets failed", error);
+    logServer("alpaca.cercaAssets", error, { q, tipo });
     return { risultati: [], totale: 0 };
   }
 }
