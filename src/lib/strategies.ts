@@ -153,11 +153,16 @@ const MOTIVAZIONI: Record<StrategyId, string[]> = {
   ],
 };
 
-export function generaOperazioni(strategia: Strategy, quante = 8): Operazione[] {
-  const rand = mulberry32(strategia.rischio * 31337 + strategia.nome.length);
+export function generaOperazioni(
+  strategia: Strategy,
+  quante = 8,
+  universo?: string[],
+): Operazione[] {
+  const lista = universo && universo.length > 0 ? universo : strategia.universo;
+  const rand = mulberry32(strategia.rischio * 31337 + strategia.nome.length + lista.length);
   const motivi = MOTIVAZIONI[strategia.id];
   return Array.from({ length: quante }, (_, i) => {
-    const ticker = strategia.universo[Math.floor(rand() * strategia.universo.length)]!;
+    const ticker = lista[Math.floor(rand() * lista.length)]!;
     const lato = rand() > 0.42 ? "BUY" : "SELL";
     const prezzo = 20 + rand() * 380;
     const magnitudo = strategia.volatilita * 12000;
