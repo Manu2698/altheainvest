@@ -11,6 +11,7 @@ import {
   Zap,
 } from "lucide-react";
 import { AssetPicker } from "@/components/AssetPicker";
+import { RuntimeErrorBoundary } from "@/components/RuntimeErrorBoundary";
 import { BrokerConnect } from "@/components/BrokerConnect";
 import { CapitalAllocator, type Allocazioni } from "@/components/CapitalAllocator";
 import { EquityChart } from "@/components/EquityChart";
@@ -306,7 +307,9 @@ function Index() {
               attiva={attiva}
               onAttiva={setAttiva}
             />
-            <BrokerConnect reale={reale} />
+            <RuntimeErrorBoundary area="broker">
+              <BrokerConnect reale={reale} />
+            </RuntimeErrorBoundary>
           </div>
 
           <div className="mt-4 grid gap-4 lg:grid-cols-4">
@@ -359,10 +362,12 @@ function Index() {
           </div>
 
           <div className="mt-4">
-            <AssetPicker
-              universo={universo}
-              onChange={(u) => setUniversi((prev) => ({ ...prev, [attiva]: u }))}
-            />
+            <RuntimeErrorBoundary area="universo investibile">
+              <AssetPicker
+                universo={universo}
+                onChange={(u) => setUniversi((prev) => ({ ...prev, [attiva]: u }))}
+              />
+            </RuntimeErrorBoundary>
           </div>
         </div>
       </section>

@@ -10,7 +10,7 @@ import {
 import { useEffect, type ReactNode } from "react";
 
 import appCss from "../styles.css?url";
-import { reportLovableError } from "../lib/lovable-error-reporting";
+import { installRuntimeMonitor, logErroreRuntime } from "../lib/runtime-monitor";
 
 function NotFoundComponent() {
   return (
@@ -35,10 +35,9 @@ function NotFoundComponent() {
 }
 
 function ErrorComponent({ error, reset }: { error: Error; reset: () => void }) {
-  console.error(error);
   const router = useRouter();
   useEffect(() => {
-    reportLovableError(error, { boundary: "tanstack_root_error_component" });
+    logErroreRuntime(error, "tanstack_root_error_component");
   }, [error]);
 
   return (
@@ -122,6 +121,10 @@ function RootShell({ children }: { children: ReactNode }) {
 
 function RootComponent() {
   const { queryClient } = Route.useRouteContext();
+
+  useEffect(() => {
+    installRuntimeMonitor();
+  }, []);
 
   return (
     <QueryClientProvider client={queryClient}>
