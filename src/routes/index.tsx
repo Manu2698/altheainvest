@@ -80,7 +80,7 @@ function Index() {
     () => generaEquity(strategia, Math.max(1, capitaleStrategia)),
     [strategia, capitaleStrategia],
   );
-  const operazioni = useMemo(() => generaOperazioni(strategia), [strategia]);
+  const operazioni = useMemo(() => generaOperazioni(strategia, 8, universo), [strategia, universo]);
 
   const ultimo = equity[equity.length - 1]!;
   const rendimento =
