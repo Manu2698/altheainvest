@@ -10,6 +10,7 @@ import {
   Sparkles,
   Zap,
 } from "lucide-react";
+import { AssetPicker } from "@/components/AssetPicker";
 import { BrokerConnect } from "@/components/BrokerConnect";
 import { CapitalAllocator, type Allocazioni } from "@/components/CapitalAllocator";
 import { EquityChart } from "@/components/EquityChart";
@@ -65,8 +66,15 @@ function Index() {
     aggressivo: 10,
   });
   const [reale, setReale] = useState(false);
+  const [universi, setUniversi] = useState<Record<StrategyId, string[]>>(() =>
+    Object.fromEntries(STRATEGIE.map((s) => [s.id, s.universo])) as Record<
+      StrategyId,
+      string[]
+    >,
+  );
 
   const strategia = getStrategia(attiva);
+  const universo = universi[attiva];
   const capitaleStrategia = Math.round((capitale * allocazioni[attiva]) / 100);
   const equity = useMemo(
     () => generaEquity(strategia, Math.max(1, capitaleStrategia)),
