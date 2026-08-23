@@ -42,8 +42,25 @@ const usd = (v: number, valuta: string) =>
 
 export function BrokerConnect({ reale }: { reale: boolean }) {
   const fetchConto = useServerFn(getContoBroker);
+  const [autenticato, setAutenticato] = useState<boolean | null>(null);
+
+  useEffect(() => {
+    let attivo = true;
+    void supabase.auth.getSession().then(({ data }) => {
+      if (attivo) setAutenticato(Boolean(data.session));
+    });
+    const { data: sub } = supabase.auth.onAuthStateChange((_e, session) => {
+      setAutenticato(Boolean(session));
+    });
+    return () => {
+      attivo = false;
+      sub.subscription.unsubscribe();
+    };
+  }, []);
+
   const { data, isFetching, refetch } = useQuery({
     queryKey: ["conto-broker", reale],
+    enabled: autenticato === true,
     queryFn: async () => {
       try {
         return await fetchConto({ data: { reale } });
@@ -51,13 +68,14 @@ export function BrokerConnect({ reale }: { reale: boolean }) {
         return {
           stato: "errore",
           messaggio:
-            "Accedi con il tuo account per consultare i dati del conto broker.",
+            "Impossibile leggere il conto broker: riprova tra qualche istante.",
         } as const;
       }
     },
     retry: false,
     refetchInterval: 60_000,
   });
+
 
 
   const collegato = data?.stato === "collegato";
