@@ -182,10 +182,13 @@ export function BrokerConnect({ reale }: { reale: boolean }) {
       ) : (
         <>
           <p className="mt-1 text-xs text-muted-foreground">
-            {data?.stato === "errore" || data?.stato === "non_configurato"
-              ? data.messaggio
-              : "Collega il broker per far operare l'IA su un conto vero."}
+            {autenticato === false
+              ? "Accedi con il tuo account per consultare i dati del conto broker."
+              : data?.stato === "errore" || data?.stato === "non_configurato"
+                ? data.messaggio
+                : "Collega il broker per far operare l'IA su un conto vero."}
           </p>
+
 
           <ol className="mt-5 space-y-4">
             {PASSI.map((p) => (
