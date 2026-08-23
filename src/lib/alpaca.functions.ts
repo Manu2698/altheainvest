@@ -98,7 +98,7 @@ export const creaMovimento = createServerFn({ method: "POST" })
       reale?: boolean;
       note?: string;
     }) => {
-      const tipo = input?.tipo === "prelievo" ? "prelievo" : "deposito";
+      const tipo: "deposito" | "prelievo" = input?.tipo === "prelievo" ? "prelievo" : "deposito";
       const importo = Number(input?.importo);
       if (!Number.isFinite(importo) || importo <= 0 || importo > 10_000_000) {
         throw new Error("Importo non valido.");
