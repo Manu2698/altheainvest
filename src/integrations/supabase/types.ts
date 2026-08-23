@@ -14,6 +14,36 @@ export type Database = {
   }
   public: {
     Tables: {
+      broker_credenziali: {
+        Row: {
+          ambiente: string
+          api_secret: string
+          created_at: string
+          id: string
+          key_id: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          ambiente: string
+          api_secret: string
+          created_at?: string
+          id?: string
+          key_id: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          ambiente?: string
+          api_secret?: string
+          created_at?: string
+          id?: string
+          key_id?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       event_log: {
         Row: {
           ambiente: string | null
@@ -53,6 +83,66 @@ export type Database = {
           tipo?: string
           url?: string | null
           user_agent?: string | null
+        }
+        Relationships: []
+      }
+      movimenti: {
+        Row: {
+          ambiente: string
+          created_at: string
+          id: string
+          importo: number
+          metodo: string
+          note: string | null
+          riferimento: string | null
+          stato: string
+          tipo: string
+          user_id: string
+          valuta: string
+        }
+        Insert: {
+          ambiente?: string
+          created_at?: string
+          id?: string
+          importo: number
+          metodo?: string
+          note?: string | null
+          riferimento?: string | null
+          stato?: string
+          tipo: string
+          user_id: string
+          valuta?: string
+        }
+        Update: {
+          ambiente?: string
+          created_at?: string
+          id?: string
+          importo?: number
+          metodo?: string
+          note?: string | null
+          riferimento?: string | null
+          stato?: string
+          tipo?: string
+          user_id?: string
+          valuta?: string
+        }
+        Relationships: []
+      }
+      profili: {
+        Row: {
+          created_at: string
+          id: string
+          nome: string | null
+        }
+        Insert: {
+          created_at?: string
+          id: string
+          nome?: string | null
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          nome?: string | null
         }
         Relationships: []
       }
