@@ -1,5 +1,8 @@
 import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
+import { useEffect, useState } from "react";
+import { supabase } from "@/integrations/supabase/client";
+
 import {
   AlertTriangle,
   CheckCircle2,
@@ -42,8 +45,25 @@ const usd = (v: number, valuta: string) =>
 
 export function BrokerConnect({ reale }: { reale: boolean }) {
   const fetchConto = useServerFn(getContoBroker);
+  const [autenticato, setAutenticato] = useState<boolean | null>(null);
+
+  useEffect(() => {
+    let attivo = true;
+    void supabase.auth.getSession().then(({ data }) => {
+      if (attivo) setAutenticato(Boolean(data.session));
+    });
+    const { data: sub } = supabase.auth.onAuthStateChange((_e, session) => {
+      setAutenticato(Boolean(session));
+    });
+    return () => {
+      attivo = false;
+      sub.subscription.unsubscribe();
+    };
+  }, []);
+
   const { data, isFetching, refetch } = useQuery({
     queryKey: ["conto-broker", reale],
+    enabled: autenticato === true,
     queryFn: async () => {
       try {
         return await fetchConto({ data: { reale } });
@@ -51,13 +71,14 @@ export function BrokerConnect({ reale }: { reale: boolean }) {
         return {
           stato: "errore",
           messaggio:
-            "Accedi con il tuo account per consultare i dati del conto broker.",
+            "Impossibile leggere il conto broker: riprova tra qualche istante.",
         } as const;
       }
     },
     retry: false,
     refetchInterval: 60_000,
   });
+
 
 
   const collegato = data?.stato === "collegato";
@@ -161,10 +182,13 @@ export function BrokerConnect({ reale }: { reale: boolean }) {
       ) : (
         <>
           <p className="mt-1 text-xs text-muted-foreground">
-            {data?.stato === "errore" || data?.stato === "non_configurato"
-              ? data.messaggio
-              : "Collega il broker per far operare l'IA su un conto vero."}
+            {autenticato === false
+              ? "Accedi con il tuo account per consultare i dati del conto broker."
+              : data?.stato === "errore" || data?.stato === "non_configurato"
+                ? data.messaggio
+                : "Collega il broker per far operare l'IA su un conto vero."}
           </p>
+
 
           <ol className="mt-5 space-y-4">
             {PASSI.map((p) => (
