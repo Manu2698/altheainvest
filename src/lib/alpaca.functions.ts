@@ -1,4 +1,5 @@
 import { createServerFn } from "@tanstack/react-start";
+import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import type { AssetInvestibile, AssetTipo, ContoBroker } from "./alpaca.types";
 
 export type {
@@ -9,6 +10,7 @@ export type {
 } from "./alpaca.types";
 
 export const getContoBroker = createServerFn({ method: "GET" })
+  .middleware([requireSupabaseAuth])
   .inputValidator((input: { reale?: boolean } | undefined) => ({
     reale: Boolean(input?.reale),
   }))
@@ -16,6 +18,7 @@ export const getContoBroker = createServerFn({ method: "GET" })
     const { leggiConto } = await import("./alpaca.server");
     return leggiConto(data.reale);
   });
+
 
 export const cercaAsset = createServerFn({ method: "GET" })
   .inputValidator((input: { q?: string; tipo?: AssetTipo | "tutti" } | undefined) => ({
