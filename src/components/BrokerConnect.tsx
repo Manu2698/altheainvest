@@ -44,9 +44,21 @@ export function BrokerConnect({ reale }: { reale: boolean }) {
   const fetchConto = useServerFn(getContoBroker);
   const { data, isFetching, refetch } = useQuery({
     queryKey: ["conto-broker", reale],
-    queryFn: () => fetchConto({ data: { reale } }),
+    queryFn: async () => {
+      try {
+        return await fetchConto({ data: { reale } });
+      } catch {
+        return {
+          stato: "errore",
+          messaggio:
+            "Accedi con il tuo account per consultare i dati del conto broker.",
+        } as const;
+      }
+    },
+    retry: false,
     refetchInterval: 60_000,
   });
+
 
   const collegato = data?.stato === "collegato";
 
