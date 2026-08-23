@@ -13,7 +13,7 @@ export async function salvaEvento(e: EventoDaRegistrare): Promise<boolean> {
       tipo: tronca(e.tipo, 120) ?? "Error",
       messaggio: tronca(e.messaggio, 4000) ?? "",
       stack: tronca(e.stack, 8000),
-      contesto: e.contesto ?? null,
+      contesto: (e.contesto ?? null) as never,
       ambiente: tronca(e.ambiente, 40),
       url: tronca(e.url, 500),
       user_agent: tronca(e.userAgent, 400),
