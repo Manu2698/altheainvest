@@ -13,7 +13,10 @@ const FILTRI: { id: AssetTipo | "tutti" | "meme"; label: string }[] = [
   { id: "meme", label: "Memecoin" },
 ];
 
-const MEME = ["DOGE", "SHIB", "PEPE", "BONK", "WIF", "FLOKI", "TRUMP", "MEME"];
+const MEME = [
+  "DOGE", "SHIB", "PEPE", "BONK", "WIF", "FLOKI", "TRUMP", "MEME", "BABYDOGE",
+  "ELON", "SAMO", "MOG", "BRETT", "POPCAT", "TURBO", "LADYS", "AIDOGE", "WOJAK",
+];
 
 export function AssetPicker({
   universo,
@@ -25,6 +28,7 @@ export function AssetPicker({
   const [q, setQ] = useState("");
   const [debounced, setDebounced] = useState("");
   const [filtro, setFiltro] = useState<(typeof FILTRI)[number]["id"]>("tutti");
+  const [limite, setLimite] = useState(100);
   const cerca = useServerFn(cercaAsset);
 
   useEffect(() => {
@@ -32,12 +36,15 @@ export function AssetPicker({
     return () => clearTimeout(t);
   }, [q]);
 
+  useEffect(() => setLimite(100), [debounced, filtro]);
+
   const tipo: AssetTipo | "tutti" = filtro === "meme" ? "cripto" : filtro;
 
   const { data, isFetching } = useQuery({
-    queryKey: ["asset", debounced, tipo],
-    queryFn: () => cerca({ data: { q: debounced, tipo } }),
+    queryKey: ["asset", debounced, tipo, limite],
+    queryFn: () => cerca({ data: { q: debounced, tipo, limite } }),
     staleTime: 5 * 60 * 1000,
+    placeholderData: (prev) => prev,
   });
 
   const risultati = useMemo(() => {
@@ -45,6 +52,9 @@ export function AssetPicker({
     if (filtro !== "meme") return base;
     return base.filter((a) => MEME.some((m) => a.ticker.startsWith(m)));
   }, [data, filtro]);
+
+  const totaleFiltrato = data?.totaleFiltrato ?? 0;
+  const conteggi = data?.conteggi;
 
   const attivo = (t: string) => universo.includes(t);
   const toggle = (t: string) =>
@@ -56,14 +66,22 @@ export function AssetPicker({
         <div>
           <h3 className="text-sm font-semibold">Universo investibile</h3>
           <p className="text-[11px] text-muted-foreground">
-            Cerca fra tutte le azioni, gli ETF e le cripto/memecoin disponibili sul
-            broker e scegli su cosa l'IA può operare.
+            Tutte le azioni, gli ETF e le cripto/memecoin negoziabili sul broker: cerca e
+            scegli su cosa l'IA può operare.
           </p>
         </div>
         <span className="numeric rounded-full border border-border bg-surface-2 px-3 py-1 text-[11px] text-muted-foreground">
           {data?.totale ? `${data.totale.toLocaleString("it-IT")} strumenti` : "—"}
         </span>
       </div>
+
+      {conteggi && (
+        <div className="numeric mt-2 flex flex-wrap gap-3 text-[10px] uppercase tracking-wide text-muted-foreground">
+          <span>{conteggi.azione.toLocaleString("it-IT")} azioni</span>
+          <span>{conteggi.etf.toLocaleString("it-IT")} ETF</span>
+          <span>{conteggi.cripto.toLocaleString("it-IT")} cripto</span>
+        </div>
+      )}
 
       <div className="mt-4 flex items-center gap-2 rounded-xl border border-border bg-surface-2 px-3">
         <Search className="size-4 shrink-0 text-muted-foreground" />
@@ -98,7 +116,7 @@ export function AssetPicker({
         ))}
       </div>
 
-      <div className="mt-4 max-h-72 space-y-1 overflow-y-auto pr-1">
+      <div className="mt-4 max-h-96 space-y-1 overflow-y-auto pr-1">
         {risultati.length === 0 && (
           <p className="py-6 text-center text-xs text-muted-foreground">
             {isFetching ? "Cerco…" : "Nessuno strumento trovato."}
@@ -129,6 +147,16 @@ export function AssetPicker({
             )}
           </button>
         ))}
+
+        {filtro !== "meme" && totaleFiltrato > risultati.length && (
+          <button
+            onClick={() => setLimite((l) => Math.min(l + 200, 500))}
+            className="mt-2 w-full rounded-lg border border-border py-2 text-[11px] text-muted-foreground hover:text-foreground"
+          >
+            Mostra altri ({(totaleFiltrato - risultati.length).toLocaleString("it-IT")}{" "}
+            rimanenti — affina la ricerca per trovarli tutti)
+          </button>
+        )}
       </div>
 
       <div className="mt-4 border-t border-border pt-4">
