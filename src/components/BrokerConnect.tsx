@@ -1,40 +1,25 @@
-import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
-import { useEffect, useState } from "react";
-import { supabase } from "@/integrations/supabase/client";
-
+import { useState } from "react";
+import { Link } from "@tanstack/react-router";
 import {
   AlertTriangle,
   CheckCircle2,
   KeyRound,
   Link2,
   Loader2,
+  Lock,
   RefreshCw,
-  ShieldCheck,
+  Unlink,
 } from "lucide-react";
-import { getContoBroker } from "@/lib/alpaca.functions";
+import {
+  collegaBroker,
+  getContoBroker,
+  getStatoBroker,
+  scollegaBroker,
+} from "@/lib/alpaca.functions";
+import { useSessione } from "@/hooks/useSessione";
 import { cn } from "@/lib/utils";
-
-const PASSI = [
-  {
-    icona: KeyRound,
-    titolo: "1 · Crea le chiavi API",
-    testo:
-      "Dal pannello del tuo broker (es. Alpaca) genera una coppia di chiavi in modalità paper: servono solo per leggere il conto e inviare ordini simulati.",
-  },
-  {
-    icona: Link2,
-    titolo: "2 · Collega il conto",
-    testo:
-      "Incolli le chiavi una volta sola: vengono salvate cifrate lato server e non passano mai dal browser.",
-  },
-  {
-    icona: ShieldCheck,
-    titolo: "3 · Passa al reale quando vuoi",
-    testo:
-      "Le stesse strategie girano sul conto reale con un limite di capitale che decidi tu. Puoi fermare il motore in qualsiasi momento.",
-  },
-];
 
 const usd = (v: number, valuta: string) =>
   new Intl.NumberFormat("it-IT", {
@@ -45,33 +30,26 @@ const usd = (v: number, valuta: string) =>
 
 export function BrokerConnect({ reale }: { reale: boolean }) {
   const fetchConto = useServerFn(getContoBroker);
-  const [autenticato, setAutenticato] = useState<boolean | null>(null);
+  const fetchStato = useServerFn(getStatoBroker);
+  const collega = useServerFn(collegaBroker);
+  const scollega = useServerFn(scollegaBroker);
+  const qc = useQueryClient();
 
-  useEffect(() => {
-    let attivo = true;
-    void supabase.auth.getSession().then(({ data }) => {
-      if (attivo) setAutenticato(Boolean(data.session));
-    });
-    const { data: sub } = supabase.auth.onAuthStateChange((_e, session) => {
-      setAutenticato(Boolean(session));
-    });
-    return () => {
-      attivo = false;
-      sub.subscription.unsubscribe();
-    };
-  }, []);
+  const { autenticato, caricata } = useSessione();
+  const [form, setForm] = useState({ keyId: "", secret: "" });
+  const [apri, setApri] = useState(false);
+  const [esito, setEsito] = useState<{ ok: boolean; testo: string } | null>(null);
 
   const { data, isFetching, refetch } = useQuery({
     queryKey: ["conto-broker", reale],
-    enabled: autenticato === true,
+    enabled: autenticato,
     queryFn: async () => {
       try {
         return await fetchConto({ data: { reale } });
       } catch {
         return {
           stato: "errore",
-          messaggio:
-            "Impossibile leggere il conto broker: riprova tra qualche istante.",
+          messaggio: "Impossibile leggere il conto broker: riprova tra qualche istante.",
         } as const;
       }
     },
@@ -79,9 +57,60 @@ export function BrokerConnect({ reale }: { reale: boolean }) {
     refetchInterval: 60_000,
   });
 
+  const { data: stato } = useQuery({
+    queryKey: ["stato-broker"],
+    enabled: autenticato,
+    queryFn: () => fetchStato({}),
+    retry: false,
+  });
 
+  const salva = useMutation({
+    mutationFn: () => collega({ data: { ...form, reale } }),
+    onSuccess: (r) => {
+      setEsito({ ok: r.ok, testo: r.messaggio });
+      if (r.ok) {
+        setForm({ keyId: "", secret: "" });
+        setApri(false);
+        void qc.invalidateQueries({ queryKey: ["conto-broker"] });
+        void qc.invalidateQueries({ queryKey: ["stato-broker"] });
+      }
+    },
+    onError: (e) =>
+      setEsito({ ok: false, testo: e instanceof Error ? e.message : "Errore imprevisto." }),
+  });
+
+  const rimuovi = useMutation({
+    mutationFn: () => scollega({ data: { reale } }),
+    onSuccess: () => {
+      setEsito({ ok: true, testo: "Chiavi rimosse." });
+      void qc.invalidateQueries({ queryKey: ["conto-broker"] });
+      void qc.invalidateQueries({ queryKey: ["stato-broker"] });
+    },
+  });
 
   const collegato = data?.stato === "collegato";
+  const proprie = collegato ? data.proprieChiavi : false;
+  const chiaveSalvata = reale ? stato?.reale : stato?.paper;
+
+  if (caricata && !autenticato) {
+    return (
+      <div className="panel p-6">
+        <div className="flex items-center gap-2">
+          <Lock className="size-4 text-primary" />
+          <h3 className="text-sm font-semibold">Conto broker</h3>
+        </div>
+        <p className="mt-2 text-xs text-muted-foreground">
+          Accedi al tuo account per collegare il broker e vedere il conto in tempo reale.
+        </p>
+        <Link
+          to="/auth"
+          className="mt-4 inline-flex rounded-xl bg-primary px-4 py-2 text-xs font-semibold text-primary-foreground"
+        >
+          Accedi o registrati
+        </Link>
+      </div>
+    );
+  }
 
   return (
     <div className="panel p-6">
@@ -118,7 +147,8 @@ export function BrokerConnect({ reale }: { reale: boolean }) {
       {collegato ? (
         <>
           <p className="mt-1 text-xs text-muted-foreground">
-            Conto {data.numeroConto} · dati letti in diretta dal broker
+            Conto {data.numeroConto} ·{" "}
+            {proprie ? "chiavi personali" : "chiavi dimostrative della piattaforma"}
             {data.bloccato ? " · trading bloccato dal broker" : ""}.
           </p>
 
@@ -153,7 +183,7 @@ export function BrokerConnect({ reale }: { reale: boolean }) {
                 Nessuna posizione aperta sul conto in questo momento.
               </p>
             ) : (
-              <ul className="mt-2 space-y-1.5">
+              <ul className="mt-2 max-h-52 space-y-1.5 overflow-y-auto pr-1">
                 {data.posizioni.map((p) => (
                   <li
                     key={p.ticker}
@@ -180,45 +210,97 @@ export function BrokerConnect({ reale }: { reale: boolean }) {
           </div>
         </>
       ) : (
-        <>
-          <p className="mt-1 text-xs text-muted-foreground">
-            {autenticato === false
-              ? "Accedi con il tuo account per consultare i dati del conto broker."
-              : data?.stato === "errore" || data?.stato === "non_configurato"
-                ? data.messaggio
-                : "Collega il broker per far operare l'IA su un conto vero."}
-          </p>
-
-
-          <ol className="mt-5 space-y-4">
-            {PASSI.map((p) => (
-              <li key={p.titolo} className="flex gap-3">
-                <span className="mt-0.5 flex size-8 shrink-0 items-center justify-center rounded-lg bg-surface-2 text-primary">
-                  <p.icona className="size-4" />
-                </span>
-                <div>
-                  <p className="text-sm font-medium">{p.titolo}</p>
-                  <p className="mt-0.5 text-xs leading-relaxed text-muted-foreground">
-                    {p.testo}
-                  </p>
-                </div>
-              </li>
-            ))}
-          </ol>
-
-          <div className="mt-5 flex items-start gap-2 rounded-lg border border-border bg-surface-2 p-3 text-xs text-muted-foreground">
-            {data?.stato === "errore" ? (
-              <AlertTriangle className="mt-0.5 size-3.5 shrink-0 text-warn" />
-            ) : (
-              <CheckCircle2 className="mt-0.5 size-3.5 shrink-0 text-bull" />
-            )}
-            <span>
-              Scrivimi in chat quando vuoi procedere: ti chiedo le chiavi in un modulo
-              sicuro e attivo il collegamento con il broker.
-            </span>
-          </div>
-        </>
+        <p className="mt-1 text-xs text-muted-foreground">
+          {data?.stato === "errore" || data?.stato === "non_configurato"
+            ? data.messaggio
+            : "Collega il tuo conto Alpaca per far operare l'IA con dati reali."}
+        </p>
       )}
+
+      <div className="mt-5 border-t border-border pt-4">
+        <div className="flex items-center justify-between gap-3">
+          <div>
+            <p className="flex items-center gap-1.5 text-xs font-medium">
+              <KeyRound className="size-3.5 text-primary" />
+              Chiavi API {reale ? "live" : "paper"}
+            </p>
+            <p className="mt-0.5 text-[11px] text-muted-foreground">
+              {chiaveSalvata?.collegato
+                ? `Salvate: ${chiaveSalvata.chiave}`
+                : "Generale su alpaca.markets → API Keys e incollale qui: restano cifrate lato server."}
+            </p>
+          </div>
+          <div className="flex shrink-0 gap-2">
+            {chiaveSalvata?.collegato && (
+              <button
+                onClick={() => rimuovi.mutate()}
+                className="inline-flex items-center gap-1 rounded-lg border border-border px-2.5 py-1.5 text-[11px] text-muted-foreground hover:border-bear/60 hover:text-bear"
+              >
+                <Unlink className="size-3" /> Scollega
+              </button>
+            )}
+            <button
+              onClick={() => setApri((v) => !v)}
+              className="rounded-lg bg-primary px-3 py-1.5 text-[11px] font-semibold text-primary-foreground"
+            >
+              {chiaveSalvata?.collegato ? "Sostituisci" : "Collega"}
+            </button>
+          </div>
+        </div>
+
+        {apri && (
+          <form
+            onSubmit={(e) => {
+              e.preventDefault();
+              setEsito(null);
+              salva.mutate();
+            }}
+            className="mt-3 space-y-2"
+          >
+            <input
+              value={form.keyId}
+              onChange={(e) => setForm((f) => ({ ...f, keyId: e.target.value }))}
+              placeholder="API Key ID"
+              autoComplete="off"
+              className="numeric w-full rounded-lg border border-border bg-surface-2 px-3 py-2 text-xs outline-none focus:border-primary"
+            />
+            <input
+              value={form.secret}
+              onChange={(e) => setForm((f) => ({ ...f, secret: e.target.value }))}
+              placeholder="API Secret Key"
+              type="password"
+              autoComplete="off"
+              className="numeric w-full rounded-lg border border-border bg-surface-2 px-3 py-2 text-xs outline-none focus:border-primary"
+            />
+            <button
+              type="submit"
+              disabled={salva.isPending}
+              className="inline-flex items-center gap-2 rounded-lg bg-primary px-3 py-2 text-xs font-semibold text-primary-foreground disabled:opacity-60"
+            >
+              {salva.isPending && <Loader2 className="size-3.5 animate-spin" />}
+              Verifica e salva
+            </button>
+          </form>
+        )}
+
+        {esito && (
+          <p
+            className={cn(
+              "mt-3 flex items-start gap-2 rounded-lg border p-2.5 text-[11px]",
+              esito.ok
+                ? "border-bull/40 bg-bull/10 text-bull"
+                : "border-bear/40 bg-bear/10 text-bear",
+            )}
+          >
+            {esito.ok ? (
+              <CheckCircle2 className="mt-0.5 size-3 shrink-0" />
+            ) : (
+              <AlertTriangle className="mt-0.5 size-3 shrink-0" />
+            )}
+            {esito.testo}
+          </p>
+        )}
+      </div>
     </div>
   );
 }
