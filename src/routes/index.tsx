@@ -13,6 +13,9 @@ import {
 import { AssetPicker } from "@/components/AssetPicker";
 import { RuntimeErrorBoundary } from "@/components/RuntimeErrorBoundary";
 import { BrokerConnect } from "@/components/BrokerConnect";
+import { Cassa } from "@/components/Cassa";
+import { AuthBadge } from "@/components/AuthBadge";
+
 import { CapitalAllocator, type Allocazioni } from "@/components/CapitalAllocator";
 import { EquityChart } from "@/components/EquityChart";
 import { RiskMeter } from "@/components/RiskMeter";
@@ -31,13 +34,13 @@ import {
 export const Route = createFileRoute("/")({
   head: () => ({
     meta: [
-      { title: "Aletheia — IA che investe in paper trading e conti reali" },
+      { title: "Althea — IA che investe in paper trading e conti reali" },
       {
         name: "description",
         content:
           "Un'intelligenza artificiale con tre correnti di pensiero — conservativo, medio e aggressivo — che opera in automatico su conto demo o reale.",
       },
-      { property: "og:title", content: "Aletheia — IA di investimento automatico" },
+      { property: "og:title", content: "Althea — IA di investimento automatico" },
       {
         property: "og:description",
         content:
@@ -121,6 +124,9 @@ function Index() {
               </button>
             ))}
           </div>
+
+          <AuthBadge />
+
         </div>
       </header>
 
@@ -312,6 +318,13 @@ function Index() {
             </RuntimeErrorBoundary>
           </div>
 
+          <div className="mt-4">
+            <RuntimeErrorBoundary area="cassa">
+              <Cassa reale={reale} />
+            </RuntimeErrorBoundary>
+          </div>
+
+
           <div className="mt-4 grid gap-4 lg:grid-cols-4">
             {[
               { k: "Valore portafoglio", v: formatEuro(ultimo.valore), c: "" },
@@ -374,7 +387,7 @@ function Index() {
 
       <footer className="border-t border-border">
         <div className="mx-auto max-w-6xl px-5 py-10 text-xs leading-relaxed text-muted-foreground">
-          <p className="font-medium text-foreground">Aletheia</p>
+          <p className="font-medium text-foreground">Althea</p>
           <p className="mt-2 max-w-2xl">
             I dati mostrati in questa pagina sono simulati a scopo dimostrativo. Il
             trading comporta il rischio di perdita del capitale: i rendimenti passati o
