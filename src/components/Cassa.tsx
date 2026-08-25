@@ -20,7 +20,7 @@ const METODI = [
 ];
 
 const fmt = (v: number, valuta: string) =>
-  new Intl.NumberFormat("it-IT", { style: "currency", currency: valuta || "USD" }).format(v);
+  `${v.toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ".")} ${valuta || "USD"}`;
 
 export function Cassa({ reale }: { reale: boolean }) {
   const invia = useServerFn(creaMovimento);
@@ -135,7 +135,7 @@ export function Cassa({ reale }: { reale: boolean }) {
                 onClick={() => setImporto(String(v))}
                 className="numeric rounded-lg border border-border px-2.5 py-1 text-[11px] text-muted-foreground hover:text-foreground"
               >
-                {v.toLocaleString("it-IT")}
+                {String(v).replace(/\B(?=(\d{3})+(?!\d))/g, ".")}
               </button>
             ))}
           </div>
@@ -205,7 +205,7 @@ export function Cassa({ reale }: { reale: boolean }) {
                   {m.tipo === "deposito" ? "Deposito" : "Prelievo"}
                 </span>
                 <span className="text-[11px] text-muted-foreground">
-                  {new Date(m.createdAt).toLocaleDateString("it-IT")} · {m.metodo} ·{" "}
+                  {m.createdAt.slice(0, 10).split("-").reverse().join("/")} · {m.metodo} ·{" "}
                   {m.ambiente}
                 </span>
                 <span className="numeric ml-auto font-semibold">
