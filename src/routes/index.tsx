@@ -312,6 +312,13 @@ function Index() {
             </RuntimeErrorBoundary>
           </div>
 
+          <div className="mt-4">
+            <RuntimeErrorBoundary area="cassa">
+              <Cassa reale={reale} />
+            </RuntimeErrorBoundary>
+          </div>
+
+
           <div className="mt-4 grid gap-4 lg:grid-cols-4">
             {[
               { k: "Valore portafoglio", v: formatEuro(ultimo.valore), c: "" },
