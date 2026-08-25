@@ -124,6 +124,9 @@ function Index() {
               </button>
             ))}
           </div>
+
+          <AuthBadge />
+
         </div>
       </header>
 
