@@ -182,11 +182,13 @@ export function generaOperazioni(
   });
 }
 
-export const formatEuro = (n: number) =>
-  new Intl.NumberFormat("it-IT", {
-    style: "currency",
-    currency: "EUR",
-    maximumFractionDigits: 0,
-  }).format(n);
+// Formattazione deterministica (l'ICU del runtime server può differire dal browser).
+export const formatEuro = (n: number) => {
+  const seg = Math.round(Math.abs(n))
+    .toString()
+    .replace(/\B(?=(\d{3})+(?!\d))/g, ".");
+  return `${n < 0 ? "-" : ""}${seg} €`;
+};
+
 
 export const formatPct = (n: number) => `${n >= 0 ? "+" : ""}${n.toFixed(2)}%`;
