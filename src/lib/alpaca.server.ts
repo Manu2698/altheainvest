@@ -248,13 +248,15 @@ function mappa(a: RawAsset): AssetInvestibile {
   };
 }
 
-async function caricaAssets(): Promise<AssetInvestibile[]> {
-  if (cacheAssets && Date.now() - cacheAssets.at < TTL) return cacheAssets.items;
+async function caricaAssets(
+  headers: Headers,
+  chiave: string,
+  reale: boolean,
+): Promise<AssetInvestibile[]> {
+  const cached = cacheAssets.get(chiave);
+  if (cached && Date.now() - cached.at < TTL) return cached.items;
 
-  const headers = credenzialiAmbiente();
-  if (!headers) return [];
-
-  const base = "https://paper-api.alpaca.markets/v2/assets?status=active";
+  const base = `${baseUrl(reale)}/v2/assets?status=active`;
   const [eq, cr] = await Promise.all([
     fetch(`${base}&asset_class=us_equity`, { headers }),
     fetch(`${base}&asset_class=crypto`, { headers }),
@@ -262,14 +264,18 @@ async function caricaAssets(): Promise<AssetInvestibile[]> {
 
   const raw: RawAsset[] = [];
   if (eq.ok) raw.push(...((await eq.json()) as RawAsset[]));
+  else logServer("alpaca.caricaAssets.equity", new Error(`HTTP ${eq.status}`));
   if (cr.ok) raw.push(...((await cr.json()) as RawAsset[]));
+  else logServer("alpaca.caricaAssets.crypto", new Error(`HTTP ${cr.status}`));
 
   const items = raw.map(mappa).filter((a) => a.ticker && a.operabile);
-  cacheAssets = { at: Date.now(), items };
+  if (items.length) cacheAssets.set(chiave, { at: Date.now(), items });
   return items;
 }
 
 export async function cercaAssets(
+  userId: string | null,
+  reale: boolean,
   q: string,
   tipo: AssetTipo | "tutti",
   limite: number,
@@ -286,7 +292,10 @@ export async function cercaAssets(
     conteggi: { azione: 0, etf: 0, cripto: 0 },
   };
   try {
-    const tutti = await caricaAssets();
+    const cred = await credenzialiUtente(userId, reale);
+    if (!cred) return vuoto;
+    const chiave = `${cred.headers["APCA-API-KEY-ID"]}:${reale ? "reale" : "paper"}`;
+    const tutti = await caricaAssets(cred.headers, chiave, reale);
     const pool = tipo === "tutti" ? tutti : tutti.filter((a) => a.tipo === tipo);
     const query = q.toUpperCase();
 
@@ -316,3 +325,4 @@ export async function cercaAssets(
     return vuoto;
   }
 }
+
