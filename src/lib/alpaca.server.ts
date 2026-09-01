@@ -227,8 +227,9 @@ export async function leggiConto(reale: boolean, userId: string | null): Promise
 
 type RawAsset = Record<string, unknown>;
 
-let cacheAssets: { at: number; items: AssetInvestibile[] } | null = null;
+const cacheAssets = new Map<string, { at: number; items: AssetInvestibile[] }>();
 const TTL = 1000 * 60 * 60 * 6;
+
 
 const RE_ETF =
   /\b(ETF|ETN|Trust|Index|Fund|Shares|Portfolio|Ultra|ProShares|iShares|SPDR|Vanguard|Invesco)\b/i;
