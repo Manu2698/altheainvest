@@ -319,10 +319,22 @@ function Index() {
           </div>
 
           <div className="mt-4">
+            <RuntimeErrorBoundary area="motore IA">
+              <MotoreIA
+                reale={reale}
+                strategia={attiva}
+                capitale={capitaleStrategia}
+                universo={universo}
+              />
+            </RuntimeErrorBoundary>
+          </div>
+
+          <div className="mt-4">
             <RuntimeErrorBoundary area="cassa">
               <Cassa reale={reale} />
             </RuntimeErrorBoundary>
           </div>
+
 
 
           <div className="mt-4 grid gap-4 lg:grid-cols-4">
