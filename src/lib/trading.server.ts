@@ -233,37 +233,43 @@ export async function eseguiCiclo(
         eseguito: false,
       };
 
-      if (scelta.azione !== "attendi" && decisione.importo >= 5) {
-        const cripto = isCripto(ticker);
-        const body: Record<string, unknown> = {
-          symbol: cripto ? paioCripto(ticker) : ticker,
-          side: scelta.azione === "compra" ? "buy" : "sell",
-          type: "market",
-          time_in_force: cripto ? "gtc" : "day",
-        };
-        if (scelta.azione === "vendi" && posizioni.get(ticker)) {
-          body["notional"] = undefined;
-          delete body["notional"];
-          body["qty"] = undefined;
-          delete body["qty"];
-          body["notional"] = decisione.importo;
-        } else {
-          body["notional"] = decisione.importo;
+      if (scelta.azione === "vendi" && posizioni.has(ticker)) {
+        // Chiusura integrale della posizione: funziona anche su titoli non frazionabili.
+        const sym = isCripto(ticker) ? paioCripto(ticker) : ticker;
+        const res = await fetch(
+          `${url}/v2/positions/${encodeURIComponent(sym)}?percentage=100`,
+          { method: "DELETE", headers },
+        );
+        if (res.ok) decisione.eseguito = true;
+        else {
+          const testo = await res.text();
+          decisione.errore = testo.slice(0, 180);
+          logServer("trading.chiusura", new Error(testo), { ticker, reale });
         }
-
+      } else if (scelta.azione === "compra" && decisione.importo >= 5) {
+        const cripto = isCripto(ticker);
         const res = await fetch(`${url}/v2/orders`, {
           method: "POST",
           headers: { ...headers, "content-type": "application/json" },
-          body: JSON.stringify(body),
+          body: JSON.stringify({
+            symbol: cripto ? paioCripto(ticker) : ticker,
+            side: "buy",
+            type: "market",
+            time_in_force: cripto ? "gtc" : "day",
+            notional: decisione.importo,
+          }),
         });
-        if (res.ok) {
-          decisione.eseguito = true;
-        } else {
+        if (res.ok) decisione.eseguito = true;
+        else {
           const testo = await res.text();
           decisione.errore = testo.slice(0, 180);
           logServer("trading.ordine", new Error(testo), { ticker, reale });
         }
+      } else if (scelta.azione !== "attendi") {
+        decisione.azione = "attendi";
+        decisione.motivo = "Importo troppo piccolo per un ordine.";
       }
+
 
       decisioni.push(decisione);
     }
