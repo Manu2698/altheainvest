@@ -7,6 +7,8 @@ import type {
   Movimento,
   StatoCollegamento,
 } from "./alpaca.types";
+import type { EsitoCiclo, OrdineBroker } from "./trading.types";
+import type { StrategyId } from "./strategies";
 
 export type {
   AssetInvestibile,
@@ -16,6 +18,7 @@ export type {
   PosizioneBroker,
   StatoCollegamento,
 } from "./alpaca.types";
+export type { DecisioneIA, EsitoCiclo, OrdineBroker } from "./trading.types";
 
 export const getContoBroker = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
@@ -118,3 +121,41 @@ export const creaMovimento = createServerFn({ method: "POST" })
       return registraMovimento(context.userId, data);
     },
   );
+
+export const getOrdiniBroker = createServerFn({ method: "GET" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input: { reale?: boolean } | undefined) => ({
+    reale: Boolean(input?.reale),
+  }))
+  .handler(async ({ data, context }): Promise<OrdineBroker[]> => {
+    const { leggiOrdini } = await import("./trading.server");
+    return leggiOrdini(context.userId, data.reale);
+  });
+
+export const eseguiCicloIA = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator(
+    (input: {
+      reale?: boolean;
+      strategia: StrategyId;
+      capitale: number;
+      universo?: string[];
+    }) => {
+      const ammesse: StrategyId[] = ["conservativo", "medio", "aggressivo"];
+      const strategia = ammesse.includes(input?.strategia) ? input.strategia : "medio";
+      const capitale = Number(input?.capitale);
+      return {
+        reale: Boolean(input?.reale),
+        strategia,
+        capitale: Number.isFinite(capitale) ? Math.min(Math.max(capitale, 0), 10_000_000) : 0,
+        universo: (Array.isArray(input?.universo) ? input.universo : [])
+          .map((t) => String(t).toUpperCase().trim())
+          .filter(Boolean)
+          .slice(0, 12),
+      };
+    },
+  )
+  .handler(async ({ data, context }): Promise<EsitoCiclo> => {
+    const { eseguiCiclo } = await import("./trading.server");
+    return eseguiCiclo(context.userId, data);
+  });
