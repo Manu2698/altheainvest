@@ -15,6 +15,8 @@ import { RuntimeErrorBoundary } from "@/components/RuntimeErrorBoundary";
 import { BrokerConnect } from "@/components/BrokerConnect";
 import { Cassa } from "@/components/Cassa";
 import { AuthBadge } from "@/components/AuthBadge";
+import { MotoreIA } from "@/components/MotoreIA";
+
 
 import { CapitalAllocator, type Allocazioni } from "@/components/CapitalAllocator";
 import { EquityChart } from "@/components/EquityChart";
