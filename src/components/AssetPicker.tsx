@@ -139,9 +139,14 @@ export function AssetPicker({
       <div className="mt-4 max-h-96 space-y-1 overflow-y-auto pr-1">
         {risultati.length === 0 && (
           <p className="py-6 text-center text-xs text-muted-foreground">
-            {isFetching ? "Cerco…" : "Nessuno strumento trovato."}
+            {autenticato === false
+              ? "Accedi e collega le tue chiavi del broker per vedere l'intero universo negoziabile."
+              : isFetching
+                ? "Cerco…"
+                : "Nessuno strumento trovato: collega le tue chiavi del broker."}
           </p>
         )}
+
         {risultati.map((a) => (
           <button
             key={a.ticker}
