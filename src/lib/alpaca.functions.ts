@@ -4,7 +4,6 @@ import type {
   AssetInvestibile,
   AssetTipo,
   ContoBroker,
-  Movimento,
   StatoCollegamento,
 } from "./alpaca.types";
 import type { EsitoCiclo, OrdineBroker } from "./trading.types";
@@ -14,7 +13,6 @@ export type {
   AssetInvestibile,
   AssetTipo,
   ContoBroker,
-  Movimento,
   PosizioneBroker,
   StatoCollegamento,
 } from "./alpaca.types";
@@ -63,16 +61,23 @@ export const scollegaBroker = createServerFn({ method: "POST" })
   });
 
 export const cercaAsset = createServerFn({ method: "GET" })
+  .middleware([requireSupabaseAuth])
   .inputValidator(
-    (input: { q?: string; tipo?: AssetTipo | "tutti"; limite?: number } | undefined) => ({
+    (
+      input:
+        | { q?: string; tipo?: AssetTipo | "tutti"; limite?: number; reale?: boolean }
+        | undefined,
+    ) => ({
       q: String(input?.q ?? "").trim().slice(0, 40),
       tipo: (input?.tipo ?? "tutti") as AssetTipo | "tutti",
       limite: Math.min(Math.max(Number(input?.limite ?? 100), 20), 500),
+      reale: Boolean(input?.reale),
     }),
   )
   .handler(
     async ({
       data,
+      context,
     }): Promise<{
       risultati: AssetInvestibile[];
       totale: number;
@@ -80,47 +85,10 @@ export const cercaAsset = createServerFn({ method: "GET" })
       conteggi: Record<AssetTipo, number>;
     }> => {
       const { cercaAssets } = await import("./alpaca.server");
-      return cercaAssets(data.q, data.tipo, data.limite);
+      return cercaAssets(context.userId, data.reale, data.q, data.tipo, data.limite);
     },
   );
 
-export const listaMovimenti = createServerFn({ method: "GET" })
-  .middleware([requireSupabaseAuth])
-  .handler(async ({ context }): Promise<Movimento[]> => {
-    const { leggiMovimenti } = await import("./cassa.server");
-    return leggiMovimenti(context.userId);
-  });
-
-export const creaMovimento = createServerFn({ method: "POST" })
-  .middleware([requireSupabaseAuth])
-  .inputValidator(
-    (input: {
-      tipo: "deposito" | "prelievo";
-      importo: number;
-      metodo?: string;
-      reale?: boolean;
-      note?: string;
-    }) => {
-      const tipo: "deposito" | "prelievo" = input?.tipo === "prelievo" ? "prelievo" : "deposito";
-      const importo = Number(input?.importo);
-      if (!Number.isFinite(importo) || importo <= 0 || importo > 10_000_000) {
-        throw new Error("Importo non valido.");
-      }
-      return {
-        tipo,
-        importo: Math.round(importo * 100) / 100,
-        metodo: String(input?.metodo ?? "bonifico").slice(0, 40),
-        reale: Boolean(input?.reale),
-        note: String(input?.note ?? "").slice(0, 300),
-      };
-    },
-  )
-  .handler(
-    async ({ data, context }): Promise<{ ok: boolean; messaggio: string }> => {
-      const { registraMovimento } = await import("./cassa.server");
-      return registraMovimento(context.userId, data);
-    },
-  );
 
 export const getOrdiniBroker = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
@@ -151,7 +119,7 @@ export const eseguiCicloIA = createServerFn({ method: "POST" })
         universo: (Array.isArray(input?.universo) ? input.universo : [])
           .map((t) => String(t).toUpperCase().trim())
           .filter(Boolean)
-          .slice(0, 12),
+          .slice(0, 200),
       };
     },
   )

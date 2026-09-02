@@ -13,7 +13,6 @@ import {
 import { AssetPicker } from "@/components/AssetPicker";
 import { RuntimeErrorBoundary } from "@/components/RuntimeErrorBoundary";
 import { BrokerConnect } from "@/components/BrokerConnect";
-import { Cassa } from "@/components/Cassa";
 import { AuthBadge } from "@/components/AuthBadge";
 import { MotoreIA } from "@/components/MotoreIA";
 
@@ -331,11 +330,6 @@ function Index() {
             </RuntimeErrorBoundary>
           </div>
 
-          <div className="mt-4">
-            <RuntimeErrorBoundary area="cassa">
-              <Cassa reale={reale} />
-            </RuntimeErrorBoundary>
-          </div>
 
 
 
@@ -392,7 +386,9 @@ function Index() {
             <RuntimeErrorBoundary area="universo investibile">
               <AssetPicker
                 universo={universo}
+                reale={reale}
                 onChange={(u) => setUniversi((prev) => ({ ...prev, [attiva]: u }))}
+
               />
             </RuntimeErrorBoundary>
           </div>

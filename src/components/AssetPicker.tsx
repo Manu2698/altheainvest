@@ -4,6 +4,7 @@ import { useServerFn } from "@tanstack/react-start";
 import { Check, Loader2, Plus, Search, X } from "lucide-react";
 import { cercaAsset, type AssetTipo } from "@/lib/alpaca.functions";
 import { cn } from "@/lib/utils";
+import { supabase } from "@/integrations/supabase/client";
 
 const FILTRI: { id: AssetTipo | "tutti" | "meme"; label: string }[] = [
   { id: "tutti", label: "Tutti" },
@@ -20,15 +21,18 @@ const MEME = [
 
 export function AssetPicker({
   universo,
+  reale = false,
   onChange,
 }: {
   universo: string[];
+  reale?: boolean;
   onChange: (u: string[]) => void;
 }) {
   const [q, setQ] = useState("");
   const [debounced, setDebounced] = useState("");
   const [filtro, setFiltro] = useState<(typeof FILTRI)[number]["id"]>("tutti");
   const [limite, setLimite] = useState(100);
+  const [autenticato, setAutenticato] = useState<boolean | null>(null);
   const cerca = useServerFn(cercaAsset);
 
   useEffect(() => {
@@ -38,14 +42,30 @@ export function AssetPicker({
 
   useEffect(() => setLimite(100), [debounced, filtro]);
 
+  useEffect(() => {
+    let vivo = true;
+    supabase.auth.getSession().then(({ data }) => {
+      if (vivo) setAutenticato(Boolean(data.session));
+    });
+    const { data: sub } = supabase.auth.onAuthStateChange((_e, s) =>
+      setAutenticato(Boolean(s)),
+    );
+    return () => {
+      vivo = false;
+      sub.subscription.unsubscribe();
+    };
+  }, []);
+
   const tipo: AssetTipo | "tutti" = filtro === "meme" ? "cripto" : filtro;
 
   const { data, isFetching } = useQuery({
-    queryKey: ["asset", debounced, tipo, limite],
-    queryFn: () => cerca({ data: { q: debounced, tipo, limite } }),
+    queryKey: ["asset", debounced, tipo, limite, reale],
+    queryFn: () => cerca({ data: { q: debounced, tipo, limite, reale } }),
+    enabled: autenticato === true,
     staleTime: 5 * 60 * 1000,
     placeholderData: (prev) => prev,
   });
+
 
   const risultati = useMemo(() => {
     const base = data?.risultati ?? [];
@@ -119,9 +139,14 @@ export function AssetPicker({
       <div className="mt-4 max-h-96 space-y-1 overflow-y-auto pr-1">
         {risultati.length === 0 && (
           <p className="py-6 text-center text-xs text-muted-foreground">
-            {isFetching ? "Cerco…" : "Nessuno strumento trovato."}
+            {autenticato === false
+              ? "Accedi e collega le tue chiavi del broker per vedere l'intero universo negoziabile."
+              : isFetching
+                ? "Cerco…"
+                : "Nessuno strumento trovato: collega le tue chiavi del broker."}
           </p>
         )}
+
         {risultati.map((a) => (
           <button
             key={a.ticker}
