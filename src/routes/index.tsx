@@ -13,7 +13,6 @@ import {
 import { AssetPicker } from "@/components/AssetPicker";
 import { RuntimeErrorBoundary } from "@/components/RuntimeErrorBoundary";
 import { BrokerConnect } from "@/components/BrokerConnect";
-import { Cassa } from "@/components/Cassa";
 import { AuthBadge } from "@/components/AuthBadge";
 import { MotoreIA } from "@/components/MotoreIA";
 
