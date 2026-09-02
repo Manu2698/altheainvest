@@ -63,16 +63,23 @@ export const scollegaBroker = createServerFn({ method: "POST" })
   });
 
 export const cercaAsset = createServerFn({ method: "GET" })
+  .middleware([requireSupabaseAuth])
   .inputValidator(
-    (input: { q?: string; tipo?: AssetTipo | "tutti"; limite?: number } | undefined) => ({
+    (
+      input:
+        | { q?: string; tipo?: AssetTipo | "tutti"; limite?: number; reale?: boolean }
+        | undefined,
+    ) => ({
       q: String(input?.q ?? "").trim().slice(0, 40),
       tipo: (input?.tipo ?? "tutti") as AssetTipo | "tutti",
       limite: Math.min(Math.max(Number(input?.limite ?? 100), 20), 500),
+      reale: Boolean(input?.reale),
     }),
   )
   .handler(
     async ({
       data,
+      context,
     }): Promise<{
       risultati: AssetInvestibile[];
       totale: number;
@@ -80,9 +87,10 @@ export const cercaAsset = createServerFn({ method: "GET" })
       conteggi: Record<AssetTipo, number>;
     }> => {
       const { cercaAssets } = await import("./alpaca.server");
-      return cercaAssets(data.q, data.tipo, data.limite);
+      return cercaAssets(context.userId, data.reale, data.q, data.tipo, data.limite);
     },
   );
+
 
 export const listaMovimenti = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
