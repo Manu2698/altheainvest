@@ -4,6 +4,7 @@ import { useServerFn } from "@tanstack/react-start";
 import { Check, Loader2, Plus, Search, X } from "lucide-react";
 import { cercaAsset, type AssetTipo } from "@/lib/alpaca.functions";
 import { cn } from "@/lib/utils";
+import { supabase } from "@/integrations/supabase/client";
 
 const FILTRI: { id: AssetTipo | "tutti" | "meme"; label: string }[] = [
   { id: "tutti", label: "Tutti" },
