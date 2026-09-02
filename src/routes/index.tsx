@@ -386,7 +386,9 @@ function Index() {
             <RuntimeErrorBoundary area="universo investibile">
               <AssetPicker
                 universo={universo}
+                reale={reale}
                 onChange={(u) => setUniversi((prev) => ({ ...prev, [attiva]: u }))}
+
               />
             </RuntimeErrorBoundary>
           </div>
