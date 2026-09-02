@@ -331,11 +331,6 @@ function Index() {
             </RuntimeErrorBoundary>
           </div>
 
-          <div className="mt-4">
-            <RuntimeErrorBoundary area="cassa">
-              <Cassa reale={reale} />
-            </RuntimeErrorBoundary>
-          </div>
 
 
 
