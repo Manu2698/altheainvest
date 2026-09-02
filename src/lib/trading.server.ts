@@ -30,14 +30,25 @@ async function serieStorica(
   };
 
   const richieste: Promise<void>[] = [];
+  // Alpaca restituisce un elenco vuoto se non si specifica una finestra temporale.
+  const inizio = new Date(Date.now() - 120 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
+
+  const controlla = async (r: Response, origine: string) => {
+    if (r.ok) return r.json();
+    logServer(origine, new Error(`HTTP ${r.status}: ${(await r.text()).slice(0, 200)}`));
+    return null;
+  };
 
   if (azioni.length) {
     const url = `https://data.alpaca.markets/v2/stocks/bars?symbols=${encodeURIComponent(
       azioni.join(","),
-    )}&timeframe=1Day&limit=40&feed=iex&adjustment=raw`;
+    )}&timeframe=1Day&limit=1000&start=${inizio}&feed=iex&adjustment=raw&sort=asc`;
     richieste.push(
       fetch(url, { headers })
-        .then(async (r) => (r.ok ? raccogli(await r.json(), (s) => s) : undefined))
+        .then(async (r) => {
+          const j = await controlla(r, "trading.serieStorica.azioni");
+          if (j) raccogli(j, (s) => s);
+        })
         .catch((e) => logServer("trading.serieStorica.azioni", e)),
     );
   }
@@ -45,15 +56,17 @@ async function serieStorica(
   if (cripto.length) {
     const url = `https://data.alpaca.markets/v1beta3/crypto/us/bars?symbols=${encodeURIComponent(
       cripto.map(paioCripto).join(","),
-    )}&timeframe=1Day&limit=40`;
+    )}&timeframe=1Day&limit=1000&start=${inizio}&sort=asc`;
     richieste.push(
       fetch(url, { headers })
-        .then(async (r) =>
-          r.ok ? raccogli(await r.json(), (s) => s.replace("/", "")) : undefined,
-        )
+        .then(async (r) => {
+          const j = await controlla(r, "trading.serieStorica.cripto");
+          if (j) raccogli(j, (s) => s.replace("/", ""));
+        })
         .catch((e) => logServer("trading.serieStorica.cripto", e)),
     );
   }
+
 
   await Promise.all(richieste);
   return out;
