@@ -20,15 +20,18 @@ const MEME = [
 
 export function AssetPicker({
   universo,
+  reale = false,
   onChange,
 }: {
   universo: string[];
+  reale?: boolean;
   onChange: (u: string[]) => void;
 }) {
   const [q, setQ] = useState("");
   const [debounced, setDebounced] = useState("");
   const [filtro, setFiltro] = useState<(typeof FILTRI)[number]["id"]>("tutti");
   const [limite, setLimite] = useState(100);
+  const [autenticato, setAutenticato] = useState<boolean | null>(null);
   const cerca = useServerFn(cercaAsset);
 
   useEffect(() => {
@@ -38,14 +41,30 @@ export function AssetPicker({
 
   useEffect(() => setLimite(100), [debounced, filtro]);
 
+  useEffect(() => {
+    let vivo = true;
+    supabase.auth.getSession().then(({ data }) => {
+      if (vivo) setAutenticato(Boolean(data.session));
+    });
+    const { data: sub } = supabase.auth.onAuthStateChange((_e, s) =>
+      setAutenticato(Boolean(s)),
+    );
+    return () => {
+      vivo = false;
+      sub.subscription.unsubscribe();
+    };
+  }, []);
+
   const tipo: AssetTipo | "tutti" = filtro === "meme" ? "cripto" : filtro;
 
   const { data, isFetching } = useQuery({
-    queryKey: ["asset", debounced, tipo, limite],
-    queryFn: () => cerca({ data: { q: debounced, tipo, limite } }),
+    queryKey: ["asset", debounced, tipo, limite, reale],
+    queryFn: () => cerca({ data: { q: debounced, tipo, limite, reale } }),
+    enabled: autenticato === true,
     staleTime: 5 * 60 * 1000,
     placeholderData: (prev) => prev,
   });
+
 
   const risultati = useMemo(() => {
     const base = data?.risultati ?? [];
