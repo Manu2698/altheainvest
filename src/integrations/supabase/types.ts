@@ -128,6 +128,54 @@ export type Database = {
         }
         Relationships: []
       }
+      ordini_pianificati: {
+        Row: {
+          created_at: string
+          errore: string | null
+          esegui_il: string
+          eseguito_il: string | null
+          id: string
+          importo: number
+          lato: string
+          ordine_id: string | null
+          quantita: number | null
+          reale: boolean
+          stato: string
+          ticker: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          errore?: string | null
+          esegui_il: string
+          eseguito_il?: string | null
+          id?: string
+          importo: number
+          lato?: string
+          ordine_id?: string | null
+          quantita?: number | null
+          reale?: boolean
+          stato?: string
+          ticker: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          errore?: string | null
+          esegui_il?: string
+          eseguito_il?: string | null
+          id?: string
+          importo?: number
+          lato?: string
+          ordine_id?: string | null
+          quantita?: number | null
+          reale?: boolean
+          stato?: string
+          ticker?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       profili: {
         Row: {
           created_at: string
