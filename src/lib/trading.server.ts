@@ -14,7 +14,7 @@ const isCripto = (t: string) => t.includes("/") || /^[A-Z]{2,6}USD$/.test(t);
 const paioCripto = (t: string) => (t.includes("/") ? t : t.replace(/USD$/, "/USD"));
 
 /** Ultimi prezzi giornalieri per ticker (azioni via IEX, cripto via endpoint dedicato). */
-async function serieStorica(
+export async function serieStorica(
   tickers: string[],
   headers: Record<string, string>,
 ): Promise<Record<string, number[]>> {
@@ -197,7 +197,7 @@ export async function eseguiCiclo(
   const universo = (input.universo.length ? input.universo : strategia.universo)
     .map((t) => t.toUpperCase().trim())
     .filter(Boolean)
-    .slice(0, 12);
+    .slice(0, 200);
 
   if (!universo.length || capitale <= 0) {
     return {
