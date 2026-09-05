@@ -3,6 +3,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { Check, Loader2, Plus, Search, X } from "lucide-react";
 import { cercaAsset, type AssetTipo } from "@/lib/alpaca.functions";
+import { getQuotazioni } from "@/lib/mercato.functions";
 import { cn } from "@/lib/utils";
 import { supabase } from "@/integrations/supabase/client";
 
@@ -72,6 +73,21 @@ export function AssetPicker({
     if (filtro !== "meme") return base;
     return base.filter((a) => MEME.some((m) => a.ticker.startsWith(m)));
   }, [data, filtro]);
+
+  const visibili = useMemo(() => risultati.slice(0, 40).map((a) => a.ticker), [risultati]);
+  const quote = useServerFn(getQuotazioni);
+  const { data: quotazioni } = useQuery({
+    queryKey: ["quotazioni", reale, visibili.join(",")],
+    enabled: autenticato === true && visibili.length > 0,
+    queryFn: () => quote({ data: { reale, tickers: visibili } }),
+    refetchInterval: 20_000,
+    retry: false,
+  });
+  const mappaQuote = useMemo(() => {
+    const m = new Map<string, { prezzo: number; variazionePct: number; volume: number }>();
+    for (const q of quotazioni ?? []) m.set(q.ticker, q);
+    return m;
+  }, [quotazioni]);
 
   const totaleFiltrato = data?.totaleFiltrato ?? 0;
   const conteggi = data?.conteggi;
@@ -162,6 +178,27 @@ export function AssetPicker({
             <span className="min-w-0 flex-1 truncate text-xs text-muted-foreground">
               {a.nome}
             </span>
+            {(() => {
+              const q = mappaQuote.get(a.ticker);
+              return (
+                <span className="numeric hidden w-40 shrink-0 text-right text-[11px] sm:block">
+                  {q && q.prezzo > 0 ? (
+                    <>
+                      <span>{q.prezzo.toFixed(2)}</span>{" "}
+                      <span className={q.variazionePct >= 0 ? "text-bull" : "text-bear"}>
+                        {q.variazionePct >= 0 ? "+" : ""}
+                        {q.variazionePct.toFixed(2)}%
+                      </span>{" "}
+                      <span className="text-muted-foreground">
+                        vol {Math.round(q.volume).toLocaleString("it-IT")}
+                      </span>
+                    </>
+                  ) : (
+                    <span className="text-muted-foreground">—</span>
+                  )}
+                </span>
+              );
+            })()}
             <span className="rounded border border-border px-1.5 py-0.5 text-[10px] uppercase tracking-wide text-muted-foreground">
               {a.tipo}
             </span>
