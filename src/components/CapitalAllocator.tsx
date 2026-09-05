@@ -21,6 +21,7 @@ export function CapitalAllocator({
   setAllocazioni,
   attiva,
   onAttiva,
+  disponibile = 0,
 }: {
   capitale: number;
   setCapitale: (n: number) => void;
@@ -28,6 +29,7 @@ export function CapitalAllocator({
   setAllocazioni: (a: Allocazioni) => void;
   attiva: StrategyId;
   onAttiva: (id: StrategyId) => void;
+  disponibile?: number;
 }) {
   const totale = allocazioni.conservativo + allocazioni.medio + allocazioni.aggressivo;
   const liquidita = Math.max(0, 100 - totale);
