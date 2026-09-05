@@ -29,6 +29,7 @@ export function MotoreIA({
 
   const [auto, setAuto] = useState(false);
   const [esito, setEsito] = useState<EsitoCiclo | null>(null);
+  const [ultimoCiclo, setUltimoCiclo] = useState<string | null>(null);
   const params = useRef({ reale, strategia, capitale, universo });
   params.current = { reale, strategia, capitale, universo };
 
@@ -44,6 +45,7 @@ export function MotoreIA({
     mutationFn: () => esegui({ data: params.current }),
     onSuccess: (r) => {
       setEsito(r);
+      setUltimoCiclo(new Date().toISOString());
       void qc.invalidateQueries({ queryKey: ["ordini-broker"] });
       void qc.invalidateQueries({ queryKey: ["conto-broker"] });
     },
@@ -78,6 +80,11 @@ export function MotoreIA({
         >
           {auto ? "auto · ogni 5 min" : "manuale"}
         </span>
+        {ultimoCiclo && (
+          <span className="numeric text-[10px] text-muted-foreground">
+            ultimo ciclo {ultimoCiclo.slice(11, 19)} UTC
+          </span>
+        )}
         <div className="ml-auto flex gap-2">
           <button
             onClick={() => setAuto((v) => !v)}

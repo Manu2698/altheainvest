@@ -1,4 +1,4 @@
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, Link } from "@tanstack/react-router";
 import { useMemo, useState } from "react";
 import {
   Activity,
@@ -15,6 +15,12 @@ import { RuntimeErrorBoundary } from "@/components/RuntimeErrorBoundary";
 import { BrokerConnect } from "@/components/BrokerConnect";
 import { AuthBadge } from "@/components/AuthBadge";
 import { MotoreIA } from "@/components/MotoreIA";
+import { PannelloSegnali } from "@/components/PannelloSegnali";
+import { OrdiniPianificati } from "@/components/OrdiniPianificati";
+import { useQuery } from "@tanstack/react-query";
+import { useServerFn } from "@tanstack/react-start";
+import { getContoBroker } from "@/lib/alpaca.functions";
+import { useSessione } from "@/hooks/useSessione";
 
 
 import { CapitalAllocator, type Allocazioni } from "@/components/CapitalAllocator";
@@ -64,7 +70,7 @@ const ICONE: Record<StrategyId, typeof ShieldCheck> = {
 
 function Index() {
   const [attiva, setAttiva] = useState<StrategyId>("medio");
-  const [capitale, setCapitale] = useState(25000);
+  const [capitale, setCapitale] = useState(1000);
   const [allocazioni, setAllocazioni] = useState<Allocazioni>({
     conservativo: 40,
     medio: 40,
@@ -77,6 +83,18 @@ function Index() {
       string[]
     >,
   );
+
+  const { autenticato } = useSessione();
+  const contoFn = useServerFn(getContoBroker);
+  const conto = useQuery({
+    queryKey: ["conto-broker", reale],
+    enabled: autenticato,
+    queryFn: () => contoFn({ data: { reale } }),
+    refetchInterval: 60_000,
+    retry: false,
+  });
+  const disponibile =
+    conto.data && conto.data.stato === "collegato" ? conto.data.valorePortafoglio : 0;
 
   const strategia = getStrategia(attiva);
   const universo = universi[attiva];
@@ -125,6 +143,13 @@ function Index() {
               </button>
             ))}
           </div>
+
+          <Link
+            to="/ordini"
+            className="rounded-lg border border-border px-3 py-1.5 text-xs text-muted-foreground transition-colors hover:text-foreground"
+          >
+            Ordini
+          </Link>
 
           <AuthBadge />
 
@@ -307,6 +332,7 @@ function Index() {
 
           <div className="mt-6 grid gap-4 lg:grid-cols-2">
             <CapitalAllocator
+              disponibile={disponibile}
               capitale={capitale}
               setCapitale={setCapitale}
               allocazioni={allocazioni}
@@ -319,7 +345,13 @@ function Index() {
             </RuntimeErrorBoundary>
           </div>
 
-          <div className="mt-4">
+          <div className="mt-4 grid gap-4">
+            <RuntimeErrorBoundary area="segnali">
+              <PannelloSegnali reale={reale} universo={universo} />
+            </RuntimeErrorBoundary>
+            <RuntimeErrorBoundary area="ordini pianificati">
+              <OrdiniPianificati reale={reale} universo={universo} />
+            </RuntimeErrorBoundary>
             <RuntimeErrorBoundary area="motore IA">
               <MotoreIA
                 reale={reale}
