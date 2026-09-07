@@ -115,11 +115,23 @@ export function MotoreIA({
       </div>
 
       <p className="mt-2 text-xs text-muted-foreground">
-        L'IA analizza medie a 10 e 20 giorni sull'universo selezionato e invia ordini reali
-        al conto {reale ? "reale" : "paper"} collegato con le tue chiavi. Capitale gestito su
-        questa strategia: <span className="numeric text-foreground">{capitale} $</span> su{" "}
-        {universo.length} strumenti.
+        L'IA analizza da sola tutti gli strumenti disponibili sul broker (azioni, ETF e
+        cripto) e sceglie in autonomia su cosa investire, secondo la strategia attiva.
+        Capitale gestito: <span className="numeric text-foreground">{capitale} $</span> sul
+        conto {reale ? "reale" : "paper"}.
       </p>
+
+      {esito?.selezione && (
+        <p className="mt-2 rounded-lg border border-border bg-surface-2 px-3 py-2 text-[11px] text-muted-foreground">
+          {esito.selezione}
+          {esito.universo?.length ? (
+            <span className="numeric block mt-1 text-foreground">
+              {esito.universo.join(" · ")}
+            </span>
+          ) : null}
+        </p>
+      )}
+
 
       {esito && (
         <div
