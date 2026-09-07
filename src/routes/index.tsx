@@ -1,5 +1,5 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   Activity,
   BrainCircuit,
@@ -68,9 +68,29 @@ const ICONE: Record<StrategyId, typeof ShieldCheck> = {
 
 
 
+const CHIAVE_STRATEGIA = "althea:strategia";
+
 function Index() {
   const [attiva, setAttiva] = useState<StrategyId>("medio");
   const [capitale, setCapitale] = useState(1000);
+
+  // Ripristina la strategia scelta l'ultima volta (dopo l'idratazione).
+  useEffect(() => {
+    const salvata = localStorage.getItem(CHIAVE_STRATEGIA);
+    if (salvata === "conservativo" || salvata === "medio" || salvata === "aggressivo") {
+      setAttiva(salvata);
+    }
+  }, []);
+
+  const scegliStrategia = (id: StrategyId) => {
+    setAttiva(id);
+    try {
+      localStorage.setItem(CHIAVE_STRATEGIA, id);
+    } catch {
+      /* storage non disponibile */
+    }
+  };
+
   const [allocazioni, setAllocazioni] = useState<Allocazioni>({
     conservativo: 40,
     medio: 40,
@@ -217,7 +237,7 @@ function Index() {
             return (
               <button
                 key={s.id}
-                onClick={() => setAttiva(s.id)}
+                onClick={() => scegliStrategia(s.id)}
                 className={cn(
                   "panel group cursor-pointer p-6 text-left transition-all",
                   selezionata
@@ -338,7 +358,7 @@ function Index() {
               allocazioni={allocazioni}
               setAllocazioni={setAllocazioni}
               attiva={attiva}
-              onAttiva={setAttiva}
+              onAttiva={scegliStrategia}
             />
             <RuntimeErrorBoundary area="broker">
               <BrokerConnect reale={reale} />
@@ -357,8 +377,9 @@ function Index() {
                 reale={reale}
                 strategia={attiva}
                 capitale={capitaleStrategia}
-                universo={universo}
               />
+
+
             </RuntimeErrorBoundary>
           </div>
 

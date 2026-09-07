@@ -194,20 +194,26 @@ export async function eseguiCiclo(
 
   const headers = cred.headers;
   const url = base(reale);
-  const universo = (input.universo.length ? input.universo : strategia.universo)
+
+  // L'IA sceglie da sola su cosa investire analizzando il mercato.
+  const { selezionaUniverso } = await import("./selezione.server");
+  const auto = await selezionaUniverso(headers, reale, input.strategia);
+  const universo = (auto.universo.length ? auto.universo : strategia.universo)
     .map((t) => t.toUpperCase().trim())
     .filter(Boolean)
     .slice(0, 200);
+  const selezione = auto.motivo;
 
   if (!universo.length || capitale <= 0) {
     return {
       ok: false,
-      messaggio: "Imposta capitale e universo investibile prima di avviare il motore.",
+      messaggio: "Imposta il capitale prima di avviare il motore.",
       mercatoAperto: false,
       decisioni: [],
       eseguiti: 0,
     };
   }
+
 
   try {
     const [clockRes, posRes, storico] = await Promise.all([
@@ -293,12 +299,15 @@ export async function eseguiCiclo(
       mercatoAperto,
       decisioni,
       eseguiti,
+      universo,
+      selezione,
       messaggio: eseguiti
         ? `${eseguiti} ordini inviati al conto ${reale ? "reale" : "paper"}${
             mercatoAperto ? "." : " (mercato chiuso: verranno eseguiti all'apertura)."
           }`
         : "Nessun segnale operativo in questo ciclo: l'IA resta in attesa.",
     };
+
   } catch (error) {
     logServer("trading.eseguiCiclo", error, { reale });
     return {

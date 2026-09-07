@@ -25,4 +25,7 @@ export type EsitoCiclo = {
   mercatoAperto: boolean;
   decisioni: DecisioneIA[];
   eseguiti: number;
+  universo?: string[];
+  selezione?: string;
 };
+
