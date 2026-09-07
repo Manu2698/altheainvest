@@ -15,12 +15,10 @@ export function MotoreIA({
   reale,
   strategia,
   capitale,
-  universo,
 }: {
   reale: boolean;
   strategia: StrategyId;
   capitale: number;
-  universo: string[];
 }) {
   const esegui = useServerFn(eseguiCicloIA);
   const ordini = useServerFn(getOrdiniBroker);
@@ -30,8 +28,9 @@ export function MotoreIA({
   const [auto, setAuto] = useState(false);
   const [esito, setEsito] = useState<EsitoCiclo | null>(null);
   const [ultimoCiclo, setUltimoCiclo] = useState<string | null>(null);
-  const params = useRef({ reale, strategia, capitale, universo });
-  params.current = { reale, strategia, capitale, universo };
+  const params = useRef({ reale, strategia, capitale });
+  params.current = { reale, strategia, capitale };
+
 
   const listaOrdini = useQuery({
     queryKey: ["ordini-broker", reale],
