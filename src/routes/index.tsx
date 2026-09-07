@@ -379,7 +379,7 @@ function Index() {
                 capitale={capitaleStrategia}
               />
 
-              />
+
             </RuntimeErrorBoundary>
           </div>
 
