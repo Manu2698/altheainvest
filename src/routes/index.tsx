@@ -377,7 +377,8 @@ function Index() {
                 reale={reale}
                 strategia={attiva}
                 capitale={capitaleStrategia}
-                universo={universo}
+              />
+
               />
             </RuntimeErrorBoundary>
           </div>
