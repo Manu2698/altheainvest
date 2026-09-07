@@ -1,5 +1,5 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   Activity,
   BrainCircuit,
@@ -237,7 +237,7 @@ function Index() {
             return (
               <button
                 key={s.id}
-                onClick={() => setAttiva(s.id)}
+                onClick={() => scegliStrategia(s.id)}
                 className={cn(
                   "panel group cursor-pointer p-6 text-left transition-all",
                   selezionata
@@ -358,7 +358,7 @@ function Index() {
               allocazioni={allocazioni}
               setAllocazioni={setAllocazioni}
               attiva={attiva}
-              onAttiva={setAttiva}
+              onAttiva={scegliStrategia}
             />
             <RuntimeErrorBoundary area="broker">
               <BrokerConnect reale={reale} />
