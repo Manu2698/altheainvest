@@ -11,7 +11,11 @@
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as AuthRouteImport } from './routes/auth'
+import { Route as CookieRouteImport } from './routes/cookie'
 import { Route as OrdiniRouteImport } from './routes/ordini'
+import { Route as PrivacyRouteImport } from './routes/privacy'
+import { Route as RischiRouteImport } from './routes/rischi'
+import { Route as TerminiRouteImport } from './routes/termini'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
@@ -23,40 +27,86 @@ const AuthRoute = AuthRouteImport.update({
   path: '/auth',
   getParentRoute: () => rootRouteImport,
 } as any)
+const CookieRoute = CookieRouteImport.update({
+  id: '/cookie',
+  path: '/cookie',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const OrdiniRoute = OrdiniRouteImport.update({
   id: '/ordini',
   path: '/ordini',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const PrivacyRoute = PrivacyRouteImport.update({
+  id: '/privacy',
+  path: '/privacy',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const RischiRoute = RischiRouteImport.update({
+  id: '/rischi',
+  path: '/rischi',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const TerminiRoute = TerminiRouteImport.update({
+  id: '/termini',
+  path: '/termini',
   getParentRoute: () => rootRouteImport,
 } as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/auth': typeof AuthRoute
+  '/cookie': typeof CookieRoute
   '/ordini': typeof OrdiniRoute
+  '/privacy': typeof PrivacyRoute
+  '/rischi': typeof RischiRoute
+  '/termini': typeof TerminiRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/auth': typeof AuthRoute
+  '/cookie': typeof CookieRoute
   '/ordini': typeof OrdiniRoute
+  '/privacy': typeof PrivacyRoute
+  '/rischi': typeof RischiRoute
+  '/termini': typeof TerminiRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/auth': typeof AuthRoute
+  '/cookie': typeof CookieRoute
   '/ordini': typeof OrdiniRoute
+  '/privacy': typeof PrivacyRoute
+  '/rischi': typeof RischiRoute
+  '/termini': typeof TerminiRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/auth' | '/ordini'
+  fullPaths:
+    '/' | '/auth' | '/cookie' | '/ordini' | '/privacy' | '/rischi' | '/termini'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/auth' | '/ordini'
-  id: '__root__' | '/' | '/auth' | '/ordini'
+  to:
+    '/' | '/auth' | '/cookie' | '/ordini' | '/privacy' | '/rischi' | '/termini'
+  id:
+    | '__root__'
+    | '/'
+    | '/auth'
+    | '/cookie'
+    | '/ordini'
+    | '/privacy'
+    | '/rischi'
+    | '/termini'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   AuthRoute: typeof AuthRoute
+  CookieRoute: typeof CookieRoute
   OrdiniRoute: typeof OrdiniRoute
+  PrivacyRoute: typeof PrivacyRoute
+  RischiRoute: typeof RischiRoute
+  TerminiRoute: typeof TerminiRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -75,11 +125,39 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/cookie': {
+      id: '/cookie'
+      path: '/cookie'
+      fullPath: '/cookie'
+      preLoaderRoute: typeof CookieRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/ordini': {
       id: '/ordini'
       path: '/ordini'
       fullPath: '/ordini'
       preLoaderRoute: typeof OrdiniRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/privacy': {
+      id: '/privacy'
+      path: '/privacy'
+      fullPath: '/privacy'
+      preLoaderRoute: typeof PrivacyRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/rischi': {
+      id: '/rischi'
+      path: '/rischi'
+      fullPath: '/rischi'
+      preLoaderRoute: typeof RischiRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/termini': {
+      id: '/termini'
+      path: '/termini'
+      fullPath: '/termini'
+      preLoaderRoute: typeof TerminiRouteImport
       parentRoute: typeof rootRouteImport
     }
   }
@@ -88,7 +166,11 @@ declare module '@tanstack/react-router' {
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   AuthRoute: AuthRoute,
+  CookieRoute: CookieRoute,
   OrdiniRoute: OrdiniRoute,
+  PrivacyRoute: PrivacyRoute,
+  RischiRoute: RischiRoute,
+  TerminiRoute: TerminiRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
