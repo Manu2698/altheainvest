@@ -299,12 +299,15 @@ export async function eseguiCiclo(
       mercatoAperto,
       decisioni,
       eseguiti,
+      universo,
+      selezione,
       messaggio: eseguiti
         ? `${eseguiti} ordini inviati al conto ${reale ? "reale" : "paper"}${
             mercatoAperto ? "." : " (mercato chiuso: verranno eseguiti all'apertura)."
           }`
         : "Nessun segnale operativo in questo ciclo: l'IA resta in attesa.",
     };
+
   } catch (error) {
     logServer("trading.eseguiCiclo", error, { reale });
     return {
