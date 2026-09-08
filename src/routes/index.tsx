@@ -452,11 +452,28 @@ function Index() {
         <div className="mx-auto max-w-6xl px-5 py-10 text-xs leading-relaxed text-muted-foreground">
           <p className="font-medium text-foreground">Althea</p>
           <p className="mt-2 max-w-2xl">
-            I dati mostrati in questa pagina sono simulati a scopo dimostrativo. Il
-            trading comporta il rischio di perdita del capitale: i rendimenti passati o
-            simulati non garantiscono risultati futuri. Nessun contenuto costituisce
-            consulenza finanziaria.
+            Althea è uno strumento software: non è un broker, una banca né un consulente
+            finanziario e non detiene mai il tuo denaro, che resta sul conto del tuo
+            intermediario. Alcuni dati mostrati sono simulati a scopo dimostrativo. Il
+            trading comporta il rischio di perdita, anche totale, del capitale: i
+            rendimenti passati o simulati non garantiscono risultati futuri. Nessun
+            contenuto costituisce consulenza finanziaria. Non è prevista alcuna politica
+            di rimborso.
           </p>
+          <nav className="mt-5 flex flex-wrap gap-4">
+            <Link to="/termini" className="hover:text-foreground">
+              Termini e condizioni
+            </Link>
+            <Link to="/privacy" className="hover:text-foreground">
+              Privacy
+            </Link>
+            <Link to="/cookie" className="hover:text-foreground">
+              Cookie
+            </Link>
+            <Link to="/rischi" className="hover:text-foreground">
+              Avvertenze sui rischi
+            </Link>
+          </nav>
         </div>
       </footer>
     </div>
