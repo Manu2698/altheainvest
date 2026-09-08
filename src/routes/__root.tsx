@@ -11,6 +11,7 @@ import { useEffect, type ReactNode } from "react";
 
 import appCss from "../styles.css?url";
 import { installRuntimeMonitor, logErroreRuntime } from "../lib/runtime-monitor";
+import { BannerCookie } from "../components/BannerCookie";
 
 function NotFoundComponent() {
   return (
@@ -130,6 +131,7 @@ function RootComponent() {
     <QueryClientProvider client={queryClient}>
       {/* Required: nested routes render here. Removing <Outlet /> breaks all child routes. */}
       <Outlet />
+      <BannerCookie />
     </QueryClientProvider>
   );
 }
