@@ -128,6 +128,45 @@ export type Database = {
         }
         Relationships: []
       }
+      ordini_ia: {
+        Row: {
+          ambiente: string
+          created_at: string
+          id: string
+          importo: number
+          lato: string
+          motivo: string | null
+          pnl_pct: number | null
+          strategia: string
+          ticker: string
+          user_id: string
+        }
+        Insert: {
+          ambiente?: string
+          created_at?: string
+          id?: string
+          importo?: number
+          lato: string
+          motivo?: string | null
+          pnl_pct?: number | null
+          strategia: string
+          ticker: string
+          user_id: string
+        }
+        Update: {
+          ambiente?: string
+          created_at?: string
+          id?: string
+          importo?: number
+          lato?: string
+          motivo?: string | null
+          pnl_pct?: number | null
+          strategia?: string
+          ticker?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       ordini_pianificati: {
         Row: {
           created_at: string

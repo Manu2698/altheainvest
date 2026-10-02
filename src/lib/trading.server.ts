@@ -294,6 +294,29 @@ export async function eseguiCiclo(
     }
 
     const eseguiti = decisioni.filter((d) => d.eseguito).length;
+
+    // Registro per strategia (statistiche, report): non blocca il ciclo se fallisce.
+    if (eseguiti) {
+      try {
+        const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+        await supabaseAdmin.from("ordini_ia").insert(
+          decisioni
+            .filter((d) => d.eseguito)
+            .map((d) => ({
+              user_id: userId,
+              strategia: input.strategia,
+              ambiente: reale ? "reale" : "paper",
+              ticker: d.ticker,
+              lato: d.azione === "vendi" ? "sell" : "buy",
+              importo: d.importo,
+              pnl_pct: d.azione === "vendi" ? (posizioni.get(d.ticker)?.pnlPct ?? null) : null,
+              motivo: d.motivo,
+            })),
+        );
+      } catch (error) {
+        logServer("trading.registro", error, { reale });
+      }
+    }
     return {
       ok: true,
       mercatoAperto,

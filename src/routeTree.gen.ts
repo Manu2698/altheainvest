@@ -14,6 +14,7 @@ import { Route as AuthRouteImport } from './routes/auth'
 import { Route as CookieRouteImport } from './routes/cookie'
 import { Route as OrdiniRouteImport } from './routes/ordini'
 import { Route as PrivacyRouteImport } from './routes/privacy'
+import { Route as ReportRouteImport } from './routes/report'
 import { Route as RischiRouteImport } from './routes/rischi'
 import { Route as TerminiRouteImport } from './routes/termini'
 
@@ -42,6 +43,11 @@ const PrivacyRoute = PrivacyRouteImport.update({
   path: '/privacy',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ReportRoute = ReportRouteImport.update({
+  id: '/report',
+  path: '/report',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const RischiRoute = RischiRouteImport.update({
   id: '/rischi',
   path: '/rischi',
@@ -59,6 +65,7 @@ export interface FileRoutesByFullPath {
   '/cookie': typeof CookieRoute
   '/ordini': typeof OrdiniRoute
   '/privacy': typeof PrivacyRoute
+  '/report': typeof ReportRoute
   '/rischi': typeof RischiRoute
   '/termini': typeof TerminiRoute
 }
@@ -68,6 +75,7 @@ export interface FileRoutesByTo {
   '/cookie': typeof CookieRoute
   '/ordini': typeof OrdiniRoute
   '/privacy': typeof PrivacyRoute
+  '/report': typeof ReportRoute
   '/rischi': typeof RischiRoute
   '/termini': typeof TerminiRoute
 }
@@ -78,16 +86,31 @@ export interface FileRoutesById {
   '/cookie': typeof CookieRoute
   '/ordini': typeof OrdiniRoute
   '/privacy': typeof PrivacyRoute
+  '/report': typeof ReportRoute
   '/rischi': typeof RischiRoute
   '/termini': typeof TerminiRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
-    '/' | '/auth' | '/cookie' | '/ordini' | '/privacy' | '/rischi' | '/termini'
+    | '/'
+    | '/auth'
+    | '/cookie'
+    | '/ordini'
+    | '/privacy'
+    | '/report'
+    | '/rischi'
+    | '/termini'
   fileRoutesByTo: FileRoutesByTo
   to:
-    '/' | '/auth' | '/cookie' | '/ordini' | '/privacy' | '/rischi' | '/termini'
+    | '/'
+    | '/auth'
+    | '/cookie'
+    | '/ordini'
+    | '/privacy'
+    | '/report'
+    | '/rischi'
+    | '/termini'
   id:
     | '__root__'
     | '/'
@@ -95,6 +118,7 @@ export interface FileRouteTypes {
     | '/cookie'
     | '/ordini'
     | '/privacy'
+    | '/report'
     | '/rischi'
     | '/termini'
   fileRoutesById: FileRoutesById
@@ -105,6 +129,7 @@ export interface RootRouteChildren {
   CookieRoute: typeof CookieRoute
   OrdiniRoute: typeof OrdiniRoute
   PrivacyRoute: typeof PrivacyRoute
+  ReportRoute: typeof ReportRoute
   RischiRoute: typeof RischiRoute
   TerminiRoute: typeof TerminiRoute
 }
@@ -146,6 +171,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof PrivacyRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/report': {
+      id: '/report'
+      path: '/report'
+      fullPath: '/report'
+      preLoaderRoute: typeof ReportRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/rischi': {
       id: '/rischi'
       path: '/rischi'
@@ -169,6 +201,7 @@ const rootRouteChildren: RootRouteChildren = {
   CookieRoute: CookieRoute,
   OrdiniRoute: OrdiniRoute,
   PrivacyRoute: PrivacyRoute,
+  ReportRoute: ReportRoute,
   RischiRoute: RischiRoute,
   TerminiRoute: TerminiRoute,
 }
