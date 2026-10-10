@@ -14,6 +14,45 @@ export type Database = {
   }
   public: {
     Tables: {
+      automazioni_ia: {
+        Row: {
+          attivo: boolean
+          bloccato_fino: string | null
+          capitale: number
+          modalita: string
+          reale: boolean
+          strategia: string
+          ultimo_ciclo: string | null
+          ultimo_esito: Json | null
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          attivo?: boolean
+          bloccato_fino?: string | null
+          capitale?: number
+          modalita?: string
+          reale?: boolean
+          strategia?: string
+          ultimo_ciclo?: string | null
+          ultimo_esito?: Json | null
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          attivo?: boolean
+          bloccato_fino?: string | null
+          capitale?: number
+          modalita?: string
+          reale?: boolean
+          strategia?: string
+          ultimo_ciclo?: string | null
+          ultimo_esito?: Json | null
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       broker_credenziali: {
         Row: {
           ambiente: string
