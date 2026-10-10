@@ -2,7 +2,6 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { useState } from "react";
 import { ArrowLeft, FileDown } from "lucide-react";
 import { StatisticheStrategie, useStatistiche } from "@/components/StatisticheStrategie";
-import { Simulatore } from "@/components/Simulatore";
 import { PannelloSegnali } from "@/components/PannelloSegnali";
 import { getStrategia, STRATEGIE } from "@/lib/strategies";
 import { cn } from "@/lib/utils";
@@ -133,7 +132,6 @@ function PaginaReport() {
           </div>
         ))}
 
-        <Simulatore reale={reale} />
       </div>
     </div>
   );

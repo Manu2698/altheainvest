@@ -238,12 +238,27 @@ export async function eseguiCiclo(
       }
     }
 
-    const quota = capitale / universo.length;
+    // Le posizioni già aperte vengono sempre rianalizzate (per poterle vendere).
+    for (const t of posizioni.keys()) if (!universo.includes(t)) universo.push(t);
+    const mancanti = universo.filter((t) => !storico[t]);
+    if (mancanti.length) Object.assign(storico, await serieStorica(mancanti, headers));
+
+    // Tetto rigido: il totale investito non supera mai il capitale scelto dall'utente.
+    const investito = [...posizioni.values()].reduce((a, p) => a + p.valore, 0);
+    let residuo = Math.max(0, capitale - investito);
+    const quota = capitale / Math.max(1, auto.universo.length || universo.length);
     const decisioni: DecisioneIA[] = [];
 
     for (const ticker of universo) {
       const chiusure = storico[ticker] ?? storico[ticker.replace("/", "")] ?? [];
       const scelta = decide(input.strategia, ticker, chiusure, posizioni.get(ticker), quota);
+      if (scelta.azione === "compra") {
+        scelta.importo = Math.min(scelta.importo, residuo);
+        if (scelta.importo < 1) {
+          scelta.azione = "attendi";
+          scelta.motivo = `Capitale impostato (${capitale} $) già interamente investito.`;
+        }
+      }
       const decisione: DecisioneIA = {
         ticker,
         azione: scelta.azione,
@@ -265,7 +280,8 @@ export async function eseguiCiclo(
           decisione.errore = testo.slice(0, 180);
           logServer("trading.chiusura", new Error(testo), { ticker, reale });
         }
-      } else if (scelta.azione === "compra" && decisione.importo >= 5) {
+      } else if (scelta.azione === "compra" && decisione.importo >= 1) {
+        residuo -= decisione.importo;
         const cripto = isCripto(ticker);
         const res = await fetch(`${url}/v2/orders`, {
           method: "POST",

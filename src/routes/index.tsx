@@ -16,9 +16,7 @@ import { BrokerConnect } from "@/components/BrokerConnect";
 import { AuthBadge } from "@/components/AuthBadge";
 import { MotoreIA } from "@/components/MotoreIA";
 import { PannelloSegnali } from "@/components/PannelloSegnali";
-import { OrdiniPianificati } from "@/components/OrdiniPianificati";
 import { StatisticheStrategie } from "@/components/StatisticheStrategie";
-import { Simulatore } from "@/components/Simulatore";
 import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { getContoBroker } from "@/lib/alpaca.functions";
@@ -377,14 +375,8 @@ function Index() {
             <RuntimeErrorBoundary area="statistiche">
               <StatisticheStrategie reale={reale} />
             </RuntimeErrorBoundary>
-            <RuntimeErrorBoundary area="simulatore">
-              <Simulatore reale={reale} />
-            </RuntimeErrorBoundary>
             <RuntimeErrorBoundary area="segnali">
               <PannelloSegnali reale={reale} universo={universo} />
-            </RuntimeErrorBoundary>
-            <RuntimeErrorBoundary area="ordini pianificati">
-              <OrdiniPianificati reale={reale} universo={universo} />
             </RuntimeErrorBoundary>
             <RuntimeErrorBoundary area="motore IA">
               <MotoreIA

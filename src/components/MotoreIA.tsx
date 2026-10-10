@@ -59,10 +59,16 @@ export function MotoreIA({
   });
 
   const lancia = ciclo.mutate;
+  const inCorso = useRef(false);
+  inCorso.current = ciclo.isPending;
   useEffect(() => {
     if (!auto || !autenticato) return;
-    lancia();
-    const id = setInterval(() => lancia(), 5 * 60_000);
+    // Analisi continua: un ciclo al minuto (limite pratico delle API del broker),
+    // senza mai sovrapporre due cicli.
+    if (!inCorso.current) lancia();
+    const id = setInterval(() => {
+      if (!inCorso.current) lancia();
+    }, 60_000);
     return () => clearInterval(id);
   }, [auto, autenticato, lancia]);
 
@@ -77,7 +83,7 @@ export function MotoreIA({
             auto ? "border-bull/40 bg-bull/10 text-bull" : "border-border text-muted-foreground",
           )}
         >
-          {auto ? "auto · ogni 5 min" : "manuale"}
+          {auto ? "auto · analisi ogni minuto" : "manuale"}
         </span>
         {ultimoCiclo && (
           <span className="numeric text-[10px] text-muted-foreground">
