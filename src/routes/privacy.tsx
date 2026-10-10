@@ -32,9 +32,12 @@ function Privacy() {
 
       <Sezione titolo="1. Titolare del trattamento">
         <p>
-          Il titolare è il gestore del sito Althea. Prima della pubblicazione definitiva
-          inserisci qui il tuo nome o la ragione sociale, l'indirizzo e un indirizzo email di
-          contatto: sono dati obbligatori e devono essere quelli reali.
+          Il titolare del trattamento è <strong className="text-foreground">Emanuele Pietrobon</strong>,
+          Italia. Per qualsiasi richiesta relativa ai dati personali puoi scrivere a{" "}
+          <a href="mailto:emajpietro26@gmail.com" className="text-primary underline">
+            emajpietro26@gmail.com
+          </a>
+          .
         </p>
       </Sezione>
 
