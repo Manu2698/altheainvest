@@ -375,14 +375,8 @@ function Index() {
             <RuntimeErrorBoundary area="statistiche">
               <StatisticheStrategie reale={reale} />
             </RuntimeErrorBoundary>
-            <RuntimeErrorBoundary area="simulatore">
-              <Simulatore reale={reale} />
-            </RuntimeErrorBoundary>
             <RuntimeErrorBoundary area="segnali">
               <PannelloSegnali reale={reale} universo={universo} />
-            </RuntimeErrorBoundary>
-            <RuntimeErrorBoundary area="ordini pianificati">
-              <OrdiniPianificati reale={reale} universo={universo} />
             </RuntimeErrorBoundary>
             <RuntimeErrorBoundary area="motore IA">
               <MotoreIA
