@@ -29,7 +29,7 @@ export const Route = createFileRoute("/ordini")({
   component: PaginaOrdini,
   errorComponent: ({ error }) => (
     <div role="alert" className="mx-auto max-w-3xl p-8 text-sm text-bear">
-      {error.message}
+      {error instanceof Error ? error.message : String(error)}
     </div>
   ),
   notFoundComponent: () => (
