@@ -17,6 +17,8 @@ import { AuthBadge } from "@/components/AuthBadge";
 import { MotoreIA } from "@/components/MotoreIA";
 import { PannelloSegnali } from "@/components/PannelloSegnali";
 import { OrdiniPianificati } from "@/components/OrdiniPianificati";
+import { StatisticheStrategie } from "@/components/StatisticheStrategie";
+import { Simulatore } from "@/components/Simulatore";
 import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { getContoBroker } from "@/lib/alpaca.functions";
@@ -169,6 +171,12 @@ function Index() {
             className="rounded-lg border border-border px-3 py-1.5 text-xs text-muted-foreground transition-colors hover:text-foreground"
           >
             Ordini
+          </Link>
+          <Link
+            to="/report"
+            className="rounded-lg border border-border px-3 py-1.5 text-xs text-muted-foreground transition-colors hover:text-foreground"
+          >
+            Report
           </Link>
 
           <AuthBadge />
@@ -366,6 +374,12 @@ function Index() {
           </div>
 
           <div className="mt-4 grid gap-4">
+            <RuntimeErrorBoundary area="statistiche">
+              <StatisticheStrategie reale={reale} />
+            </RuntimeErrorBoundary>
+            <RuntimeErrorBoundary area="simulatore">
+              <Simulatore reale={reale} />
+            </RuntimeErrorBoundary>
             <RuntimeErrorBoundary area="segnali">
               <PannelloSegnali reale={reale} universo={universo} />
             </RuntimeErrorBoundary>
