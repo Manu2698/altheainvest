@@ -85,48 +85,6 @@ export function MotoreIA({
       }),
   });
 
-  return () => clearTimeout(id);
-  }, [reale, strategia, capitale, modalita]); // eslint-disable-line react-hooks/exhaustive-deps
-
-  const listaOrdini = useQuery({
-    queryKey: ["ordini-broker", reale],
-    enabled: autenticato,
-    queryFn: () => ordini({ data: { reale } }),
-    retry: false,
-    refetchInterval: 60_000,
-  });
-
-  const ciclo = useMutation({
-    mutationFn: () => esegui({ data: params.current }),
-    onSuccess: (r) => {
-      setEsito(r);
-      void qc.invalidateQueries({ queryKey: ["ordini-broker"] });
-      void qc.invalidateQueries({ queryKey: ["conto-broker"] });
-    },
-    onError: (e) =>
-      setEsito({
-        ok: false,
-        messaggio: e instanceof Error ? e.message : "Errore imprevisto.",
-        mercatoAperto: false,
-        decisioni: [],
-        eseguiti: 0,
-      }),
-  });
-
-  const lancia = ciclo.mutate;
-  const inCorso = useRef(false);
-  inCorso.current = ciclo.isPending;
-  useEffect(() => {
-    if (!auto || !autenticato) return;
-    // Analisi continua: un ciclo al minuto (limite pratico delle API del broker),
-    // senza mai sovrapporre due cicli.
-    if (!inCorso.current) lancia();
-    const id = setInterval(() => {
-      if (!inCorso.current) lancia();
-    }, 60_000);
-    return () => clearInterval(id);
-  }, [auto, autenticato, lancia]);
-
   return (
     <div className="panel p-6">
       <div className="flex flex-wrap items-center gap-2">
