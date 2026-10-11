@@ -108,6 +108,7 @@ export const eseguiCicloIA = createServerFn({ method: "POST" })
       strategia: StrategyId;
       capitale: number;
       universo?: string[];
+      modalita?: "limite" | "conto";
     }) => {
       const ammesse: StrategyId[] = ["conservativo", "medio", "aggressivo"];
       const strategia = ammesse.includes(input?.strategia) ? input.strategia : "medio";
@@ -116,6 +117,7 @@ export const eseguiCicloIA = createServerFn({ method: "POST" })
         reale: Boolean(input?.reale),
         strategia,
         capitale: Number.isFinite(capitale) ? Math.min(Math.max(capitale, 0), 10_000_000) : 0,
+        modalita: input?.modalita === "conto" ? ("conto" as const) : ("limite" as const),
         universo: (Array.isArray(input?.universo) ? input.universo : [])
           .map((t) => String(t).toUpperCase().trim())
           .filter(Boolean)
