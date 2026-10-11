@@ -17,6 +17,7 @@ import { Route as PrivacyRouteImport } from './routes/privacy'
 import { Route as ReportRouteImport } from './routes/report'
 import { Route as RischiRouteImport } from './routes/rischi'
 import { Route as TerminiRouteImport } from './routes/termini'
+import { Route as ApiPublicHooksCicloIaRouteImport } from './routes/api/public/hooks/ciclo-ia'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
@@ -58,6 +59,11 @@ const TerminiRoute = TerminiRouteImport.update({
   path: '/termini',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiPublicHooksCicloIaRoute = ApiPublicHooksCicloIaRouteImport.update({
+  id: '/api/public/hooks/ciclo-ia',
+  path: '/api/public/hooks/ciclo-ia',
+  getParentRoute: () => rootRouteImport,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
@@ -68,6 +74,7 @@ export interface FileRoutesByFullPath {
   '/report': typeof ReportRoute
   '/rischi': typeof RischiRoute
   '/termini': typeof TerminiRoute
+  '/api/public/hooks/ciclo-ia': typeof ApiPublicHooksCicloIaRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -78,6 +85,7 @@ export interface FileRoutesByTo {
   '/report': typeof ReportRoute
   '/rischi': typeof RischiRoute
   '/termini': typeof TerminiRoute
+  '/api/public/hooks/ciclo-ia': typeof ApiPublicHooksCicloIaRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -89,6 +97,7 @@ export interface FileRoutesById {
   '/report': typeof ReportRoute
   '/rischi': typeof RischiRoute
   '/termini': typeof TerminiRoute
+  '/api/public/hooks/ciclo-ia': typeof ApiPublicHooksCicloIaRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -101,6 +110,7 @@ export interface FileRouteTypes {
     | '/report'
     | '/rischi'
     | '/termini'
+    | '/api/public/hooks/ciclo-ia'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -111,6 +121,7 @@ export interface FileRouteTypes {
     | '/report'
     | '/rischi'
     | '/termini'
+    | '/api/public/hooks/ciclo-ia'
   id:
     | '__root__'
     | '/'
@@ -121,6 +132,7 @@ export interface FileRouteTypes {
     | '/report'
     | '/rischi'
     | '/termini'
+    | '/api/public/hooks/ciclo-ia'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -132,6 +144,7 @@ export interface RootRouteChildren {
   ReportRoute: typeof ReportRoute
   RischiRoute: typeof RischiRoute
   TerminiRoute: typeof TerminiRoute
+  ApiPublicHooksCicloIaRoute: typeof ApiPublicHooksCicloIaRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -192,6 +205,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof TerminiRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/public/hooks/ciclo-ia': {
+      id: '/api/public/hooks/ciclo-ia'
+      path: '/api/public/hooks/ciclo-ia'
+      fullPath: '/api/public/hooks/ciclo-ia'
+      preLoaderRoute: typeof ApiPublicHooksCicloIaRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
 
@@ -204,6 +224,7 @@ const rootRouteChildren: RootRouteChildren = {
   ReportRoute: ReportRoute,
   RischiRoute: RischiRoute,
   TerminiRoute: TerminiRoute,
+  ApiPublicHooksCicloIaRoute: ApiPublicHooksCicloIaRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

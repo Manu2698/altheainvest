@@ -175,9 +175,16 @@ export async function leggiOrdini(
 
 export async function eseguiCiclo(
   userId: string,
-  input: { reale: boolean; strategia: StrategyId; capitale: number; universo: string[] },
+  input: {
+    reale: boolean;
+    strategia: StrategyId;
+    capitale: number;
+    universo: string[];
+    modalita?: "limite" | "conto";
+  },
 ): Promise<EsitoCiclo> {
-  const { reale, capitale } = input;
+  const { reale } = input;
+  let capitale = input.capitale;
   const strategia = getStrategia(input.strategia);
   const cred = await credenzialiUtente(userId, reale);
   if (!cred || !cred.proprie) {
@@ -203,6 +210,19 @@ export async function eseguiCiclo(
     .filter(Boolean)
     .slice(0, 200);
   const selezione = auto.motivo;
+
+  // Modalità "conto": l'IA usa tutto il capitale del conto Alpaca.
+  let liquidita = Infinity;
+  try {
+    const acc = await fetch(`${url}/v2/account`, { headers });
+    if (acc.ok) {
+      const a = (await acc.json()) as Record<string, unknown>;
+      liquidita = num(a["cash"]);
+      if (input.modalita === "conto") capitale = num(a["portfolio_value"] ?? a["equity"]);
+    }
+  } catch (error) {
+    logServer("trading.account", error, { reale });
+  }
 
   if (!universo.length || capitale <= 0) {
     return {
@@ -245,7 +265,7 @@ export async function eseguiCiclo(
 
     // Tetto rigido: il totale investito non supera mai il capitale scelto dall'utente.
     const investito = [...posizioni.values()].reduce((a, p) => a + p.valore, 0);
-    let residuo = Math.max(0, capitale - investito);
+    let residuo = Math.max(0, Math.min(capitale - investito, liquidita));
     const quota = capitale / Math.max(1, auto.universo.length || universo.length);
     const decisioni: DecisioneIA[] = [];
 

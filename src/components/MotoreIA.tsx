@@ -3,6 +3,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { AlertTriangle, Bot, CheckCircle2, Loader2, Play, RefreshCw } from "lucide-react";
 import { eseguiCicloIA, getOrdiniBroker } from "@/lib/alpaca.functions";
+import { getAutomazione, salvaAutomazione } from "@/lib/automazione.functions";
 import type { EsitoCiclo } from "@/lib/trading.types";
 import type { StrategyId } from "@/lib/strategies";
 import { useSessione } from "@/hooks/useSessione";
@@ -25,12 +26,39 @@ export function MotoreIA({
   const qc = useQueryClient();
   const { autenticato } = useSessione();
 
-  const [auto, setAuto] = useState(false);
+  const leggiAuto = useServerFn(getAutomazione);
+  const salvaAuto = useServerFn(salvaAutomazione);
   const [esito, setEsito] = useState<EsitoCiclo | null>(null);
-  const [ultimoCiclo, setUltimoCiclo] = useState<string | null>(null);
-  const params = useRef({ reale, strategia, capitale });
-  params.current = { reale, strategia, capitale };
+  const [modalita, setModalita] = useState<"limite" | "conto">("limite");
+  const params = useRef({ reale, strategia, capitale, modalita });
+  params.current = { reale, strategia, capitale, modalita };
 
+  const impostazioni = useQuery({
+    queryKey: ["automazione-ia"],
+    enabled: autenticato,
+    queryFn: () => leggiAuto(),
+    refetchInterval: 30_000,
+    retry: false,
+  });
+  const auto = impostazioni.data?.attivo ?? false;
+  const ultimoCiclo = impostazioni.data?.ultimoCiclo ?? null;
+  const esitoMostrato = esito ?? impostazioni.data?.ultimoEsito ?? null;
+
+  useEffect(() => {
+    if (impostazioni.data) setModalita(impostazioni.data.modalita);
+  }, [impostazioni.data?.modalita]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const salva = useMutation({
+    mutationFn: (attivo: boolean) => salvaAuto({ data: { attivo, ...params.current } }),
+    onSuccess: () => void qc.invalidateQueries({ queryKey: ["automazione-ia"] }),
+  });
+
+  // Se il motore è attivo, tieni allineate sul server strategia, capitale e modalità.
+  useEffect(() => {
+    if (!auto || !autenticato) return;
+    const id = setTimeout(() => salva.mutate(true), 800);
+    return () => clearTimeout(id);
+  }, [reale, strategia, capitale, modalita]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const listaOrdini = useQuery({
     queryKey: ["ordini-broker", reale],
@@ -44,7 +72,6 @@ export function MotoreIA({
     mutationFn: () => esegui({ data: params.current }),
     onSuccess: (r) => {
       setEsito(r);
-      setUltimoCiclo(new Date().toISOString());
       void qc.invalidateQueries({ queryKey: ["ordini-broker"] });
       void qc.invalidateQueries({ queryKey: ["conto-broker"] });
     },
@@ -58,20 +85,6 @@ export function MotoreIA({
       }),
   });
 
-  const lancia = ciclo.mutate;
-  const inCorso = useRef(false);
-  inCorso.current = ciclo.isPending;
-  useEffect(() => {
-    if (!auto || !autenticato) return;
-    // Analisi continua: un ciclo al minuto (limite pratico delle API del broker),
-    // senza mai sovrapporre due cicli.
-    if (!inCorso.current) lancia();
-    const id = setInterval(() => {
-      if (!inCorso.current) lancia();
-    }, 60_000);
-    return () => clearInterval(id);
-  }, [auto, autenticato, lancia]);
-
   return (
     <div className="panel p-6">
       <div className="flex flex-wrap items-center gap-2">
@@ -83,18 +96,19 @@ export function MotoreIA({
             auto ? "border-bull/40 bg-bull/10 text-bull" : "border-border text-muted-foreground",
           )}
         >
-          {auto ? "auto · analisi ogni minuto" : "manuale"}
+          {auto ? "automatico · ogni minuto, anche a sito chiuso" : "manuale"}
         </span>
         {ultimoCiclo && (
           <span className="numeric text-[10px] text-muted-foreground">
-            ultimo ciclo {ultimoCiclo.slice(11, 19)} UTC
+            ultimo ciclo {giorno(ultimoCiclo)} {ultimoCiclo.slice(11, 19)} UTC
           </span>
         )}
         <div className="ml-auto flex gap-2">
           <button
-            onClick={() => setAuto((v) => !v)}
+            onClick={() => salva.mutate(!auto)}
+            disabled={!autenticato || salva.isPending}
             className={cn(
-              "rounded-lg border px-3 py-1.5 text-[11px] font-semibold transition-colors",
+              "rounded-lg border px-3 py-1.5 text-[11px] font-semibold transition-colors disabled:opacity-60",
               auto
                 ? "border-bear/50 text-bear hover:bg-bear/10"
                 : "border-border text-muted-foreground hover:text-foreground",
@@ -123,45 +137,73 @@ export function MotoreIA({
       <p className="mt-2 text-xs text-muted-foreground">
         L'IA analizza da sola tutti gli strumenti disponibili sul broker (azioni, ETF e
         cripto) e sceglie in autonomia su cosa investire, secondo la strategia attiva.
-        Capitale gestito: <span className="numeric text-foreground">{capitale} $</span> sul
-        conto {reale ? "reale" : "paper"}.
+        {modalita === "limite" ? (
+          <>
+            Capitale gestito: <span className="numeric text-foreground">{capitale} $</span> sul
+            conto {reale ? "reale" : "paper"}: l'IA non supera mai questa cifra.
+          </>
+        ) : (
+          <>L'IA legge il valore del conto {reale ? "reale" : "paper"} Alpaca e investe usando tutta quella cifra.</>
+        )}
       </p>
 
-      {esito?.selezione && (
+      <div className="mt-3 inline-flex rounded-lg border border-border bg-surface-2 p-0.5 text-[11px]">
+        {(
+          [
+            ["limite", "Usa il mio limite"],
+            ["conto", "Usa tutto il conto Alpaca"],
+          ] as const
+        ).map(([id, testo]) => (
+          <button
+            key={id}
+            onClick={() => setModalita(id)}
+            className={cn(
+              "rounded-md px-3 py-1.5 font-semibold transition-colors",
+              modalita === id
+                ? "bg-primary text-primary-foreground"
+                : "text-muted-foreground hover:text-foreground",
+            )}
+          >
+            {testo}
+          </button>
+        ))}
+      </div>
+
+      {esitoMostrato?.selezione && (
         <p className="mt-2 rounded-lg border border-border bg-surface-2 px-3 py-2 text-[11px] text-muted-foreground">
-          {esito.selezione}
-          {esito.universo?.length ? (
+          {esitoMostrato.selezione}
+          {esitoMostrato.universo?.length ? (
             <span className="numeric block mt-1 text-foreground">
-              {esito.universo.join(" · ")}
+              {esitoMostrato.universo.join(" · ")}
             </span>
           ) : null}
         </p>
       )}
 
 
-      {esito && (
+      {esitoMostrato && (
         <div
           className={cn(
             "mt-4 rounded-lg border p-3 text-[11px]",
-            esito.ok
+            esitoMostrato.ok
               ? "border-bull/40 bg-bull/10 text-bull"
               : "border-bear/40 bg-bear/10 text-bear",
           )}
         >
           <p className="flex items-start gap-2">
-            {esito.ok ? (
+            {esitoMostrato.ok ? (
               <CheckCircle2 className="mt-0.5 size-3 shrink-0" />
             ) : (
               <AlertTriangle className="mt-0.5 size-3 shrink-0" />
             )}
-            {esito.messaggio}
+            {esitoMostrato.messaggio}
           </p>
         </div>
       )}
 
-      {esito?.decisioni.length ? (
+      {esitoMostrato?.decisioni.length ? (
         <ul className="mt-3 max-h-52 space-y-1.5 overflow-y-auto pr-1">
-          {esito.decisioni.map((d) => (
+          {esitoMostrato.decisioni.map((d) => (
             <li
               key={d.ticker}
               className="rounded-lg border border-border bg-surface-2 px-3 py-2 text-[11px]"
