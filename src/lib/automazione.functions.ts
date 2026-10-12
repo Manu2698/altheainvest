@@ -11,6 +11,9 @@ export type Automazione = {
   modalita: "limite" | "conto";
   ultimoCiclo: string | null;
   ultimoEsito: EsitoCiclo | null;
+  perditaMaxGiornaliera: number | null;
+  pausaMotivo: string | null;
+  pausaIl: string | null;
 };
 
 export const getAutomazione = createServerFn({ method: "GET" })
@@ -30,6 +33,10 @@ export const getAutomazione = createServerFn({ method: "GET" })
       modalita: data.modalita === "conto" ? "conto" : "limite",
       ultimoCiclo: data.ultimo_ciclo,
       ultimoEsito: (data.ultimo_esito as unknown as EsitoCiclo) ?? null,
+      perditaMaxGiornaliera:
+        data.perdita_max_giornaliera != null ? Number(data.perdita_max_giornaliera) : null,
+      pausaMotivo: data.pausa_motivo,
+      pausaIl: data.pausa_il,
     };
   });
 
@@ -58,8 +65,26 @@ export const salvaAutomazione = createServerFn({ method: "POST" })
     const { error } = await context.supabase.from("automazioni_ia").upsert({
       user_id: context.userId,
       ...data,
+      // Riavviare il motore cancella il motivo della pausa precedente.
+      ...(data.attivo ? { pausa_motivo: null, pausa_il: null } : {}),
       updated_at: new Date().toISOString(),
     });
     if (error) throw new Error("Impossibile salvare le impostazioni dell'IA.");
+    return { ok: true };
+  });
+
+export const salvaLimitePerdita = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input: { limite: number | null }) => {
+    const n = Number(input?.limite);
+    return { limite: input?.limite == null || !Number.isFinite(n) || n <= 0 ? null : Math.min(n, 10_000_000) };
+  })
+  .handler(async ({ data, context }) => {
+    const { error } = await context.supabase.from("automazioni_ia").upsert({
+      user_id: context.userId,
+      perdita_max_giornaliera: data.limite,
+      updated_at: new Date().toISOString(),
+    });
+    if (error) throw new Error("Impossibile salvare il limite di perdita.");
     return { ok: true };
   });
