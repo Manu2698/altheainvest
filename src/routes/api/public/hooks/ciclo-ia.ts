@@ -50,6 +50,7 @@ export const Route = createFileRoute("/api/public/hooks/ciclo-ia")({
               capitale: Number(r.capitale),
               modalita: r.modalita === "conto" ? "conto" : "limite",
               universo: [],
+              perditaMax: r.perdita_max_giornaliera != null ? Number(r.perdita_max_giornaliera) : null,
             });
           } catch (e) {
             esito = {
@@ -60,12 +61,16 @@ export const Route = createFileRoute("/api/public/hooks/ciclo-ia")({
               eseguiti: 0,
             };
           }
+          const blocco = "bloccoPerdita" in esito && esito.bloccoPerdita;
           await supabaseAdmin
             .from("automazioni_ia")
             .update({
               ultimo_esito: JSON.parse(JSON.stringify(esito)),
               ultimo_ciclo: new Date().toISOString(),
               bloccato_fino: null,
+              ...(blocco
+                ? { attivo: false, pausa_motivo: esito.messaggio, pausa_il: new Date().toISOString() }
+                : {}),
             })
             .eq("user_id", r.user_id);
           elaborati++;
