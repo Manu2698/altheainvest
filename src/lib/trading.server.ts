@@ -181,6 +181,7 @@ export async function eseguiCiclo(
     capitale: number;
     universo: string[];
     modalita?: "limite" | "conto";
+    perditaMax?: number | null;
   },
 ): Promise<EsitoCiclo> {
   const { reale } = input;
@@ -213,15 +214,33 @@ export async function eseguiCiclo(
 
   // Modalità "conto": l'IA usa tutto il capitale del conto Alpaca.
   let liquidita = Infinity;
+  let perditaOggi: number | null = null;
   try {
     const acc = await fetch(`${url}/v2/account`, { headers });
     if (acc.ok) {
       const a = (await acc.json()) as Record<string, unknown>;
       liquidita = num(a["cash"]);
       if (input.modalita === "conto") capitale = num(a["portfolio_value"] ?? a["equity"]);
+      // Perdita della giornata: valore a chiusura di ieri meno valore attuale.
+      if (a["last_equity"] != null && a["equity"] != null) {
+        perditaOggi = num(a["last_equity"]) - num(a["equity"]);
+      }
     }
   } catch (error) {
     logServer("trading.account", error, { reale });
+  }
+
+  // Limite di perdita giornaliera: se raggiunto, l'IA si ferma prima di operare.
+  const limite = input.perditaMax ?? null;
+  if (limite && limite > 0 && perditaOggi != null && perditaOggi >= limite) {
+    return {
+      ok: false,
+      messaggio: `Trading sospeso: perdita di oggi ${perditaOggi.toFixed(2)} $ ha raggiunto il limite giornaliero di ${limite.toFixed(2)} $.`,
+      mercatoAperto: false,
+      decisioni: [],
+      eseguiti: 0,
+      bloccoPerdita: { perdita: Math.round(perditaOggi * 100) / 100, limite },
+    };
   }
 
   if (!universo.length || capitale <= 0) {
