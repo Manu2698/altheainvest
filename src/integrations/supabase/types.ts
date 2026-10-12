@@ -20,6 +20,9 @@ export type Database = {
           bloccato_fino: string | null
           capitale: number
           modalita: string
+          pausa_il: string | null
+          pausa_motivo: string | null
+          perdita_max_giornaliera: number | null
           reale: boolean
           strategia: string
           ultimo_ciclo: string | null
@@ -32,6 +35,9 @@ export type Database = {
           bloccato_fino?: string | null
           capitale?: number
           modalita?: string
+          pausa_il?: string | null
+          pausa_motivo?: string | null
+          perdita_max_giornaliera?: number | null
           reale?: boolean
           strategia?: string
           ultimo_ciclo?: string | null
@@ -44,6 +50,9 @@ export type Database = {
           bloccato_fino?: string | null
           capitale?: number
           modalita?: string
+          pausa_il?: string | null
+          pausa_motivo?: string | null
+          perdita_max_giornaliera?: number | null
           reale?: boolean
           strategia?: string
           ultimo_ciclo?: string | null
@@ -78,6 +87,68 @@ export type Database = {
           created_at?: string
           id?: string
           key_id?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      chat_messaggi: {
+        Row: {
+          created_at: string
+          id: string
+          messaggio: Json
+          ruolo: string
+          sdk_id: string
+          thread_id: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          messaggio: Json
+          ruolo: string
+          sdk_id: string
+          thread_id: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          messaggio?: Json
+          ruolo?: string
+          sdk_id?: string
+          thread_id?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "chat_messaggi_thread_id_fkey"
+            columns: ["thread_id"]
+            isOneToOne: false
+            referencedRelation: "chat_thread"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      chat_thread: {
+        Row: {
+          created_at: string
+          id: string
+          titolo: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          titolo?: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          titolo?: string
           updated_at?: string
           user_id?: string
         }
