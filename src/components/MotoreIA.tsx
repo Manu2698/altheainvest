@@ -3,7 +3,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { AlertTriangle, Bot, CheckCircle2, Loader2, Play, RefreshCw } from "lucide-react";
 import { eseguiCicloIA, getOrdiniBroker } from "@/lib/alpaca.functions";
-import { getAutomazione, salvaAutomazione } from "@/lib/automazione.functions";
+import { getAutomazione, salvaAutomazione, salvaLimitePerdita } from "@/lib/automazione.functions";
 import type { EsitoCiclo } from "@/lib/trading.types";
 import type { StrategyId } from "@/lib/strategies";
 import { useSessione } from "@/hooks/useSessione";
@@ -60,6 +60,19 @@ export function MotoreIA({
     return () => clearTimeout(id);
   }, [reale, strategia, capitale, modalita]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  const salvaLimiteFn = useServerFn(salvaLimitePerdita);
+  const [limiteTesto, setLimiteTesto] = useState("");
+  useEffect(() => {
+    const v = impostazioni.data?.perditaMaxGiornaliera;
+    setLimiteTesto(v != null ? String(v) : "");
+  }, [impostazioni.data?.perditaMaxGiornaliera]);
+  const salvaLimite = useMutation({
+    mutationFn: () =>
+      salvaLimiteFn({ data: { limite: limiteTesto.trim() ? Number(limiteTesto) : null } }),
+    onSuccess: () => void qc.invalidateQueries({ queryKey: ["automazione-ia"] }),
+  });
+  const pausa = !auto ? impostazioni.data?.pausaMotivo : null;
+
   const listaOrdini = useQuery({
     queryKey: ["ordini-broker", reale],
     enabled: autenticato,
@@ -72,6 +85,7 @@ export function MotoreIA({
     mutationFn: () => esegui({ data: params.current }),
     onSuccess: (r) => {
       setEsito(r);
+      if (r.bloccoPerdita) void qc.invalidateQueries({ queryKey: ["automazione-ia"] });
       void qc.invalidateQueries({ queryKey: ["ordini-broker"] });
       void qc.invalidateQueries({ queryKey: ["conto-broker"] });
     },
@@ -168,6 +182,56 @@ export function MotoreIA({
           </button>
         ))}
       </div>
+
+      <div className="mt-3 rounded-lg border border-border bg-surface-2 p-3">
+        <label htmlFor="limite-perdita" className="text-[11px] font-semibold">
+          Perdita massima giornaliera ($)
+        </label>
+        <p className="mt-0.5 text-[11px] text-muted-foreground">
+          Se il conto perde questa cifra rispetto alla chiusura di ieri, l'IA si mette in pausa da
+          sola. Lascia vuoto per nessun limite.
+        </p>
+        <div className="mt-2 flex gap-2">
+          <input
+            id="limite-perdita"
+            type="number"
+            min={0}
+            step="1"
+            inputMode="decimal"
+            value={limiteTesto}
+            onChange={(e) => setLimiteTesto(e.target.value)}
+            placeholder="nessun limite"
+            className="numeric w-36 rounded-md border border-border bg-background px-2 py-1 text-xs"
+          />
+          <button
+            onClick={() => salvaLimite.mutate()}
+            disabled={!autenticato || salvaLimite.isPending}
+            className="rounded-md border border-border px-3 py-1 text-[11px] font-semibold hover:text-foreground disabled:opacity-60"
+          >
+            {salvaLimite.isPending ? "Salvo…" : "Salva limite"}
+          </button>
+          {impostazioni.data?.perditaMaxGiornaliera != null && (
+            <span className="numeric self-center text-[11px] text-muted-foreground">
+              attivo: {impostazioni.data.perditaMaxGiornaliera} $
+            </span>
+          )}
+        </div>
+      </div>
+
+      {pausa && (
+        <div role="alert" className="mt-3 rounded-lg border border-bear/50 bg-bear/10 p-3 text-[11px] text-bear">
+          <p className="flex items-start gap-2 font-semibold">
+            <AlertTriangle className="mt-0.5 size-3 shrink-0" /> Trading automatico in pausa
+          </p>
+          <p className="mt-1">{pausa}</p>
+          {impostazioni.data?.pausaIl && (
+            <p className="numeric mt-1 opacity-80">
+              dal {giorno(impostazioni.data.pausaIl)} {impostazioni.data.pausaIl.slice(11, 16)} UTC ·
+              premi "Avvia automatico" per riprendere
+            </p>
+          )}
+        </div>
+      )}
 
       {esitoMostrato?.selezione && (
         <p className="mt-2 rounded-lg border border-border bg-surface-2 px-3 py-2 text-[11px] text-muted-foreground">

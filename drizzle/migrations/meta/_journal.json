@@ -15,6 +15,13 @@
       "when": 1791631869330,
       "tag": "0001_automazioni_ia",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1791782699380,
+      "tag": "0002_assistente_e_limite_perdita",
+      "breakpoints": true
     }
   ]
 }

@@ -27,5 +27,7 @@ export type EsitoCiclo = {
   eseguiti: number;
   universo?: string[];
   selezione?: string;
+  /** Presente quando il ciclo è stato bloccato dal limite di perdita giornaliera. */
+  bloccoPerdita?: { perdita: number; limite: number };
 };
 

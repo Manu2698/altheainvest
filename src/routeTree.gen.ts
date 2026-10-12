@@ -17,6 +17,9 @@ import { Route as PrivacyRouteImport } from './routes/privacy'
 import { Route as ReportRouteImport } from './routes/report'
 import { Route as RischiRouteImport } from './routes/rischi'
 import { Route as TerminiRouteImport } from './routes/termini'
+import { Route as ApiChatRouteImport } from './routes/api/chat'
+import { Route as AssistenteIndexRouteImport } from './routes/assistente.index'
+import { Route as AssistenteThreadIdRouteImport } from './routes/assistente.$threadId'
 import { Route as ApiPublicHooksCicloIaRouteImport } from './routes/api/public/hooks/ciclo-ia'
 
 const IndexRoute = IndexRouteImport.update({
@@ -59,6 +62,21 @@ const TerminiRoute = TerminiRouteImport.update({
   path: '/termini',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiChatRoute = ApiChatRouteImport.update({
+  id: '/api/chat',
+  path: '/api/chat',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AssistenteIndexRoute = AssistenteIndexRouteImport.update({
+  id: '/assistente/',
+  path: '/assistente/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AssistenteThreadIdRoute = AssistenteThreadIdRouteImport.update({
+  id: '/assistente/$threadId',
+  path: '/assistente/$threadId',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiPublicHooksCicloIaRoute = ApiPublicHooksCicloIaRouteImport.update({
   id: '/api/public/hooks/ciclo-ia',
   path: '/api/public/hooks/ciclo-ia',
@@ -74,6 +92,9 @@ export interface FileRoutesByFullPath {
   '/report': typeof ReportRoute
   '/rischi': typeof RischiRoute
   '/termini': typeof TerminiRoute
+  '/api/chat': typeof ApiChatRoute
+  '/assistente/$threadId': typeof AssistenteThreadIdRoute
+  '/assistente/': typeof AssistenteIndexRoute
   '/api/public/hooks/ciclo-ia': typeof ApiPublicHooksCicloIaRoute
 }
 export interface FileRoutesByTo {
@@ -85,6 +106,9 @@ export interface FileRoutesByTo {
   '/report': typeof ReportRoute
   '/rischi': typeof RischiRoute
   '/termini': typeof TerminiRoute
+  '/api/chat': typeof ApiChatRoute
+  '/assistente/$threadId': typeof AssistenteThreadIdRoute
+  '/assistente': typeof AssistenteIndexRoute
   '/api/public/hooks/ciclo-ia': typeof ApiPublicHooksCicloIaRoute
 }
 export interface FileRoutesById {
@@ -97,6 +121,9 @@ export interface FileRoutesById {
   '/report': typeof ReportRoute
   '/rischi': typeof RischiRoute
   '/termini': typeof TerminiRoute
+  '/api/chat': typeof ApiChatRoute
+  '/assistente/$threadId': typeof AssistenteThreadIdRoute
+  '/assistente/': typeof AssistenteIndexRoute
   '/api/public/hooks/ciclo-ia': typeof ApiPublicHooksCicloIaRoute
 }
 export interface FileRouteTypes {
@@ -110,6 +137,9 @@ export interface FileRouteTypes {
     | '/report'
     | '/rischi'
     | '/termini'
+    | '/api/chat'
+    | '/assistente/$threadId'
+    | '/assistente/'
     | '/api/public/hooks/ciclo-ia'
   fileRoutesByTo: FileRoutesByTo
   to:
@@ -121,6 +151,9 @@ export interface FileRouteTypes {
     | '/report'
     | '/rischi'
     | '/termini'
+    | '/api/chat'
+    | '/assistente/$threadId'
+    | '/assistente'
     | '/api/public/hooks/ciclo-ia'
   id:
     | '__root__'
@@ -132,6 +165,9 @@ export interface FileRouteTypes {
     | '/report'
     | '/rischi'
     | '/termini'
+    | '/api/chat'
+    | '/assistente/$threadId'
+    | '/assistente/'
     | '/api/public/hooks/ciclo-ia'
   fileRoutesById: FileRoutesById
 }
@@ -144,6 +180,9 @@ export interface RootRouteChildren {
   ReportRoute: typeof ReportRoute
   RischiRoute: typeof RischiRoute
   TerminiRoute: typeof TerminiRoute
+  ApiChatRoute: typeof ApiChatRoute
+  AssistenteThreadIdRoute: typeof AssistenteThreadIdRoute
+  AssistenteIndexRoute: typeof AssistenteIndexRoute
   ApiPublicHooksCicloIaRoute: typeof ApiPublicHooksCicloIaRoute
 }
 
@@ -205,6 +244,27 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof TerminiRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/chat': {
+      id: '/api/chat'
+      path: '/api/chat'
+      fullPath: '/api/chat'
+      preLoaderRoute: typeof ApiChatRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/assistente/': {
+      id: '/assistente/'
+      path: '/assistente'
+      fullPath: '/assistente/'
+      preLoaderRoute: typeof AssistenteIndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/assistente/$threadId': {
+      id: '/assistente/$threadId'
+      path: '/assistente/$threadId'
+      fullPath: '/assistente/$threadId'
+      preLoaderRoute: typeof AssistenteThreadIdRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/public/hooks/ciclo-ia': {
       id: '/api/public/hooks/ciclo-ia'
       path: '/api/public/hooks/ciclo-ia'
@@ -224,6 +284,9 @@ const rootRouteChildren: RootRouteChildren = {
   ReportRoute: ReportRoute,
   RischiRoute: RischiRoute,
   TerminiRoute: TerminiRoute,
+  ApiChatRoute: ApiChatRoute,
+  AssistenteThreadIdRoute: AssistenteThreadIdRoute,
+  AssistenteIndexRoute: AssistenteIndexRoute,
   ApiPublicHooksCicloIaRoute: ApiPublicHooksCicloIaRoute,
 }
 export const routeTree = rootRouteImport

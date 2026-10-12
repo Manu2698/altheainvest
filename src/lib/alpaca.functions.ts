@@ -127,5 +127,24 @@ export const eseguiCicloIA = createServerFn({ method: "POST" })
   )
   .handler(async ({ data, context }): Promise<EsitoCiclo> => {
     const { eseguiCiclo } = await import("./trading.server");
-    return eseguiCiclo(context.userId, data);
+    const { data: auto } = await context.supabase
+      .from("automazioni_ia")
+      .select("perdita_max_giornaliera")
+      .eq("user_id", context.userId)
+      .maybeSingle();
+    const perditaMax =
+      auto?.perdita_max_giornaliera != null ? Number(auto.perdita_max_giornaliera) : null;
+    const esito = await eseguiCiclo(context.userId, { ...data, perditaMax });
+    if (esito.bloccoPerdita) {
+      await context.supabase
+        .from("automazioni_ia")
+        .update({
+          attivo: false,
+          pausa_motivo: esito.messaggio,
+          pausa_il: new Date().toISOString(),
+          ultimo_esito: JSON.parse(JSON.stringify(esito)),
+        })
+        .eq("user_id", context.userId);
+    }
+    return esito;
   });
