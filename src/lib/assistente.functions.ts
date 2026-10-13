@@ -45,14 +45,14 @@ export const eliminaThread = createServerFn({ method: "POST" })
 export const messaggiThread = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
   .inputValidator((input: { id: string }) => ({ id: String(input?.id ?? "") }))
-  .handler(async ({ data, context }): Promise<{ trovato: boolean; messaggi: UIMessage[] }> => {
+  .handler(async ({ data, context }): Promise<{ trovato: boolean; messaggiJson: string }> => {
     const { data: t } = await context.supabase
       .from("chat_thread")
       .select("id")
       .eq("id", data.id)
       .eq("user_id", context.userId)
       .maybeSingle();
-    if (!t) return { trovato: false, messaggi: [] };
+    if (!t) return { trovato: false, messaggiJson: "[]" };
     const { data: righe, error } = await context.supabase
       .from("chat_messaggi")
       .select("messaggio")
@@ -61,6 +61,6 @@ export const messaggiThread = createServerFn({ method: "GET" })
     if (error) throw new Error("Impossibile caricare i messaggi.");
     return {
       trovato: true,
-      messaggi: (righe ?? []).map((r) => r.messaggio as unknown as UIMessage),
+      messaggiJson: JSON.stringify((righe ?? []).map((r) => r.messaggio as unknown as UIMessage)),
     };
   });

@@ -1,6 +1,7 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
+import type { UIMessage } from "ai";
 import { Loader2 } from "lucide-react";
 import { AssistenteLayout } from "@/components/AssistenteLayout";
 import { AssistenteChat } from "@/components/AssistenteChat";
@@ -49,7 +50,7 @@ function Pagina() {
         <AssistenteChat
           key={threadId}
           threadId={threadId}
-          iniziali={msg.data.messaggi}
+          iniziali={JSON.parse(msg.data.messaggiJson) as UIMessage[]}
           onAggiornato={() => void qc.invalidateQueries({ queryKey: ["chat-thread"] })}
         />
       )}
