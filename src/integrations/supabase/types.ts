@@ -23,6 +23,7 @@ export type Database = {
           pausa_il: string | null
           pausa_motivo: string | null
           perdita_max_giornaliera: number | null
+          piattaforma: string
           reale: boolean
           strategia: string
           ultimo_ciclo: string | null
@@ -38,6 +39,7 @@ export type Database = {
           pausa_il?: string | null
           pausa_motivo?: string | null
           perdita_max_giornaliera?: number | null
+          piattaforma?: string
           reale?: boolean
           strategia?: string
           ultimo_ciclo?: string | null
@@ -53,6 +55,7 @@ export type Database = {
           pausa_il?: string | null
           pausa_motivo?: string | null
           perdita_max_giornaliera?: number | null
+          piattaforma?: string
           reale?: boolean
           strategia?: string
           ultimo_ciclo?: string | null
@@ -321,6 +324,33 @@ export type Database = {
           reale?: boolean
           stato?: string
           ticker?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      piattaforme_credenziali: {
+        Row: {
+          ambiente: string
+          api_secret: string
+          key_id: string
+          piattaforma: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          ambiente: string
+          api_secret: string
+          key_id: string
+          piattaforma: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          ambiente?: string
+          api_secret?: string
+          key_id?: string
+          piattaforma?: string
+          updated_at?: string
           user_id?: string
         }
         Relationships: []

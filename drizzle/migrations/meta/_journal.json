@@ -22,6 +22,13 @@
       "when": 1791782699380,
       "tag": "0002_assistente_e_limite_perdita",
       "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1792068702364,
+      "tag": "0003_migration",
+      "breakpoints": true
     }
   ]
 }
