@@ -129,12 +129,12 @@ export const eseguiCicloIA = createServerFn({ method: "POST" })
     const { eseguiCiclo } = await import("./trading.server");
     const { data: auto } = await context.supabase
       .from("automazioni_ia")
-      .select("perdita_max_giornaliera")
+      .select("perdita_max_giornaliera, piattaforma")
       .eq("user_id", context.userId)
       .maybeSingle();
     const perditaMax =
       auto?.perdita_max_giornaliera != null ? Number(auto.perdita_max_giornaliera) : null;
-    const esito = await eseguiCiclo(context.userId, { ...data, perditaMax });
+    const esito = await eseguiCiclo(context.userId, { ...data, perditaMax, piattaforma: auto?.piattaforma ?? "alpaca" });
     if (esito.bloccoPerdita) {
       await context.supabase
         .from("automazioni_ia")

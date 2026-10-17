@@ -50,6 +50,7 @@ export const Route = createFileRoute("/api/public/hooks/ciclo-ia")({
               capitale: Number(r.capitale),
               modalita: r.modalita === "conto" ? "conto" : "limite",
               universo: [],
+              piattaforma: r.piattaforma,
               perditaMax: r.perdita_max_giornaliera != null ? Number(r.perdita_max_giornaliera) : null,
             });
           } catch (e) {
