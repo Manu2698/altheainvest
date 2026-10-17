@@ -2,6 +2,7 @@ import { createServerFn } from "@tanstack/react-start";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import type { StrategyId } from "./strategies";
 import type { EsitoCiclo } from "./trading.types";
+import { isPiattaforma, type Piattaforma } from "./piattaforme.types";
 
 export type Automazione = {
   attivo: boolean;
@@ -14,6 +15,7 @@ export type Automazione = {
   perditaMaxGiornaliera: number | null;
   pausaMotivo: string | null;
   pausaIl: string | null;
+  piattaforma: Piattaforma;
 };
 
 export const getAutomazione = createServerFn({ method: "GET" })
@@ -37,6 +39,7 @@ export const getAutomazione = createServerFn({ method: "GET" })
         data.perdita_max_giornaliera != null ? Number(data.perdita_max_giornaliera) : null,
       pausaMotivo: data.pausa_motivo,
       pausaIl: data.pausa_il,
+      piattaforma: isPiattaforma(data.piattaforma) ? data.piattaforma : "alpaca",
     };
   });
 
@@ -86,5 +89,20 @@ export const salvaLimitePerdita = createServerFn({ method: "POST" })
       updated_at: new Date().toISOString(),
     });
     if (error) throw new Error("Impossibile salvare il limite di perdita.");
+    return { ok: true };
+  });
+
+export const salvaPiattaforma = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input: { piattaforma: Piattaforma }) => ({
+    piattaforma: isPiattaforma(input?.piattaforma) ? input.piattaforma : ("alpaca" as Piattaforma),
+  }))
+  .handler(async ({ data, context }) => {
+    const { error } = await context.supabase.from("automazioni_ia").upsert({
+      user_id: context.userId,
+      piattaforma: data.piattaforma,
+      updated_at: new Date().toISOString(),
+    });
+    if (error) throw new Error("Impossibile salvare la piattaforma.");
     return { ok: true };
   });

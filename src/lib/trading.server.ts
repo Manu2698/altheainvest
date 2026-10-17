@@ -76,7 +76,7 @@ const media = (v: number[]) => (v.length ? v.reduce((a, b) => a + b, 0) / v.leng
 
 type Posizione = { ticker: string; valore: number; pnlPct: number };
 
-function decide(
+export function decide(
   strategia: StrategyId,
   ticker: string,
   chiusure: number[],
@@ -182,8 +182,15 @@ export async function eseguiCiclo(
     universo: string[];
     modalita?: "limite" | "conto";
     perditaMax?: number | null;
+    piattaforma?: string | null;
   },
 ): Promise<EsitoCiclo> {
+  if (input.piattaforma && input.piattaforma !== "alpaca") {
+    const { eseguiCicloEsterno } = await import("./piattaforme.server");
+    const { isPiattaforma } = await import("./piattaforme.types");
+    if (isPiattaforma(input.piattaforma) && input.piattaforma !== "alpaca")
+      return eseguiCicloEsterno(userId, input.piattaforma, input, decide);
+  }
   const { reale } = input;
   let capitale = input.capitale;
   const strategia = getStrategia(input.strategia);
