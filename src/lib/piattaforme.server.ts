@@ -488,7 +488,7 @@ export async function eseguiCicloEsterno(
   userId: string,
   p: PiattaformaEsterna,
   input: { reale: boolean; strategia: StrategyId; capitale: number; modalita?: "limite" | "conto" },
-  decide: (s: StrategyId, t: string, c: number[], pos: { valore: number; pnlPct: number } | undefined, quota: number) => {
+  decide: (s: StrategyId, t: string, c: number[], pos: { ticker: string; valore: number; pnlPct: number } | undefined, quota: number) => {
     azione: "compra" | "vendi" | "attendi";
     importo: number;
     motivo: string;
