@@ -111,7 +111,7 @@ export function PiattaformeConnect({ reale }: { reale: boolean }) {
                 </div>
               </div>
 
-              {aperta === p && p !== "alpaca" && (
+              {aperta === p && (
                 <div className="mt-3 space-y-2">
                   <p className="text-[11px] text-muted-foreground">
                     {info.guida} Modalità paper: {info.paper}.{" "}

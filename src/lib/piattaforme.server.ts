@@ -20,8 +20,8 @@ const daB64 = (s: string) => Uint8Array.from(atob(s), (c) => c.charCodeAt(0));
 const arrotondaGiu = (v: number, dec: number) => Math.floor(v * 10 ** dec) / 10 ** dec;
 
 async function hmac(algo: "SHA-256" | "SHA-512", chiave: Uint8Array, dati: Uint8Array) {
-  const k = await crypto.subtle.importKey("raw", chiave, { name: "HMAC", hash: algo }, false, ["sign"]);
-  return crypto.subtle.sign("HMAC", k, dati);
+  const k = await crypto.subtle.importKey("raw", chiave as BufferSource, { name: "HMAC", hash: algo }, false, ["sign"]);
+  return crypto.subtle.sign("HMAC", k, dati as BufferSource);
 }
 
 async function verifica(r: Response, origine: string) {
@@ -214,7 +214,7 @@ function pemInPkcs8(pem: string): Uint8Array {
 function coinbase(nomeChiave: string, pem: string, reale: boolean): Adattatore {
   let chiave: Promise<CryptoKey> | null = null;
   const jwt = async (metodo: string, path: string) => {
-    chiave ??= crypto.subtle.importKey("pkcs8", pemInPkcs8(pem), { name: "ECDSA", namedCurve: "P-256" }, false, ["sign"]);
+    chiave ??= crypto.subtle.importKey("pkcs8", pemInPkcs8(pem) as BufferSource, { name: "ECDSA", namedCurve: "P-256" }, false, ["sign"]);
     const ora = Math.floor(Date.now() / 1000);
     const testa = b64url(enc.encode(JSON.stringify({ alg: "ES256", kid: nomeChiave, nonce: crypto.randomUUID(), typ: "JWT" })));
     const corpo = b64url(
@@ -227,7 +227,7 @@ function coinbase(nomeChiave: string, pem: string, reale: boolean): Adattatore {
     const r = await fetch(`https://api.coinbase.com${path}`, {
       method: metodo,
       headers: { authorization: `Bearer ${await jwt(metodo, path.split("?")[0]!)}`, "content-type": "application/json" },
-      body: body ? JSON.stringify(body) : undefined,
+      body: body ? JSON.stringify(body) : null,
     });
     const j = (await verifica(r, `coinbase${path.split("?")[0]}`)) as {
       success?: boolean;
@@ -274,7 +274,7 @@ function trading212(key: string, secret: string, reale: boolean): Adattatore {
       await fetch(`${base}${path}`, {
         method: metodo,
         headers: { authorization: auth, "content-type": "application/json" },
-        body: body ? JSON.stringify(body) : undefined,
+        body: body ? JSON.stringify(body) : null,
       }),
       `trading212${path}`,
     );
@@ -327,7 +327,7 @@ function etoro(apiKey: string, userKey: string, reale: boolean): Adattatore {
           "x-request-id": crypto.randomUUID(),
           "content-type": "application/json",
         },
-        body: body ? JSON.stringify(body) : undefined,
+        body: body ? JSON.stringify(body) : null,
       }),
       `etoro${path.replace(/\d+/g, ":id")}`,
     );
