@@ -227,7 +227,7 @@ function coinbase(nomeChiave: string, pem: string, reale: boolean): Adattatore {
     const r = await fetch(`https://api.coinbase.com${path}`, {
       method: metodo,
       headers: { authorization: `Bearer ${await jwt(metodo, path.split("?")[0]!)}`, "content-type": "application/json" },
-      body: body ? JSON.stringify(body) : undefined,
+      body: body ? JSON.stringify(body) : null,
     });
     const j = (await verifica(r, `coinbase${path.split("?")[0]}`)) as {
       success?: boolean;
@@ -274,7 +274,7 @@ function trading212(key: string, secret: string, reale: boolean): Adattatore {
       await fetch(`${base}${path}`, {
         method: metodo,
         headers: { authorization: auth, "content-type": "application/json" },
-        body: body ? JSON.stringify(body) : undefined,
+        body: body ? JSON.stringify(body) : null,
       }),
       `trading212${path}`,
     );
@@ -327,7 +327,7 @@ function etoro(apiKey: string, userKey: string, reale: boolean): Adattatore {
           "x-request-id": crypto.randomUUID(),
           "content-type": "application/json",
         },
-        body: body ? JSON.stringify(body) : undefined,
+        body: body ? JSON.stringify(body) : null,
       }),
       `etoro${path.replace(/\d+/g, ":id")}`,
     );
