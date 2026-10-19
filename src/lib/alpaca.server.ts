@@ -326,3 +326,34 @@ export async function cercaAssets(
   }
 }
 
+
+export type PuntoStorico = { giorno: string; valore: number };
+
+/** Storico reale del valore del conto Alpaca (ultimi 3 mesi, giornaliero). */
+export async function storicoConto(userId: string, reale: boolean): Promise<PuntoStorico[]> {
+  const cred = await credenzialiUtente(userId, reale);
+  if (!cred) return [];
+  try {
+    const res = await fetch(
+      `${baseUrl(reale)}/v2/account/portfolio/history?period=3M&timeframe=1D`,
+      { headers: cred.headers },
+    );
+    if (!res.ok) {
+      logServer("alpaca.storicoConto", new Error(`HTTP ${res.status}`), { reale });
+      return [];
+    }
+    const j = (await res.json()) as { timestamp?: number[]; equity?: (number | null)[] };
+    const ts = j.timestamp ?? [];
+    const eq = j.equity ?? [];
+    const out: PuntoStorico[] = [];
+    ts.forEach((t, i) => {
+      const v = eq[i];
+      if (v == null || !Number.isFinite(v) || v <= 0) return;
+      out.push({ giorno: new Date(t * 1000).toISOString().slice(0, 10), valore: Math.round(v * 100) / 100 });
+    });
+    return out;
+  } catch (error) {
+    logServer("alpaca.storicoConto", error, { reale });
+    return [];
+  }
+}

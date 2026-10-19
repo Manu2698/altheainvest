@@ -22,7 +22,7 @@ import { PannelloSegnali } from "@/components/PannelloSegnali";
 import { StatisticheStrategie } from "@/components/StatisticheStrategie";
 import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
-import { getContoBroker } from "@/lib/alpaca.functions";
+import { getContoBroker, getAndamentoConto } from "@/lib/alpaca.functions";
 import { useSessione } from "@/hooks/useSessione";
 
 
@@ -35,8 +35,6 @@ import {
   STRATEGIE,
   formatEuro,
   formatPct,
-  generaEquity,
-  generaOperazioni,
   getStrategia,
   type StrategyId,
 } from "@/lib/strategies";
@@ -122,17 +120,21 @@ function Index() {
   const strategia = getStrategia(attiva);
   const universo = universi[attiva];
   const capitaleStrategia = Math.round((capitale * allocazioni[attiva]) / 100);
-  const equity = useMemo(
-    () => generaEquity(strategia, Math.max(1, capitaleStrategia)),
-    [strategia, capitaleStrategia],
-  );
-  const operazioni = useMemo(() => generaOperazioni(strategia, 8, universo), [strategia, universo]);
-
-  const ultimo = equity[equity.length - 1]!;
-  const rendimento =
-    capitaleStrategia > 0 ? ((ultimo.valore - capitaleStrategia) / capitaleStrategia) * 100 : 0;
-  const vsBenchmark = ((ultimo.valore - ultimo.benchmark) / ultimo.benchmark) * 100;
-  const vincenti = operazioni.filter((o) => o.pnl > 0).length;
+  const andamentoFn = useServerFn(getAndamentoConto);
+  const andamento = useQuery({
+    queryKey: ["andamento-conto", reale],
+    enabled: autenticato,
+    queryFn: () => andamentoFn({ data: { reale } }),
+    refetchInterval: 60_000,
+    retry: false,
+  });
+  const equity = andamento.data?.storico ?? [];
+  const decisioni = andamento.data?.decisioni ?? [];
+  const valoreAttuale = conto.data?.stato === "collegato" ? conto.data.valorePortafoglio : equity.at(-1)?.valore ?? 0;
+  const inizio = equity[0]?.valore ?? 0;
+  const rendimento = inizio > 0 ? ((valoreAttuale - inizio) / inizio) * 100 : 0;
+  const chiuse = decisioni.filter((d) => d.lato === "sell" && d.pnlPct != null);
+  const vincenti = chiuse.filter((d) => (d.pnlPct ?? 0) > 0).length;
 
   return (
     <div className="min-h-screen">
@@ -404,22 +406,17 @@ function Index() {
 
 
 
-          <div className="mt-4 grid gap-4 lg:grid-cols-4">
+          <div className="mt-4 grid gap-4 lg:grid-cols-3">
             {[
-              { k: "Valore portafoglio", v: formatEuro(ultimo.valore), c: "" },
+              { k: "Valore portafoglio", v: `${valoreAttuale.toFixed(2)} $`, c: "" },
               {
-                k: "Rendimento periodo",
+                k: "Rendimento 3 mesi",
                 v: formatPct(rendimento),
                 c: rendimento >= 0 ? "text-bull" : "text-bear",
               },
               {
-                k: "Vs S&P 500",
-                v: formatPct(vsBenchmark),
-                c: vsBenchmark >= 0 ? "text-bull" : "text-bear",
-              },
-              {
                 k: "Operazioni vincenti",
-                v: `${Math.round((vincenti / operazioni.length) * 100)}%`,
+                v: chiuse.length ? `${Math.round((vincenti / chiuse.length) * 100)}% (${vincenti}/${chiuse.length})` : "—",
                 c: "",
               },
             ].map((m) => (
@@ -435,7 +432,7 @@ function Index() {
               <div className="mb-4 flex items-center justify-between">
                 <h3 className="text-sm font-semibold">Curva del capitale</h3>
                 <span className="text-[11px] text-muted-foreground">
-                  linea tratteggiata = benchmark
+                  conto Alpaca {reale ? "reale" : "paper"} · ultimi 3 mesi
                 </span>
               </div>
               <EquityChart dati={equity} />
@@ -449,7 +446,7 @@ function Index() {
               <p className="mb-2 text-[11px] text-muted-foreground">
                 Ogni operazione con la motivazione che l'ha generata.
               </p>
-              <TradeFeed operazioni={operazioni} />
+              <TradeFeed decisioni={decisioni} />
             </div>
           </div>
 
