@@ -389,6 +389,9 @@ function Index() {
             <RuntimeErrorBoundary area="piattaforme">
               <PiattaformeConnect reale={reale} />
             </RuntimeErrorBoundary>
+            <RuntimeErrorBoundary area="riepilogo conti">
+              <RiepilogoConti />
+            </RuntimeErrorBoundary>
             <RuntimeErrorBoundary area="pannelli piattaforme">
               <PannelliPiattaforme />
             </RuntimeErrorBoundary>
