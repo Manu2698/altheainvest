@@ -4,68 +4,107 @@ import type { StrategyId } from "./strategies";
 import type { EsitoCiclo } from "./trading.types";
 import { isPiattaforma, type Piattaforma } from "./piattaforme.types";
 
-export type Automazione = {
+export type Ambiente = "paper" | "reale";
+
+export type ContoAutomazione = {
+  piattaforma: Piattaforma;
+  ambiente: Ambiente;
+  collegato: boolean;
   attivo: boolean;
-  reale: boolean;
   strategia: StrategyId;
   capitale: number;
   modalita: "limite" | "conto";
-  ultimoCiclo: string | null;
-  ultimoEsito: EsitoCiclo | null;
   perditaMaxGiornaliera: number | null;
   pausaMotivo: string | null;
   pausaIl: string | null;
-  piattaforma: Piattaforma;
+  ultimoCiclo: string | null;
+  ultimoEsito: EsitoCiclo | null;
 };
 
-export const getAutomazione = createServerFn({ method: "GET" })
+const STRATEGIE: StrategyId[] = ["conservativo", "medio", "aggressivo"];
+
+const validaConto = (i: { piattaforma?: unknown; ambiente?: unknown }) => ({
+  piattaforma: isPiattaforma(i?.piattaforma) ? i.piattaforma : ("alpaca" as Piattaforma),
+  ambiente: (i?.ambiente === "reale" ? "reale" : "paper") as Ambiente,
+});
+
+export const getAutomazioni = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
-  .handler(async ({ context }): Promise<Automazione | null> => {
-    const { data } = await context.supabase
-      .from("automazioni_ia")
-      .select("*")
-      .eq("user_id", context.userId)
-      .maybeSingle();
-    if (!data) return null;
-    return {
-      attivo: data.attivo,
-      reale: data.reale,
-      strategia: data.strategia as StrategyId,
-      capitale: Number(data.capitale),
-      modalita: data.modalita === "conto" ? "conto" : "limite",
-      ultimoCiclo: data.ultimo_ciclo,
-      ultimoEsito: (data.ultimo_esito as unknown as EsitoCiclo) ?? null,
-      perditaMaxGiornaliera:
-        data.perdita_max_giornaliera != null ? Number(data.perdita_max_giornaliera) : null,
-      pausaMotivo: data.pausa_motivo,
-      pausaIl: data.pausa_il,
-      piattaforma: isPiattaforma(data.piattaforma) ? data.piattaforma : "alpaca",
-    };
+  .handler(async ({ context }): Promise<{ conti: ContoAutomazione[] }> => {
+    const [auto, broker, esterne] = await Promise.all([
+      context.supabase.from("automazioni_conti").select("*").eq("user_id", context.userId),
+      context.supabase
+        .from("broker_credenziali")
+        .select("ambiente")
+        .eq("user_id", context.userId),
+      context.supabase
+        .from("piattaforme_credenziali")
+        .select("piattaforma, ambiente")
+        .eq("user_id", context.userId),
+    ]);
+
+    const righe = new Map(
+      (auto.data ?? []).map((r) => [`${r.piattaforma}:${r.ambiente}`, r] as const),
+    );
+    const chiavi = new Set<string>(righe.keys());
+    for (const b of broker.data ?? []) chiavi.add(`alpaca:${b.ambiente === "reale" ? "reale" : "paper"}`);
+    for (const e of esterne.data ?? []) {
+      if (isPiattaforma(e.piattaforma) && e.piattaforma !== "alpaca") {
+        chiavi.add(`${e.piattaforma}:${e.ambiente === "reale" ? "reale" : "paper"}`);
+      }
+    }
+
+    const collegate = new Set<string>();
+    for (const b of broker.data ?? []) collegate.add(`alpaca:${b.ambiente === "reale" ? "reale" : "paper"}`);
+    for (const e of esterne.data ?? []) collegate.add(`${e.piattaforma}:${e.ambiente === "reale" ? "reale" : "paper"}`);
+
+    const conti: ContoAutomazione[] = [...chiavi].sort().map((k) => {
+      const [p, a] = k.split(":") as [Piattaforma, Ambiente];
+      const r = righe.get(k);
+      return {
+        piattaforma: p,
+        ambiente: a,
+        collegato: collegate.has(k),
+        attivo: r?.attivo ?? false,
+        strategia: STRATEGIE.includes(r?.strategia as StrategyId)
+          ? (r?.strategia as StrategyId)
+          : "medio",
+        capitale: r ? Number(r.capitale) : 0,
+        modalita: r?.modalita === "conto" ? "conto" : "limite",
+        perditaMaxGiornaliera:
+          r?.perdita_max_giornaliera != null ? Number(r.perdita_max_giornaliera) : null,
+        pausaMotivo: r?.pausa_motivo ?? null,
+        pausaIl: r?.pausa_il ?? null,
+        ultimoCiclo: r?.ultimo_ciclo ?? null,
+        ultimoEsito: (r?.ultimo_esito as unknown as EsitoCiclo) ?? null,
+      };
+    });
+    return { conti };
   });
 
 export const salvaAutomazione = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator(
     (input: {
+      piattaforma: Piattaforma;
+      ambiente: Ambiente;
       attivo: boolean;
-      reale: boolean;
       strategia: StrategyId;
       capitale: number;
       modalita: "limite" | "conto";
     }) => {
-      const ammesse: StrategyId[] = ["conservativo", "medio", "aggressivo"];
       const capitale = Number(input?.capitale);
       return {
+        ...validaConto(input ?? {}),
         attivo: Boolean(input?.attivo),
-        reale: Boolean(input?.reale),
-        strategia: ammesse.includes(input?.strategia) ? input.strategia : ("medio" as StrategyId),
+        strategia: STRATEGIE.includes(input?.strategia) ? input.strategia : ("medio" as StrategyId),
         capitale: Number.isFinite(capitale) ? Math.min(Math.max(capitale, 0), 10_000_000) : 0,
         modalita: input?.modalita === "conto" ? ("conto" as const) : ("limite" as const),
       };
     },
   )
   .handler(async ({ data, context }) => {
-    const { error } = await context.supabase.from("automazioni_ia").upsert({
+    const { error } = await context.supabase.from("automazioni_conti").upsert({
       user_id: context.userId,
       ...data,
       // Riavviare il motore cancella il motivo della pausa precedente.
@@ -78,31 +117,20 @@ export const salvaAutomazione = createServerFn({ method: "POST" })
 
 export const salvaLimitePerdita = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: { limite: number | null }) => {
+  .inputValidator((input: { piattaforma: Piattaforma; ambiente: Ambiente; limite: number | null }) => {
     const n = Number(input?.limite);
-    return { limite: input?.limite == null || !Number.isFinite(n) || n <= 0 ? null : Math.min(n, 10_000_000) };
+    return {
+      ...validaConto(input ?? {}),
+      limite: input?.limite == null || !Number.isFinite(n) || n <= 0 ? null : Math.min(n, 10_000_000),
+    };
   })
   .handler(async ({ data, context }) => {
-    const { error } = await context.supabase.from("automazioni_ia").upsert({
+    const { error } = await context.supabase.from("automazioni_conti").upsert({
       user_id: context.userId,
+      ...data,
       perdita_max_giornaliera: data.limite,
       updated_at: new Date().toISOString(),
     });
     if (error) throw new Error("Impossibile salvare il limite di perdita.");
-    return { ok: true };
-  });
-
-export const salvaPiattaforma = createServerFn({ method: "POST" })
-  .middleware([requireSupabaseAuth])
-  .inputValidator((input: { piattaforma: Piattaforma }) => ({
-    piattaforma: isPiattaforma(input?.piattaforma) ? input.piattaforma : ("alpaca" as Piattaforma),
-  }))
-  .handler(async ({ data, context }) => {
-    const { error } = await context.supabase.from("automazioni_ia").upsert({
-      user_id: context.userId,
-      piattaforma: data.piattaforma,
-      updated_at: new Date().toISOString(),
-    });
-    if (error) throw new Error("Impossibile salvare la piattaforma.");
     return { ok: true };
   });
