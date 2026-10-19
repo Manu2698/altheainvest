@@ -48,6 +48,14 @@ function Pannello({ p }: { p: PannelloPiattaforma }) {
       <div className="flex flex-wrap items-center gap-2">
         <Wallet className="size-4 text-primary" />
         <h4 className="text-sm font-semibold">{p.nome}</h4>
+        <span
+          className={cn(
+            "numeric rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-widest",
+            p.ambiente === "reale" ? "bg-accent/15 text-accent" : "bg-primary/12 text-primary",
+          )}
+        >
+          {p.ambiente}
+        </span>
         {p.stato === "collegato" ? (
           <span className="numeric ml-auto text-xs text-muted-foreground">
             Valore <span className="font-semibold text-foreground">{fmt(p.valore, p.valuta)}</span>
