@@ -37,3 +37,11 @@ export const scollegaPiattaforma = createServerFn({ method: "POST" })
     const { scollegaCredenziali } = await import("./piattaforme.server");
     return scollegaCredenziali(context.userId, data.piattaforma, data.reale);
   });
+
+export const getPanoramicaPiattaforme = createServerFn({ method: "GET" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((i: { reale: boolean }) => ({ reale: Boolean(i?.reale) }))
+  .handler(async ({ data, context }) => {
+    const { panoramicaPiattaforme } = await import("./piattaforme.server");
+    return panoramicaPiattaforme(context.userId, data.reale);
+  });
