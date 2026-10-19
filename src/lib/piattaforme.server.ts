@@ -666,7 +666,7 @@ export async function panoramicaPiattaforme(userId: string, reale: boolean): Pro
   for (const p of PIATTAFORME_ESTERNE) {
     const cred = await credenziali(userId, p, reale);
     if (!cred) continue;
-    const base = { piattaforma: p as const, nome: INFO_PIATTAFORME[p].nome, ...attivitaDi(p) };
+    const base = { piattaforma: p, nome: INFO_PIATTAFORME[p].nome, ...attivitaDi(p) };
     try {
       const conto = await adattatore(p, cred.key_id, cred.api_secret, reale).conto(
         await prezziUltimi(universoDi(p)),
