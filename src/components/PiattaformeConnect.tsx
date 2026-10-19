@@ -47,13 +47,17 @@ export function PiattaformeConnect({ reale }: { reale: boolean }) {
         setChiave("");
         setSegreto("");
         void qc.invalidateQueries({ queryKey: ["piattaforme"] });
+        void qc.invalidateQueries({ queryKey: ["panoramica-piattaforme"] });
       }
     },
     onError: (e) => setMsg({ ok: false, testo: e instanceof Error ? e.message : "Errore." }),
   });
   const rimuovi = useMutation({
     mutationFn: (p: PiattaformaEsterna) => scollega({ data: { piattaforma: p, reale } }),
-    onSuccess: () => void qc.invalidateQueries({ queryKey: ["piattaforme"] }),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: ["piattaforme"] });
+      void qc.invalidateQueries({ queryKey: ["panoramica-piattaforme"] });
+    },
   });
 
   const ambiente = reale ? "reale" : "paper";
