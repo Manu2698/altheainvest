@@ -35,20 +35,21 @@ async function contesto(
 ): Promise<string> {
   const { leggiConto } = await import("@/lib/alpaca.server");
   const { leggiOrdini } = await import("@/lib/trading.server");
-  const { data: auto } = await db.from("automazioni_ia").select("*").eq("user_id", userId).maybeSingle();
-  const reale = auto?.reale ?? false;
-  const [{ data: registro }, ordini, conto] = await Promise.all([
+  const { data: conti } = await db.from("automazioni_conti").select("*").eq("user_id", userId);
+  const [{ data: registro }, ordiniPaper, ordiniReale, contoPaper, contoReale] = await Promise.all([
     db
       .from("ordini_ia")
-      .select("created_at, strategia, ambiente, ticker, lato, importo, pnl_pct, motivo")
+      .select("created_at, strategia, ambiente, piattaforma, ticker, lato, importo, pnl_pct, motivo")
       .eq("user_id", userId)
       .order("created_at", { ascending: false })
       .limit(40),
-    leggiOrdini(userId, reale, 25).catch(() => []),
-    leggiConto(reale, userId).catch(() => null),
+    leggiOrdini(userId, false, 25).catch(() => []),
+    leggiOrdini(userId, true, 25).catch(() => []),
+    leggiConto(false, userId).catch(() => null),
+    leggiConto(true, userId).catch(() => null),
   ]);
 
-  const contoSintesi =
+  const sintesi = (conto: Awaited<ReturnType<typeof leggiConto>> | null) =>
     conto && conto.stato === "collegato"
       ? {
           ambiente: conto.ambiente,
@@ -61,27 +62,28 @@ async function contesto(
         }
       : { stato: conto?.stato ?? "sconosciuto", messaggio: conto && "messaggio" in conto ? conto.messaggio : null };
 
-  const impostazioni = auto
-    ? {
-        motoreAutomaticoAttivo: auto.attivo,
-        conto: auto.reale ? "reale" : "paper",
-        strategia: auto.strategia,
-        capitaleImpostato: Number(auto.capitale),
-        modalitaCapitale: auto.modalita === "conto" ? "usa tutto il conto Alpaca" : "usa il limite dell'utente",
-        perditaMaxGiornaliera: auto.perdita_max_giornaliera,
-        motivoPausa: auto.pausa_motivo,
-        pausaIl: auto.pausa_il,
-        ultimoCiclo: auto.ultimo_ciclo,
-        ultimoEsito: auto.ultimo_esito,
-      }
-    : null;
+  const impostazioni = (conti ?? []).map((c) => ({
+    piattaforma: c.piattaforma,
+    ambiente: c.ambiente,
+    motoreAutomaticoAttivo: c.attivo,
+    strategia: c.strategia,
+    capitaleImpostato: Number(c.capitale),
+    modalitaCapitale: c.modalita === "conto" ? "usa tutto il conto" : "usa il limite dell'utente",
+    perditaMaxGiornaliera: c.perdita_max_giornaliera,
+    motivoPausa: c.pausa_motivo,
+    pausaIl: c.pausa_il,
+    ultimoCiclo: c.ultimo_ciclo,
+    ultimoEsito: c.ultimo_esito,
+  }));
 
   return JSON.stringify(
     {
       oraUTC: new Date().toISOString(),
-      impostazioniIA: impostazioni,
-      contoAlpaca: contoSintesi,
-      ordiniRecentiSulBroker: ordini,
+      contiIA: impostazioni,
+      contoAlpacaPaper: sintesi(contoPaper),
+      contoAlpacaReale: sintesi(contoReale),
+      ordiniRecentiBrokerPaper: ordiniPaper,
+      ordiniRecentiBrokerReale: ordiniReale,
       registroDecisioniIA: registro ?? [],
     },
     null,
@@ -89,8 +91,8 @@ async function contesto(
   ).slice(0, 60_000);
 }
 
-const ISTRUZIONI = `Sei l'assistente di Althea, una piattaforma in cui un'IA investe in automatico su un conto Alpaca (paper o reale) con tre strategie: conservativo (accumulo graduale, stop a -10%), medio (trend sopra media mobile 20 giorni, uscita sotto -3% della media o stop -8%), aggressivo (compra sui ribassi sotto la media 10 giorni, prende profitto a +5%, taglia a -7%).
-Rispondi alle domande dell'investitore sui suoi ordini automatici, sulle impostazioni della strategia, sul limite di perdita giornaliera e sull'attività del conto Alpaca, basandoti SOLO sui dati forniti qui sotto. Se un dato non c'è, dillo chiaramente. Non inventare numeri. Spiega in modo semplice. Non dare consigli finanziari personalizzati né promesse di rendimento; puoi spiegare il comportamento dell'IA. Rispondi nella lingua dell'utente, usando markdown con elenchi brevi e importi formattati.`;
+const ISTRUZIONI = `Sei l'assistente di Althea, una piattaforma in cui un'IA investe in automatico su uno o più conti collegati dall'utente (Alpaca, Trading 212, Binance, Kraken, Coinbase, eToro; ognuno in versione paper o reale) con tre strategie: conservativo (accumulo graduale, stop a -10%), medio (trend sopra media mobile 20 giorni, uscita sotto -3% della media o stop -8%), aggressivo (compra sui ribassi sotto la media 10 giorni, prende profitto a +5%, taglia a -7%). Ogni conto ha le sue impostazioni: strategia, capitale, modalità (limite utente o intero conto) e limite di perdita giornaliera.
+Rispondi alle domande dell'investitore sui suoi ordini automatici, sulle impostazioni delle strategie, sui limiti di perdita giornaliera e sull'attività dei conti, basandoti SOLO sui dati forniti qui sotto. Se un dato non c'è, dillo chiaramente. Non inventare numeri. Spiega in modo semplice. Non dare consigli finanziari personalizzati né promesse di rendimento; puoi spiegare il comportamento dell'IA. Rispondi nella lingua dell'utente, usando markdown con elenchi brevi e importi formattati.`;
 
 export async function gestisciChat(request: Request): Promise<Response> {
   const token = request.headers.get("authorization")?.replace(/^Bearer\s+/i, "");

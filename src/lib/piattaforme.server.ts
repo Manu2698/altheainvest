@@ -592,22 +592,20 @@ export async function eseguiCicloEsterno(
 
 // ---------------------------------------------------------------- panoramica dashboard
 
-/** Conto, posizioni e ordini IA di ogni piattaforma collegata (Alpaca incluse). */
-export async function panoramicaPiattaforme(userId: string, reale: boolean): Promise<PannelloPiattaforma[]> {
-  const ambiente = reale ? "reale" : "paper";
+/** Conto, posizioni e ordini IA di ogni conto collegato (piattaforma + ambiente). */
+export async function panoramicaPiattaforme(userId: string): Promise<PannelloPiattaforma[]> {
   const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
   const dal = new Date(Date.now() - 30 * 86_400_000).toISOString();
   const { data: righe } = await supabaseAdmin
     .from("ordini_ia")
-    .select("id, piattaforma, ticker, lato, importo, created_at")
+    .select("id, piattaforma, ambiente, ticker, lato, importo, created_at")
     .eq("user_id", userId)
-    .eq("ambiente", ambiente)
     .gte("created_at", dal)
     .order("created_at", { ascending: false })
-    .limit(300);
+    .limit(500);
 
-  const attivitaDi = (p: string) => {
-    const ordini = (righe ?? []).filter((r) => r.piattaforma === p);
+  const attivitaDi = (p: string, amb: string) => {
+    const ordini = (righe ?? []).filter((r) => r.piattaforma === p && r.ambiente === amb);
     const giorni: { data: string; totale: number }[] = [];
     for (let i = 13; i >= 0; i--) {
       giorni.push({ data: new Date(Date.now() - i * 86_400_000).toISOString().slice(0, 10), totale: 0 });
@@ -630,45 +628,56 @@ export async function panoramicaPiattaforme(userId: string, reale: boolean): Pro
 
   const pannelli: PannelloPiattaforma[] = [];
 
-  const { leggiConto } = await import("./alpaca.server");
-  const alpaca = await leggiConto(reale, userId);
-  if (alpaca.stato === "collegato") {
+  const { leggiConto, statoCollegamento } = await import("./alpaca.server");
+  const statoAlpaca = await statoCollegamento(userId);
+  for (const amb of ["paper", "reale"] as const) {
+    const conto = await leggiConto(amb === "reale", userId);
+    if (conto.stato === "non_configurato") continue;
+    // Senza chiavi proprie mostriamo l'ambiente solo se le chiavi di piattaforma funzionano.
+    const proprie = amb === "paper" ? statoAlpaca.paper.collegato : statoAlpaca.reale.collegato;
+    if (!proprie && conto.stato !== "collegato") continue;
     pannelli.push({
       piattaforma: "alpaca",
+      ambiente: amb,
       nome: "Alpaca",
-      stato: "collegato",
-      messaggio: null,
-      valuta: alpaca.valuta,
-      valore: alpaca.valorePortafoglio,
-      liquidita: alpaca.liquidita,
-      posizioni: alpaca.posizioni.map((x) => ({
-        ticker: x.ticker,
-        quantita: x.quantita,
-        valore: x.valore,
-        pnlPct: x.pnlPct,
-      })),
-      ...attivitaDi("alpaca"),
-    });
-  } else if (alpaca.stato === "errore") {
-    pannelli.push({
-      piattaforma: "alpaca",
-      nome: "Alpaca",
-      stato: "errore",
-      messaggio: alpaca.messaggio,
-      valuta: "USD",
-      valore: 0,
-      liquidita: 0,
-      posizioni: [],
-      ...attivitaDi("alpaca"),
+      ...(conto.stato === "collegato"
+        ? {
+            stato: "collegato" as const,
+            messaggio: null,
+            valuta: conto.valuta,
+            valore: conto.valorePortafoglio,
+            liquidita: conto.liquidita,
+            posizioni: conto.posizioni.map((x) => ({
+              ticker: x.ticker,
+              quantita: x.quantita,
+              valore: x.valore,
+              pnlPct: x.pnlPct,
+            })),
+          }
+        : {
+            stato: "errore" as const,
+            messaggio: conto.messaggio,
+            valuta: "USD",
+            valore: 0,
+            liquidita: 0,
+            posizioni: [],
+          }),
+      ...attivitaDi("alpaca", amb),
     });
   }
 
-  for (const p of PIATTAFORME_ESTERNE) {
-    const cred = await credenziali(userId, p, reale);
-    if (!cred) continue;
-    const base = { piattaforma: p, nome: INFO_PIATTAFORME[p].nome, ...attivitaDi(p) };
+  const { data: creds } = await supabaseAdmin
+    .from("piattaforme_credenziali")
+    .select("piattaforma, ambiente, key_id, api_secret")
+    .eq("user_id", userId);
+
+  for (const c of creds ?? []) {
+    if (!PIATTAFORME_ESTERNE.includes(c.piattaforma as PiattaformaEsterna)) continue;
+    const p = c.piattaforma as PiattaformaEsterna;
+    const amb: "paper" | "reale" = c.ambiente === "reale" ? "reale" : "paper";
+    const base = { piattaforma: p, ambiente: amb, nome: INFO_PIATTAFORME[p].nome, ...attivitaDi(p, amb) };
     try {
-      const conto = await adattatore(p, cred.key_id, cred.api_secret, reale).conto(
+      const conto = await adattatore(p, c.key_id, c.api_secret, amb === "reale").conto(
         await prezziUltimi(universoDi(p)),
       );
       pannelli.push({
@@ -686,7 +695,7 @@ export async function panoramicaPiattaforme(userId: string, reale: boolean): Pro
         })),
       });
     } catch (e) {
-      logServer("piattaforme.panoramica", e, { p, reale });
+      logServer("piattaforme.panoramica", e, { p, ambiente: amb });
       pannelli.push({
         ...base,
         stato: "errore",

@@ -1,10 +1,10 @@
 import { createFileRoute } from "@tanstack/react-router";
 
 // Chiamato ogni minuto dallo scheduler del database: fa girare l'IA per ogni
-// utente con il motore automatico attivo, anche a sito chiuso.
-// Ogni utente viene elaborato al massimo una volta ogni 55 secondi (lease nel DB),
+// conto (piattaforma + ambiente) con il motore automatico attivo, anche a sito chiuso.
+// Ogni conto viene elaborato al massimo una volta ogni 55 secondi (lease nel DB),
 // quindi chiamate ripetute non possono far operare l'IA più spesso del previsto.
-const MAX_UTENTI = 25;
+const MAX_CONTI = 25;
 
 export const Route = createFileRoute("/api/public/hooks/ciclo-ia")({
   server: {
@@ -19,24 +19,26 @@ export const Route = createFileRoute("/api/public/hooks/ciclo-ia")({
         const soglia = new Date(adesso.getTime() - 55_000).toISOString();
 
         const { data: righe } = await supabaseAdmin
-          .from("automazioni_ia")
+          .from("automazioni_conti")
           .select("*")
           .eq("attivo", true)
           .or(`ultimo_ciclo.is.null,ultimo_ciclo.lt.${soglia}`)
           .or(`bloccato_fino.is.null,bloccato_fino.lt.${adesso.toISOString()}`)
           .order("ultimo_ciclo", { ascending: true, nullsFirst: true })
-          .limit(MAX_UTENTI);
+          .limit(MAX_CONTI);
 
         let elaborati = 0;
         for (const r of righe ?? []) {
           // Acquisizione atomica del lease: se un'altra esecuzione l'ha già preso, salta.
           const { data: preso } = await supabaseAdmin
-            .from("automazioni_ia")
+            .from("automazioni_conti")
             .update({
               bloccato_fino: new Date(Date.now() + 120_000).toISOString(),
               ultimo_ciclo: new Date().toISOString(),
             })
             .eq("user_id", r.user_id)
+            .eq("piattaforma", r.piattaforma)
+            .eq("ambiente", r.ambiente)
             .eq("attivo", true)
             .or(`ultimo_ciclo.is.null,ultimo_ciclo.lt.${soglia}`)
             .select("user_id");
@@ -45,7 +47,7 @@ export const Route = createFileRoute("/api/public/hooks/ciclo-ia")({
           let esito;
           try {
             esito = await eseguiCiclo(r.user_id, {
-              reale: r.reale,
+              reale: r.ambiente === "reale",
               strategia: r.strategia as "conservativo" | "medio" | "aggressivo",
               capitale: Number(r.capitale),
               modalita: r.modalita === "conto" ? "conto" : "limite",
@@ -64,7 +66,7 @@ export const Route = createFileRoute("/api/public/hooks/ciclo-ia")({
           }
           const blocco = "bloccoPerdita" in esito && esito.bloccoPerdita;
           await supabaseAdmin
-            .from("automazioni_ia")
+            .from("automazioni_conti")
             .update({
               ultimo_esito: JSON.parse(JSON.stringify(esito)),
               ultimo_ciclo: new Date().toISOString(),
@@ -73,7 +75,9 @@ export const Route = createFileRoute("/api/public/hooks/ciclo-ia")({
                 ? { attivo: false, pausa_motivo: esito.messaggio, pausa_il: new Date().toISOString() }
                 : {}),
             })
-            .eq("user_id", r.user_id);
+            .eq("user_id", r.user_id)
+            .eq("piattaforma", r.piattaforma)
+            .eq("ambiente", r.ambiente);
           elaborati++;
         }
         return Response.json({ elaborati });
