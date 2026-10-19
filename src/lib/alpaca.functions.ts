@@ -105,6 +105,7 @@ export const eseguiCicloIA = createServerFn({ method: "POST" })
   .inputValidator(
     (input: {
       reale?: boolean;
+      piattaforma?: string;
       strategia: StrategyId;
       capitale: number;
       universo?: string[];
@@ -115,6 +116,7 @@ export const eseguiCicloIA = createServerFn({ method: "POST" })
       const capitale = Number(input?.capitale);
       return {
         reale: Boolean(input?.reale),
+        piattaforma: isPiattaforma(input?.piattaforma) ? input.piattaforma : ("alpaca" as Piattaforma),
         strategia,
         capitale: Number.isFinite(capitale) ? Math.min(Math.max(capitale, 0), 10_000_000) : 0,
         modalita: input?.modalita === "conto" ? ("conto" as const) : ("limite" as const),
@@ -128,23 +130,31 @@ export const eseguiCicloIA = createServerFn({ method: "POST" })
   .handler(async ({ data, context }): Promise<EsitoCiclo> => {
     const { eseguiCiclo } = await import("./trading.server");
     const { data: auto } = await context.supabase
-      .from("automazioni_ia")
-      .select("perdita_max_giornaliera, piattaforma")
+      .from("automazioni_conti")
+      .select("perdita_max_giornaliera")
       .eq("user_id", context.userId)
+      .eq("piattaforma", data.piattaforma)
+      .eq("ambiente", data.reale ? "reale" : "paper")
       .maybeSingle();
     const perditaMax =
       auto?.perdita_max_giornaliera != null ? Number(auto.perdita_max_giornaliera) : null;
-    const esito = await eseguiCiclo(context.userId, { ...data, perditaMax, piattaforma: auto?.piattaforma ?? "alpaca" });
+    const esito = await eseguiCiclo(context.userId, { ...data, perditaMax });
+    const aggiornamento: Record<string, unknown> = {
+      ultimo_esito: JSON.parse(JSON.stringify(esito)),
+      ultimo_ciclo: new Date().toISOString(),
+    };
     if (esito.bloccoPerdita) {
-      await context.supabase
-        .from("automazioni_ia")
-        .update({
-          attivo: false,
-          pausa_motivo: esito.messaggio,
-          pausa_il: new Date().toISOString(),
-          ultimo_esito: JSON.parse(JSON.stringify(esito)),
-        })
-        .eq("user_id", context.userId);
+      aggiornamento.attivo = false;
+      aggiornamento.pausa_motivo = esito.messaggio;
+      aggiornamento.pausa_il = new Date().toISOString();
     }
+    await context.supabase
+      .from("automazioni_conti")
+      .upsert({
+        user_id: context.userId,
+        piattaforma: data.piattaforma,
+        ambiente: data.reale ? "reale" : "paper",
+        ...aggiornamento,
+      });
     return esito;
   });
