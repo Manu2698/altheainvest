@@ -8,6 +8,7 @@ import type {
 } from "./alpaca.types";
 import type { EsitoCiclo, OrdineBroker } from "./trading.types";
 import type { StrategyId } from "./strategies";
+import { isPiattaforma, type Piattaforma } from "./piattaforme.types";
 
 export type {
   AssetInvestibile,
