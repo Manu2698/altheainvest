@@ -1,7 +1,7 @@
 import { Area, AreaChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import type { PuntoStorico } from "@/lib/alpaca.server";
 
-const fmt = (v: number) => `${Math.round(v).toLocaleString("it-IT")} $`;
+const fmt = (v: number) => `${Math.round(v).toString().replace(/\B(?=(\d{3})+(?!\d))/g, ".")} $`;
 
 export function EquityChart({ dati }: { dati: PuntoStorico[] }) {
   if (dati.length === 0) {
