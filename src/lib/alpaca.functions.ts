@@ -166,3 +166,45 @@ export const eseguiCicloIA = createServerFn({ method: "POST" })
       });
     return esito;
   });
+
+export type DecisioneLog = {
+  id: string;
+  createdAt: string;
+  ticker: string;
+  lato: string;
+  importo: number;
+  pnlPct: number | null;
+  motivo: string | null;
+  strategia: string;
+  piattaforma: string;
+};
+
+export const getAndamentoConto = createServerFn({ method: "GET" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input: { reale?: boolean } | undefined) => ({ reale: Boolean(input?.reale) }))
+  .handler(async ({ data, context }) => {
+    const { storicoConto } = await import("./alpaca.server");
+    const ambiente = data.reale ? "reale" : "paper";
+    const [storico, ordini] = await Promise.all([
+      storicoConto(context.userId, data.reale),
+      context.supabase
+        .from("ordini_ia")
+        .select("id, created_at, ticker, lato, importo, pnl_pct, motivo, strategia, piattaforma")
+        .eq("user_id", context.userId)
+        .eq("ambiente", ambiente)
+        .order("created_at", { ascending: false })
+        .limit(200),
+    ]);
+    const decisioni: DecisioneLog[] = (ordini.data ?? []).map((o) => ({
+      id: o.id,
+      createdAt: o.created_at,
+      ticker: o.ticker,
+      lato: o.lato,
+      importo: Number(o.importo),
+      pnlPct: o.pnl_pct == null ? null : Number(o.pnl_pct),
+      motivo: o.motivo,
+      strategia: o.strategia,
+      piattaforma: o.piattaforma,
+    }));
+    return { storico, decisioni };
+  });
