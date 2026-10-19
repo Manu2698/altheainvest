@@ -9,6 +9,7 @@ import type {
 import type { EsitoCiclo, OrdineBroker } from "./trading.types";
 import type { StrategyId } from "./strategies";
 import { isPiattaforma, type Piattaforma } from "./piattaforme.types";
+import type { Json } from "@/integrations/supabase/types";
 
 export type {
   AssetInvestibile,
@@ -141,7 +142,7 @@ export const eseguiCicloIA = createServerFn({ method: "POST" })
       auto?.perdita_max_giornaliera != null ? Number(auto.perdita_max_giornaliera) : null;
     const esito = await eseguiCiclo(context.userId, { ...data, perditaMax });
     const aggiornamento: {
-      ultimo_esito: unknown;
+      ultimo_esito: Json;
       ultimo_ciclo: string;
       attivo?: boolean;
       pausa_motivo?: string;
