@@ -249,6 +249,7 @@ export type Database = {
           importo: number
           lato: string
           motivo: string | null
+          piattaforma: string
           pnl_pct: number | null
           strategia: string
           ticker: string
@@ -261,6 +262,7 @@ export type Database = {
           importo?: number
           lato: string
           motivo?: string | null
+          piattaforma?: string
           pnl_pct?: number | null
           strategia: string
           ticker: string
@@ -273,6 +275,7 @@ export type Database = {
           importo?: number
           lato?: string
           motivo?: string | null
+          piattaforma?: string
           pnl_pct?: number | null
           strategia?: string
           ticker?: string
