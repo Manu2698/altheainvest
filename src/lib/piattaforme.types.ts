@@ -84,3 +84,18 @@ export type StatoPiattaforme = Record<
   PiattaformaEsterna,
   { paper: string | null; reale: string | null }
 >;
+
+/** Pannello dashboard di una piattaforma collegata: conto, posizioni, ordini IA. */
+export type PannelloPiattaforma = {
+  piattaforma: Piattaforma;
+  nome: string;
+  stato: "collegato" | "errore";
+  messaggio: string | null;
+  valuta: string;
+  valore: number;
+  liquidita: number;
+  posizioni: { ticker: string; quantita: number; valore: number; pnlPct: number }[];
+  ordini: { id: string; ticker: string; lato: string; importo: number; createdAt: string }[];
+  /** Totale investito dall'IA per giorno, ultimi 14 giorni (data ISO YYYY-MM-DD). */
+  giorni: { data: string; totale: number }[];
+};

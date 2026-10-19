@@ -16,6 +16,7 @@ import { BrokerConnect } from "@/components/BrokerConnect";
 import { AuthBadge } from "@/components/AuthBadge";
 import { MotoreIA } from "@/components/MotoreIA";
 import { PiattaformeConnect } from "@/components/PiattaformeConnect";
+import { PannelliPiattaforme } from "@/components/PannelliPiattaforme";
 import { PannelloSegnali } from "@/components/PannelloSegnali";
 import { StatisticheStrategie } from "@/components/StatisticheStrategie";
 import { useQuery } from "@tanstack/react-query";
@@ -387,6 +388,9 @@ function Index() {
             </RuntimeErrorBoundary>
             <RuntimeErrorBoundary area="piattaforme">
               <PiattaformeConnect reale={reale} />
+            </RuntimeErrorBoundary>
+            <RuntimeErrorBoundary area="pannelli piattaforme">
+              <PannelliPiattaforme reale={reale} />
             </RuntimeErrorBoundary>
             <RuntimeErrorBoundary area="motore IA">
               <MotoreIA

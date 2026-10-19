@@ -368,6 +368,7 @@ export async function eseguiCiclo(
               user_id: userId,
               strategia: input.strategia,
               ambiente: reale ? "reale" : "paper",
+              piattaforma: "alpaca",
               ticker: d.ticker,
               lato: d.azione === "vendi" ? "sell" : "buy",
               importo: d.importo,

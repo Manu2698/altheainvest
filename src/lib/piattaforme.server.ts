@@ -1,7 +1,13 @@
 import { logServer } from "./alpaca.server";
 import type { StrategyId } from "./strategies";
 import type { DecisioneIA, EsitoCiclo } from "./trading.types";
-import { INFO_PIATTAFORME, type PiattaformaEsterna, type StatoPiattaforme } from "./piattaforme.types";
+import {
+  INFO_PIATTAFORME,
+  PIATTAFORME_ESTERNE,
+  type PannelloPiattaforma,
+  type PiattaformaEsterna,
+  type StatoPiattaforme,
+} from "./piattaforme.types";
 
 const num = (v: unknown) => {
   const n = Number(v);
@@ -555,11 +561,12 @@ export async function eseguiCicloEsterno(
             user_id: userId,
             strategia: input.strategia,
             ambiente: input.reale ? "reale" : "paper",
+            piattaforma: p,
             ticker: d.ticker,
             lato: d.azione === "vendi" ? "sell" : "buy",
             importo: d.importo,
             pnl_pct: d.azione === "vendi" ? (posizioni.get(d.ticker)?.pnlPct ?? null) : null,
-            motivo: `[${nome}] ${d.motivo}`,
+            motivo: d.motivo,
           })),
         );
       } catch (e) {
@@ -581,4 +588,116 @@ export async function eseguiCicloEsterno(
     logServer("piattaforme.ciclo", e, { p });
     return vuoto(`Errore con ${nome}: ${e instanceof Error ? e.message.slice(0, 180) : "non raggiungibile"}`);
   }
+}
+
+// ---------------------------------------------------------------- panoramica dashboard
+
+/** Conto, posizioni e ordini IA di ogni piattaforma collegata (Alpaca incluse). */
+export async function panoramicaPiattaforme(userId: string, reale: boolean): Promise<PannelloPiattaforma[]> {
+  const ambiente = reale ? "reale" : "paper";
+  const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+  const dal = new Date(Date.now() - 30 * 86_400_000).toISOString();
+  const { data: righe } = await supabaseAdmin
+    .from("ordini_ia")
+    .select("id, piattaforma, ticker, lato, importo, created_at")
+    .eq("user_id", userId)
+    .eq("ambiente", ambiente)
+    .gte("created_at", dal)
+    .order("created_at", { ascending: false })
+    .limit(300);
+
+  const attivitaDi = (p: string) => {
+    const ordini = (righe ?? []).filter((r) => r.piattaforma === p);
+    const giorni: { data: string; totale: number }[] = [];
+    for (let i = 13; i >= 0; i--) {
+      giorni.push({ data: new Date(Date.now() - i * 86_400_000).toISOString().slice(0, 10), totale: 0 });
+    }
+    for (const o of ordini) {
+      const g = giorni.find((x) => x.data === o.created_at.slice(0, 10));
+      if (g) g.totale = Math.round((g.totale + Number(o.importo)) * 100) / 100;
+    }
+    return {
+      ordini: ordini.slice(0, 12).map((o) => ({
+        id: o.id,
+        ticker: o.ticker,
+        lato: o.lato,
+        importo: Number(o.importo),
+        createdAt: o.created_at,
+      })),
+      giorni,
+    };
+  };
+
+  const pannelli: PannelloPiattaforma[] = [];
+
+  const { leggiConto } = await import("./alpaca.server");
+  const alpaca = await leggiConto(reale, userId);
+  if (alpaca.stato === "collegato") {
+    pannelli.push({
+      piattaforma: "alpaca",
+      nome: "Alpaca",
+      stato: "collegato",
+      messaggio: null,
+      valuta: alpaca.valuta,
+      valore: alpaca.valorePortafoglio,
+      liquidita: alpaca.liquidita,
+      posizioni: alpaca.posizioni.map((x) => ({
+        ticker: x.ticker,
+        quantita: x.quantita,
+        valore: x.valore,
+        pnlPct: x.pnlPct,
+      })),
+      ...attivitaDi("alpaca"),
+    });
+  } else if (alpaca.stato === "errore") {
+    pannelli.push({
+      piattaforma: "alpaca",
+      nome: "Alpaca",
+      stato: "errore",
+      messaggio: alpaca.messaggio,
+      valuta: "USD",
+      valore: 0,
+      liquidita: 0,
+      posizioni: [],
+      ...attivitaDi("alpaca"),
+    });
+  }
+
+  for (const p of PIATTAFORME_ESTERNE) {
+    const cred = await credenziali(userId, p, reale);
+    if (!cred) continue;
+    const base = { piattaforma: p, nome: INFO_PIATTAFORME[p].nome, ...attivitaDi(p) };
+    try {
+      const conto = await adattatore(p, cred.key_id, cred.api_secret, reale).conto(
+        await prezziUltimi(universoDi(p)),
+      );
+      pannelli.push({
+        ...base,
+        stato: "collegato",
+        messaggio: null,
+        valuta: conto.valuta,
+        valore: conto.valore,
+        liquidita: conto.liquidita,
+        posizioni: conto.posizioni.map((x) => ({
+          ticker: x.ticker,
+          quantita: x.quantita,
+          valore: x.valore,
+          pnlPct: x.pnlPct,
+        })),
+      });
+    } catch (e) {
+      logServer("piattaforme.panoramica", e, { p, reale });
+      pannelli.push({
+        ...base,
+        stato: "errore",
+        messaggio: e instanceof Error ? e.message.slice(0, 160) : "Piattaforma non raggiungibile.",
+        valuta: "USD",
+        valore: 0,
+        liquidita: 0,
+        posizioni: [],
+      });
+    }
+  }
+
+  return pannelli;
 }
