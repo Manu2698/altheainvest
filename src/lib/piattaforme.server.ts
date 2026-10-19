@@ -6,6 +6,7 @@ import {
   PIATTAFORME_ESTERNE,
   type PannelloPiattaforma,
   type PiattaformaEsterna,
+  type RiepilogoConto,
   type StatoPiattaforme,
 } from "./piattaforme.types";
 
