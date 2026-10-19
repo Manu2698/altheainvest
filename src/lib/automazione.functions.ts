@@ -43,8 +43,9 @@ export const getAutomazioni = createServerFn({ method: "GET" })
         .eq("user_id", context.userId),
     ]);
 
-    const righe = new Map(
-      (auto.data ?? []).map((r) => [`${r.piattaforma}:${r.ambiente}`, r] as const),
+    type Riga = NonNullable<typeof auto.data>[number];
+    const righe = new Map<string, Riga>(
+      (auto.data ?? []).map((r) => [`${r.piattaforma}:${r.ambiente}`, r]),
     );
     const chiavi = new Set<string>(righe.keys());
     for (const b of broker.data ?? []) chiavi.add(`alpaca:${b.ambiente === "reale" ? "reale" : "paper"}`);
@@ -125,10 +126,11 @@ export const salvaLimitePerdita = createServerFn({ method: "POST" })
     };
   })
   .handler(async ({ data, context }) => {
+    const { limite, ...conto } = data;
     const { error } = await context.supabase.from("automazioni_conti").upsert({
       user_id: context.userId,
-      ...data,
-      perdita_max_giornaliera: data.limite,
+      ...conto,
+      perdita_max_giornaliera: limite,
       updated_at: new Date().toISOString(),
     });
     if (error) throw new Error("Impossibile salvare il limite di perdita.");

@@ -670,7 +670,7 @@ export async function panoramicaPiattaforme(userId: string): Promise<PannelloPia
   for (const c of creds ?? []) {
     if (!PIATTAFORME_ESTERNE.includes(c.piattaforma as PiattaformaEsterna)) continue;
     const p = c.piattaforma as PiattaformaEsterna;
-    const amb = c.ambiente === "reale" ? "reale" : "paper";
+    const amb: "paper" | "reale" = c.ambiente === "reale" ? "reale" : "paper";
     const base = { piattaforma: p, ambiente: amb, nome: INFO_PIATTAFORME[p].nome, ...attivitaDi(p, amb) };
     try {
       const conto = await adattatore(p, c.key_id, c.api_secret, amb === "reale").conto(

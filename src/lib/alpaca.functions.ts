@@ -140,7 +140,13 @@ export const eseguiCicloIA = createServerFn({ method: "POST" })
     const perditaMax =
       auto?.perdita_max_giornaliera != null ? Number(auto.perdita_max_giornaliera) : null;
     const esito = await eseguiCiclo(context.userId, { ...data, perditaMax });
-    const aggiornamento: Record<string, unknown> = {
+    const aggiornamento: {
+      ultimo_esito: unknown;
+      ultimo_ciclo: string;
+      attivo?: boolean;
+      pausa_motivo?: string;
+      pausa_il?: string;
+    } = {
       ultimo_esito: JSON.parse(JSON.stringify(esito)),
       ultimo_ciclo: new Date().toISOString(),
     };
