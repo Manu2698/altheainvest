@@ -100,3 +100,22 @@ export type PannelloPiattaforma = {
   /** Totale investito dall'IA per giorno, ultimi 14 giorni (data ISO YYYY-MM-DD). */
   giorni: { data: string; totale: number }[];
 };
+
+/** Quadro sintetico di un conto collegato: capitale live e risultati dell'IA (ultimi 30 gg). */
+export type RiepilogoConto = {
+  piattaforma: Piattaforma;
+  ambiente: "paper" | "reale";
+  nome: string;
+  stato: "collegato" | "errore";
+  valuta: string;
+  /** Valore attuale del conto letto dalla piattaforma (0 se non raggiungibile). */
+  capitale: number;
+  ordini: number;
+  /** Vendite chiuse in guadagno / in perdita. */
+  vincite: number;
+  perdite: number;
+  /** Guadagno/perdita realizzato totale (somma dei P&L delle vendite). */
+  pnlRealizzato: number;
+  /** P&L realizzato per giorno, ultimi 7 giorni (data ISO YYYY-MM-DD). */
+  settimana: { data: string; pnl: number }[];
+};

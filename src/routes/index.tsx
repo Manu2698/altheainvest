@@ -17,6 +17,7 @@ import { AuthBadge } from "@/components/AuthBadge";
 import { MotoreIA } from "@/components/MotoreIA";
 import { PiattaformeConnect } from "@/components/PiattaformeConnect";
 import { PannelliPiattaforme } from "@/components/PannelliPiattaforme";
+import { RiepilogoConti } from "@/components/RiepilogoConti";
 import { PannelloSegnali } from "@/components/PannelloSegnali";
 import { StatisticheStrategie } from "@/components/StatisticheStrategie";
 import { useQuery } from "@tanstack/react-query";
@@ -388,6 +389,9 @@ function Index() {
             </RuntimeErrorBoundary>
             <RuntimeErrorBoundary area="piattaforme">
               <PiattaformeConnect reale={reale} />
+            </RuntimeErrorBoundary>
+            <RuntimeErrorBoundary area="riepilogo conti">
+              <RiepilogoConti />
             </RuntimeErrorBoundary>
             <RuntimeErrorBoundary area="pannelli piattaforme">
               <PannelliPiattaforme />

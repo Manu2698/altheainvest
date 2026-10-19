@@ -44,3 +44,10 @@ export const getPanoramicaPiattaforme = createServerFn({ method: "GET" })
     const { panoramicaPiattaforme } = await import("./piattaforme.server");
     return panoramicaPiattaforme(context.userId);
   });
+
+export const getRiepilogoConti = createServerFn({ method: "GET" })
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ context }) => {
+    const { riepilogoConti } = await import("./piattaforme.server");
+    return riepilogoConti(context.userId);
+  });
