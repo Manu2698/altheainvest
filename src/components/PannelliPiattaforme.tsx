@@ -135,13 +135,13 @@ function Pannello({ p }: { p: PannelloPiattaforma }) {
   );
 }
 
-export function PannelliPiattaforme({ reale }: { reale: boolean }) {
+export function PannelliPiattaforme() {
   const { autenticato } = useSessione();
   const leggi = useServerFn(getPanoramicaPiattaforme);
   const panoramica = useQuery({
-    queryKey: ["panoramica-piattaforme", reale],
+    queryKey: ["panoramica-piattaforme"],
     enabled: autenticato,
-    queryFn: () => leggi({ data: { reale } }),
+    queryFn: () => leggi(),
     refetchInterval: 60_000,
     retry: false,
   });
@@ -153,7 +153,7 @@ export function PannelliPiattaforme({ reale }: { reale: boolean }) {
       <h3 className="mb-3 text-sm font-semibold">Dove sta investendo l'IA</h3>
       <div className="grid gap-4 lg:grid-cols-2">
         {panoramica.data.map((p) => (
-          <Pannello key={p.piattaforma} p={p} />
+          <Pannello key={`${p.piattaforma}-${p.ambiente}`} p={p} />
         ))}
       </div>
     </div>

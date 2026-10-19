@@ -390,16 +390,10 @@ function Index() {
               <PiattaformeConnect reale={reale} />
             </RuntimeErrorBoundary>
             <RuntimeErrorBoundary area="pannelli piattaforme">
-              <PannelliPiattaforme reale={reale} />
+              <PannelliPiattaforme />
             </RuntimeErrorBoundary>
             <RuntimeErrorBoundary area="motore IA">
-              <MotoreIA
-                reale={reale}
-                strategia={attiva}
-                capitale={capitaleStrategia}
-              />
-
-
+              <MotoreIA strategia={attiva} capitale={capitaleStrategia} />
             </RuntimeErrorBoundary>
           </div>
 
