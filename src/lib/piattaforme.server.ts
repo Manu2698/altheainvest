@@ -1,7 +1,13 @@
 import { logServer } from "./alpaca.server";
 import type { StrategyId } from "./strategies";
 import type { DecisioneIA, EsitoCiclo } from "./trading.types";
-import { INFO_PIATTAFORME, type PiattaformaEsterna, type StatoPiattaforme } from "./piattaforme.types";
+import {
+  INFO_PIATTAFORME,
+  PIATTAFORME_ESTERNE,
+  type PannelloPiattaforma,
+  type PiattaformaEsterna,
+  type StatoPiattaforme,
+} from "./piattaforme.types";
 
 const num = (v: unknown) => {
   const n = Number(v);
@@ -555,11 +561,12 @@ export async function eseguiCicloEsterno(
             user_id: userId,
             strategia: input.strategia,
             ambiente: input.reale ? "reale" : "paper",
+            piattaforma: p,
             ticker: d.ticker,
             lato: d.azione === "vendi" ? "sell" : "buy",
             importo: d.importo,
             pnl_pct: d.azione === "vendi" ? (posizioni.get(d.ticker)?.pnlPct ?? null) : null,
-            motivo: `[${nome}] ${d.motivo}`,
+            motivo: d.motivo,
           })),
         );
       } catch (e) {
