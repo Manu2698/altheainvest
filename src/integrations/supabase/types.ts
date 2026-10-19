@@ -14,6 +14,60 @@ export type Database = {
   }
   public: {
     Tables: {
+      automazioni_conti: {
+        Row: {
+          ambiente: string
+          attivo: boolean
+          bloccato_fino: string | null
+          capitale: number
+          created_at: string
+          modalita: string
+          pausa_il: string | null
+          pausa_motivo: string | null
+          perdita_max_giornaliera: number | null
+          piattaforma: string
+          strategia: string
+          ultimo_ciclo: string | null
+          ultimo_esito: Json | null
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          ambiente?: string
+          attivo?: boolean
+          bloccato_fino?: string | null
+          capitale?: number
+          created_at?: string
+          modalita?: string
+          pausa_il?: string | null
+          pausa_motivo?: string | null
+          perdita_max_giornaliera?: number | null
+          piattaforma?: string
+          strategia?: string
+          ultimo_ciclo?: string | null
+          ultimo_esito?: Json | null
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          ambiente?: string
+          attivo?: boolean
+          bloccato_fino?: string | null
+          capitale?: number
+          created_at?: string
+          modalita?: string
+          pausa_il?: string | null
+          pausa_motivo?: string | null
+          perdita_max_giornaliera?: number | null
+          piattaforma?: string
+          strategia?: string
+          ultimo_ciclo?: string | null
+          ultimo_esito?: Json | null
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       automazioni_ia: {
         Row: {
           attivo: boolean

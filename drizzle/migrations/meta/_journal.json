@@ -36,6 +36,13 @@
       "when": 1792432834313,
       "tag": "0004_ordini_ia_piattaforma",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1792433453493,
+      "tag": "0005_automazioni_conti",
+      "breakpoints": true
     }
   ]
 }
