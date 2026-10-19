@@ -628,10 +628,14 @@ export async function panoramicaPiattaforme(userId: string): Promise<PannelloPia
 
   const pannelli: PannelloPiattaforma[] = [];
 
-  const { leggiConto } = await import("./alpaca.server");
+  const { leggiConto, statoCollegamento } = await import("./alpaca.server");
+  const statoAlpaca = await statoCollegamento(userId);
   for (const amb of ["paper", "reale"] as const) {
     const conto = await leggiConto(amb === "reale", userId);
     if (conto.stato === "non_configurato") continue;
+    // Senza chiavi proprie mostriamo l'ambiente solo se le chiavi di piattaforma funzionano.
+    const proprie = amb === "paper" ? statoAlpaca.paper.collegato : statoAlpaca.reale.collegato;
+    if (!proprie && conto.stato !== "collegato") continue;
     pannelli.push({
       piattaforma: "alpaca",
       ambiente: amb,

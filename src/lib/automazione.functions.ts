@@ -59,6 +59,14 @@ export const getAutomazioni = createServerFn({ method: "GET" })
     for (const b of broker.data ?? []) collegate.add(`alpaca:${b.ambiente === "reale" ? "reale" : "paper"}`);
     for (const e of esterne.data ?? []) collegate.add(`${e.piattaforma}:${e.ambiente === "reale" ? "reale" : "paper"}`);
 
+    // Le chiavi Alpaca di piattaforma (se presenti) rendono operativo il conto paper.
+    const { statoCollegamento } = await import("./alpaca.server");
+    const statoAlpaca = await statoCollegamento(context.userId);
+    if (statoAlpaca.piattaforma) {
+      chiavi.add("alpaca:paper");
+      collegate.add("alpaca:paper");
+    }
+
     const conti: ContoAutomazione[] = [...chiavi].sort().map((k) => {
       const [p, a] = k.split(":") as [Piattaforma, Ambiente];
       const r = righe.get(k);
