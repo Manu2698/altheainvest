@@ -710,3 +710,57 @@ export async function panoramicaPiattaforme(userId: string): Promise<PannelloPia
 
   return pannelli;
 }
+
+// ---------------------------------------------------------------- riepilogo sintetico conti
+
+/**
+ * Quadro sintetico per ogni conto collegato: capitale live (dalla panoramica) e risultati
+ * dell'IA degli ultimi 30 giorni (vincite, perdite, P&L realizzato, andamento settimanale).
+ */
+export async function riepilogoConti(userId: string): Promise<RiepilogoConto[]> {
+  const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+  const dal = new Date(Date.now() - 30 * 86_400_000).toISOString();
+  const [{ data: righe }, pannelli] = await Promise.all([
+    supabaseAdmin
+      .from("ordini_ia")
+      .select("piattaforma, ambiente, lato, importo, pnl_pct, created_at")
+      .eq("user_id", userId)
+      .gte("created_at", dal)
+      .order("created_at", { ascending: false })
+      .limit(1000),
+    panoramicaPiattaforme(userId),
+  ]);
+
+  return pannelli.map((p) => {
+    const ordini = (righe ?? []).filter(
+      (r) => r.piattaforma === p.piattaforma && r.ambiente === p.ambiente,
+    );
+    const vendite = ordini.filter((r) => r.lato === "sell");
+    const pnlDi = (r: (typeof vendite)[number]) =>
+      (Number(r.importo) * Number(r.pnl_pct ?? 0)) / 100;
+    const r2 = (n: number) => Math.round(n * 100) / 100;
+
+    const settimana: { data: string; pnl: number }[] = [];
+    for (let i = 6; i >= 0; i--) {
+      settimana.push({ data: new Date(Date.now() - i * 86_400_000).toISOString().slice(0, 10), pnl: 0 });
+    }
+    for (const v of vendite) {
+      const g = settimana.find((x) => x.data === v.created_at.slice(0, 10));
+      if (g) g.pnl = r2(g.pnl + pnlDi(v));
+    }
+
+    return {
+      piattaforma: p.piattaforma,
+      ambiente: p.ambiente,
+      nome: p.nome,
+      stato: p.stato,
+      valuta: p.valuta,
+      capitale: p.valore,
+      ordini: ordini.length,
+      vincite: vendite.filter((r) => Number(r.pnl_pct ?? 0) > 0).length,
+      perdite: vendite.filter((r) => Number(r.pnl_pct ?? 0) < 0).length,
+      pnlRealizzato: r2(vendite.reduce((a, r) => a + pnlDi(r), 0)),
+      settimana,
+    };
+  });
+}
