@@ -85,9 +85,10 @@ export type StatoPiattaforme = Record<
   { paper: string | null; reale: string | null }
 >;
 
-/** Pannello dashboard di una piattaforma collegata: conto, posizioni, ordini IA. */
+/** Pannello dashboard di un conto collegato (piattaforma + ambiente): conto, posizioni, ordini IA. */
 export type PannelloPiattaforma = {
   piattaforma: Piattaforma;
+  ambiente: "paper" | "reale";
   nome: string;
   stato: "collegato" | "errore";
   messaggio: string | null;
