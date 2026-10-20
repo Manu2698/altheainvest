@@ -1,7 +1,16 @@
 // Apprendimento dell'IA: dai risultati delle vendite passate (pnl_pct) ricava
 // lezioni che correggono le decisioni future. Logica pura, testabile.
 
-export type EsitoPassato = { ticker: string; pnlPct: number };
+export type EsitoPassato = { ticker: string; pnlPct: number; segnale?: string | null };
+
+/** Riconosce il segnale che ha generato un acquisto dal suo motivo. */
+export function segnaleDi(motivo: string | null | undefined): string | null {
+  const m = (motivo ?? "").toLowerCase();
+  if (m.includes("accumulo")) return "accumulo graduale";
+  if (m.includes("trend positivo")) return "trend sopra media 20g";
+  if (m.includes("ribasso del")) return "acquisto sul ribasso";
+  return null;
+}
 
 export type Lezioni = {
   vendite: number;
@@ -12,6 +21,8 @@ export type Lezioni = {
   fattoreStop: number;
   /** Guadagno medio delle vincite: usato per prendere profitto prima. */
   guadagnoMedio: number | null;
+  segnaliVincenti: Set<string>;
+  segnaliPerdenti: Set<string>;
   bloccati: Set<string>; // titoli che fanno perdere ripetutamente
   favoriti: Set<string>; // titoli che fanno vincere con costanza
   riepilogo: string;
@@ -53,7 +64,21 @@ export function calcolaLezioni(esiti: EsitoPassato[]): Lezioni {
     else if (vinte >= 2 && perse === 0) favoriti.add(t);
   }
 
+  const perSegnale = new Map<string, number[]>();
+  for (const e of esiti) if (e.segnale) perSegnale.set(e.segnale, [...(perSegnale.get(e.segnale) ?? []), e.pnlPct]);
+  const segnaliVincenti = new Set<string>();
+  const segnaliPerdenti = new Set<string>();
+  for (const [g, r] of perSegnale) {
+    if (r.length < MIN_CAMPIONE) continue;
+    const tasso = r.filter((x) => x > 0).length / r.length;
+    const somma = r.reduce((a, b) => a + b, 0);
+    if (tasso >= 0.6 && somma > 0) segnaliVincenti.add(g);
+    else if (tasso < 0.4 && somma < 0) segnaliPerdenti.add(g);
+  }
+
   const parti: string[] = [];
+  if (segnaliVincenti.size) parti.push(`punta sui segnali vincenti: ${[...segnaliVincenti].join(", ")}`);
+  if (segnaliPerdenti.size) parti.push(`scarta i segnali perdenti: ${[...segnaliPerdenti].join(", ")}`);
   if (vendite < MIN_CAMPIONE) parti.push(`l'IA sta ancora raccogliendo esperienza (${vendite} vendite chiuse)`);
   else {
     parti.push(`${Math.round(tassoVincite * 100)}% di vendite in guadagno su ${vendite}`);
@@ -69,6 +94,8 @@ export function calcolaLezioni(esiti: EsitoPassato[]): Lezioni {
     fattoreQuota,
     fattoreStop,
     guadagnoMedio,
+    segnaliVincenti,
+    segnaliPerdenti,
     bloccati,
     favoriti,
     riepilogo: `Apprendimento: ${parti.join("; ")}.`,
@@ -100,7 +127,11 @@ export function applicaLezioni(
   if (scelta.azione === "compra") {
     if (l.bloccati.has(ticker))
       return { azione: "attendi", importo: 0, motivo: "Escluso dall'apprendimento: questo titolo ha fatto perdere più volte." };
-    const fattore = l.favoriti.has(ticker) ? Math.max(l.fattoreQuota, 1.2) : l.fattoreQuota;
+    const segnale = segnaleDi(scelta.motivo);
+    if (segnale && l.segnaliPerdenti.has(segnale))
+      return { azione: "attendi", importo: 0, motivo: `Segnale "${segnale}" scartato: in passato ha fatto perdere.` };
+    let fattore = l.favoriti.has(ticker) ? Math.max(l.fattoreQuota, 1.2) : l.fattoreQuota;
+    if (segnale && l.segnaliVincenti.has(segnale)) fattore = Math.max(fattore, 1) * 1.3;
     if (fattore !== 1)
       return {
         ...scelta,
@@ -121,17 +152,23 @@ export async function leggiLezioni(
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const { data } = await supabaseAdmin
       .from("ordini_ia")
-      .select("ticker, pnl_pct")
+      .select("ticker, pnl_pct, lato, motivo, created_at")
       .eq("user_id", userId)
       .eq("piattaforma", piattaforma)
       .eq("ambiente", ambiente)
       .eq("strategia", strategia)
-      .eq("lato", "sell")
-      .not("pnl_pct", "is", null)
       .gte("created_at", new Date(Date.now() - 60 * 86400_000).toISOString())
-      .order("created_at", { ascending: false })
-      .limit(200);
-    return calcolaLezioni((data ?? []).map((r) => ({ ticker: r.ticker, pnlPct: Number(r.pnl_pct) })));
+      .order("created_at", { ascending: true })
+      .limit(1000);
+    // Abbina ogni vendita all'ultimo acquisto dello stesso titolo per sapere quale segnale l'ha generata.
+    const ultimoAcquisto = new Map<string, string | null>();
+    const esiti: EsitoPassato[] = [];
+    for (const r of data ?? []) {
+      if (r.lato === "buy") ultimoAcquisto.set(r.ticker, segnaleDi(r.motivo));
+      else if (r.pnl_pct != null)
+        esiti.push({ ticker: r.ticker, pnlPct: Number(r.pnl_pct), segnale: ultimoAcquisto.get(r.ticker) ?? null });
+    }
+    return calcolaLezioni(esiti);
   } catch {
     return calcolaLezioni([]);
   }
