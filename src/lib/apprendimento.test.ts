@@ -19,3 +19,17 @@ describe("apprendimento", () => {
     expect(s.importo).toBeCloseTo(120);
   });
 });
+
+describe("segnali appresi", () => {
+  const es = (segnale: string, pnl: number[]) => pnl.map((p, i) => ({ ticker: `T${segnale}${i}`, pnlPct: p, segnale }));
+  it("potenzia gli acquisti con un segnale vincente", () => {
+    const l = calcolaLezioni([...es("trend sopra media 20g", [3, 4, 2]), ...es("acquisto sul ribasso", [-2, -3, -1])]);
+    const s = applicaLezioni({ azione: "compra", importo: 100, motivo: "Trend positivo: prezzo sopra la media a 20 giorni." }, "medio", "NEW", undefined, l);
+    expect(s.importo).toBeGreaterThan(100);
+  });
+  it("scarta gli acquisti con un segnale perdente", () => {
+    const l = calcolaLezioni(es("acquisto sul ribasso", [-2, -3, -1]));
+    const s = applicaLezioni({ azione: "compra", importo: 100, motivo: "Ribasso del -2.5% sotto la media 10g." }, "aggressivo", "NEW", undefined, l);
+    expect(s.azione).toBe("attendi");
+  });
+});
