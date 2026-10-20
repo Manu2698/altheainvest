@@ -294,10 +294,18 @@ export async function eseguiCiclo(
     let residuo = Math.max(0, Math.min(capitale - investito, liquidita));
     const quota = capitale / Math.max(1, auto.universo.length || universo.length);
     const decisioni: DecisioneIA[] = [];
+    const { leggiLezioni, applicaLezioni } = await import("./apprendimento");
+    const lezioni = await leggiLezioni(userId, "alpaca", reale ? "reale" : "paper", input.strategia);
 
     for (const ticker of universo) {
       const chiusure = storico[ticker] ?? storico[ticker.replace("/", "")] ?? [];
-      const scelta = decide(input.strategia, ticker, chiusure, posizioni.get(ticker), quota);
+      const scelta = applicaLezioni(
+        decide(input.strategia, ticker, chiusure, posizioni.get(ticker), quota),
+        input.strategia,
+        ticker,
+        posizioni.get(ticker),
+        lezioni,
+      );
       if (scelta.azione === "compra") {
         scelta.importo = Math.min(scelta.importo, residuo);
         if (scelta.importo < 1) {
@@ -386,7 +394,7 @@ export async function eseguiCiclo(
       decisioni,
       eseguiti,
       universo,
-      selezione,
+      selezione: `${selezione} ${lezioni.riepilogo}`,
       messaggio: eseguiti
         ? `${eseguiti} ordini inviati al conto ${reale ? "reale" : "paper"}${
             mercatoAperto ? "." : " (mercato chiuso: verranno eseguiti all'apertura)."

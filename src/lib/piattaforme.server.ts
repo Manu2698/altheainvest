@@ -522,10 +522,12 @@ export async function eseguiCicloEsterno(
     const quota = capitale / Math.max(1, universo.length);
     const aperta = borsaAperta();
     const decisioni: DecisioneIA[] = [];
+    const { leggiLezioni, applicaLezioni } = await import("./apprendimento");
+    const lezioni = await leggiLezioni(userId, p, input.reale ? "reale" : "paper", input.strategia);
 
     for (const t of elenco) {
       const pos = posizioni.get(t);
-      const s = decide(input.strategia, t, serie[t] ?? [], pos, quota);
+      const s = applicaLezioni(decide(input.strategia, t, serie[t] ?? [], pos, quota), input.strategia, t, pos, lezioni);
       if (!isCripto(t) && !aperta && s.azione !== "attendi") {
         s.azione = "attendi";
         s.motivo = "Borsa chiusa: l'IA attende l'apertura per operare.";
@@ -580,7 +582,7 @@ export async function eseguiCicloEsterno(
       decisioni,
       eseguiti,
       universo: elenco,
-      selezione: `L'IA analizza ${universo.length} strumenti disponibili su ${nome} (${INFO_PIATTAFORME[p].mercati}) secondo la strategia ${input.strategia}.`,
+      selezione: `L'IA analizza ${universo.length} strumenti disponibili su ${nome} (${INFO_PIATTAFORME[p].mercati}) secondo la strategia ${input.strategia}. ${lezioni.riepilogo}`,
       messaggio: eseguiti
         ? `${eseguiti} ordini inviati a ${nome} (${input.reale ? "conto reale" : INFO_PIATTAFORME[p].paper}).`
         : `Nessun segnale operativo su ${nome} in questo ciclo: l'IA resta in attesa.`,
