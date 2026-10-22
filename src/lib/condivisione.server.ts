@@ -1,7 +1,7 @@
 // Vista in sola lettura per i link «Condivisione per analisi».
 // Legge con privilegi solo dopo aver verificato il token e restituisce un insieme fisso di campi.
 import { logServer } from "./alpaca.server";
-import { controllaFrequenza, hashToken, importo, normalizzaOpzioni, statoLink, tokenBenFormato, type OpzioniCondivisione } from "./condivisione";
+import { campiNascosti, hashToken, importo, LIMITE_ACCESSI, normalizzaOpzioni, quantita, statoLink, tokenBenFormato, type OpzioniCondivisione } from "./condivisione";
 import { VERSIONE_MOTORE, type EsitoVista, type VistaCondivisa } from "./condivisione.types";
 import { salvaEvento } from "./event-log.server";
 import { INFO_PIATTAFORME, PIATTAFORME_ESTERNE, type Piattaforma } from "./piattaforme.types";
@@ -16,15 +16,16 @@ export async function apriVista(token: unknown): Promise<EsitoVista> {
   if (!link) return { ok: false, motivo: "non_valido" };
   const stato = statoLink(link);
   if (stato !== "attivo") return { ok: false, motivo: stato };
-  const freq = controllaFrequenza(link);
-  if (!freq) return { ok: false, motivo: "troppe_richieste" };
+  // Contatore atomico nel database: richieste simultanee non possono superare il limite.
+  const { data: ammesso, error: errFreq } = await db.rpc("registra_accesso_condivisione", {
+    p_id: link.id,
+    p_finestra_secondi: Math.round(LIMITE_ACCESSI.finestraMs / 1000),
+    p_massimo: LIMITE_ACCESSI.massimo,
+  });
+  if (errFreq || ammesso !== true) return { ok: false, motivo: "troppe_richieste" };
 
   const ora = new Date();
   const registra = !link.ultimo_accesso || ora.getTime() - Date.parse(link.ultimo_accesso) > 10 * 60_000;
-  await db
-    .from("link_condivisione")
-    .update({ ...freq, ultimo_accesso: ora.toISOString(), accessi: link.accessi + 1 })
-    .eq("id", link.id);
   if (registra)
     await salvaEvento({ livello: "info", origine: "condivisione.accesso", tipo: "Condivisione", messaggio: "Link di analisi aperto.", contesto: { link_id: link.id } });
 
