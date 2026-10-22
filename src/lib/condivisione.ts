@@ -93,3 +93,18 @@ export function controllaFrequenza(
 /** Nasconde un importo se l'opzione "importi" è disattivata. */
 export const importo = (o: OpzioniCondivisione, n: number | null | undefined) =>
   o.importi && n != null && Number.isFinite(n) ? n : null;
+
+/** Le quantità permettono di ricostruire gli importi: nascoste insieme a loro. */
+export const quantita = (o: OpzioniCondivisione, n: number | null | undefined) => importo(o, n);
+
+/** Campi volutamente esclusi dal link, con il motivo (per i lettori automatici). */
+export function campiNascosti(o: OpzioniCondivisione): { campo: string; motivo: string }[] {
+  const r: { campo: string; motivo: string }[] = [];
+  const m = "escluso da chi ha creato il link";
+  if (!o.importi)
+    r.push({ campo: "importi, capitali, quantità, prezzi medi, flussi, risultati in valuta, curva", motivo: `${m} (opzione importi disattivata)` });
+  if (!o.posizioni) r.push({ campo: "posizioni", motivo: `${m} (opzione posizioni disattivata)` });
+  if (!o.storico) r.push({ campo: "ordiniIA, ordiniBroker", motivo: `${m} (opzione storico disattivata)` });
+  if (!o.reale) r.push({ campo: "tutti i dati dei conti REALI", motivo: `${m} (solo PAPER)` });
+  return r;
+}

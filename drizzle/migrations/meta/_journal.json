@@ -50,6 +50,13 @@
       "when": 1792676343884,
       "tag": "0006_conti_broker_e_condivisione",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1792682053630,
+      "tag": "0007_accesso_condivisione_atomico",
+      "breakpoints": true
     }
   ]
 }

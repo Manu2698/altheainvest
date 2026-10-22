@@ -1,7 +1,7 @@
 // Vista in sola lettura per i link «Condivisione per analisi».
 // Legge con privilegi solo dopo aver verificato il token e restituisce un insieme fisso di campi.
 import { logServer } from "./alpaca.server";
-import { controllaFrequenza, hashToken, importo, normalizzaOpzioni, statoLink, tokenBenFormato, type OpzioniCondivisione } from "./condivisione";
+import { campiNascosti, hashToken, importo, LIMITE_ACCESSI, normalizzaOpzioni, quantita, statoLink, tokenBenFormato, type OpzioniCondivisione } from "./condivisione";
 import { VERSIONE_MOTORE, type EsitoVista, type VistaCondivisa } from "./condivisione.types";
 import { salvaEvento } from "./event-log.server";
 import { INFO_PIATTAFORME, PIATTAFORME_ESTERNE, type Piattaforma } from "./piattaforme.types";
@@ -16,15 +16,16 @@ export async function apriVista(token: unknown): Promise<EsitoVista> {
   if (!link) return { ok: false, motivo: "non_valido" };
   const stato = statoLink(link);
   if (stato !== "attivo") return { ok: false, motivo: stato };
-  const freq = controllaFrequenza(link);
-  if (!freq) return { ok: false, motivo: "troppe_richieste" };
+  // Contatore atomico nel database: richieste simultanee non possono superare il limite.
+  const { data: ammesso, error: errFreq } = await db.rpc("registra_accesso_condivisione", {
+    p_id: link.id,
+    p_finestra_secondi: Math.round(LIMITE_ACCESSI.finestraMs / 1000),
+    p_massimo: LIMITE_ACCESSI.massimo,
+  });
+  if (errFreq || ammesso !== true) return { ok: false, motivo: "troppe_richieste" };
 
   const ora = new Date();
   const registra = !link.ultimo_accesso || ora.getTime() - Date.parse(link.ultimo_accesso) > 10 * 60_000;
-  await db
-    .from("link_condivisione")
-    .update({ ...freq, ultimo_accesso: ora.toISOString(), accessi: link.accessi + 1 })
-    .eq("id", link.id);
   if (registra)
     await salvaEvento({ livello: "info", origine: "condivisione.accesso", tipo: "Condivisione", messaggio: "Link di analisi aperto.", contesto: { link_id: link.id } });
 
@@ -156,7 +157,7 @@ export async function costruisciVista(
     for (const a of ambienti(o)) {
       if (!pannelli.some((p) => p.piattaforma === "alpaca" && p.ambiente === a && p.stato === "collegato")) continue;
       for (const b of await leggiOrdini(userId, a === "reale", 100))
-        ordiniBroker.push({ ambiente: a, ticker: b.ticker, lato: b.lato, stato: b.stato, tipo: b.tipo, quantita: b.quantita, prezzoMedio: imp(b.prezzoMedio), importo: imp(b.importo), creatoIl: b.creatoIl });
+        ordiniBroker.push({ ambiente: a, ticker: b.ticker, lato: b.lato, stato: b.stato, tipo: b.tipo, quantita: quantita(o, b.quantita), prezzoMedio: imp(b.prezzoMedio), importo: imp(b.importo), creatoIl: b.creatoIl });
     }
   }
 
@@ -173,6 +174,21 @@ export async function costruisciVista(
     link,
     opzioni: o,
     motore: VERSIONE_MOTORE,
+    metadati: {
+      valuta: "USD",
+      notaValuta: "Tutti gli importi, prezzi, capitali e la curva sono in dollari USA (USD), valuta dei conti Alpaca; per le altre piattaforme il valore è convertito/riportato in USD dall'adattatore.",
+      ambienti: o.reale ? ["paper", "reale"] : ["paper"],
+      periodi: {
+        confrontoConti: "Vincite, perdite, risultati realizzati e grafico settimanale: ultimi 30 giorni fino a generataIl.",
+        strategie: "Statistiche per strategia: tutto lo storico ordini_ia disponibile (massimo ultimi 2.000 ordini).",
+        ordiniIA: "Ultimi 300 ordini registrati dall'IA, dal più recente.",
+        ordiniBroker: "Ultimi 100 ordini per conto Alpaca letti dal broker.",
+        curva: "Equity giornaliera Alpaca degli ultimi 3 mesi.",
+        lezioni: "Lezioni dell'IA calcolate sulle vendite degli ultimi 60 giorni.",
+      },
+      campiNascosti: campiNascosti(o),
+      campiNonDisponibili: "Un campo null NON elencato in campiNascosti significa dato non disponibile (broker non raggiungibile o dato non registrato), non nascosto per scelta.",
+    },
     avvisi,
     collegamenti,
     confronto: {
@@ -190,7 +206,7 @@ export async function costruisciVista(
     },
     posizioni: o.posizioni
       ? pannelli.flatMap((p) =>
-          p.posizioni.map((x) => ({ piattaforma: p.piattaforma, nome: p.nome, ambiente: p.ambiente, ticker: x.ticker, quantita: x.quantita, valore: imp(x.valore), pnlPct: x.pnlPct })),
+          p.posizioni.map((x) => ({ piattaforma: p.piattaforma, nome: p.nome, ambiente: p.ambiente, ticker: x.ticker, quantita: quantita(o, x.quantita), valore: imp(x.valore), pnlPct: x.pnlPct })),
         )
       : null,
     automazioni: autom,
