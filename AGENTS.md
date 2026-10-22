@@ -10,8 +10,8 @@
 <!-- LOVABLE:END -->
 
 ## Architecture rules
-- Broker mutations require a durable pre-submit intent in registro_ordini; unknown outcomes must be resolved before new orders, and all cycle/reconciliation callers share the database lease to avoid overlapping writes.
-- Alpaca reconciliation persists sanitized fills and bracketed account/position/history/flow observations; metrics consume those observations and hide return/profit on incomplete or stale reconciliation, without claiming cost-basis accounting is final.
+- Broker mutations require an atomic lease-owned pre-submit intent in registro_ordini; renew/verify ownership before each bounded submission, use the persisted client ID for both buys and sells, and never resend an uncertain intent. Non-Alpaca execution remains fail-closed until adapters expose verified identity, receipts, pending exposure and recovery.
+- Alpaca reconciliation persists sanitized deduplicated fills and bracketed account/position/history/flow observations; average-cost accounting replays fills from verified account inception, excludes corporate-action/incomplete histories, and hides results or blocks execution on incomplete observations. Order prices must match weighted fill prices, not submission estimates.
 - User cash and buying-power caps are bound to the verified broker account and applied centrally within actual cash/buying power; they do not create funds or enable leverage.
 - The trade assistant streams through the `/api/chat` server route (Bearer-verified, thread ownership checked) and injects the user's settings, IA order log, broker orders and account summary into the model instructions — keeps answers grounded in real data without tool loops.
 - The daily loss limit is enforced inside `eseguiCiclo` (Alpaca `last_equity - equity`) and every caller pauses the automation row on `bloccoPerdita` — one check covers cron and manual cycles.

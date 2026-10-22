@@ -18,14 +18,14 @@ export const getRiconciliazione = createServerFn({ method: "POST" })
       }
     }
     if (!r) throw new Error("Ciclo in corso: riconciliazione disponibile al termine.");
-    return { stato: r.stato, motivo: r.motivo, equity: r.equity, liquidita: r.liquidita, potereAcquisto: r.potere_acquisto, valuta: r.valuta, aggiornatoIl: r.osservato_al };
+    return { stato: r.stato, motivo: r.motivo, equity: r.equity, liquidita: r.liquidita, potereAcquisto: r.potere_acquisto, valuta: r.valuta, aggiornatoIl: r.osservato_al, contabilita: r.contabilita };
   });
 
 export const getRegistroOrdini = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
   .inputValidator((i: { reale: boolean }) => ({ reale: Boolean(i.reale) }))
   .handler(async ({ data, context }) => {
-    const { data: rows, error } = await context.supabase.from("registro_ordini").select("id,piattaforma,ticker,lato,stato,quantita_eseguita,prezzo_medio,riconciliato_il,created_at,strategia").eq("user_id", context.userId).eq("ambiente", data.reale ? "reale" : "paper").order("created_at", { ascending: false }).limit(200);
+    const { data: rows, error } = await context.supabase.from("registro_ordini").select("id,piattaforma,ticker,lato,stato,quantita_eseguita,prezzo_medio,riconciliato_il,created_at,strategia,broker_id,eseguito_il,riconciliazione_motivo").eq("user_id", context.userId).eq("ambiente", data.reale ? "reale" : "paper").order("created_at", { ascending: false }).limit(200);
     if (error) throw new Error("Registro non disponibile.");
     return rows ?? [];
   });
