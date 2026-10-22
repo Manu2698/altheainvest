@@ -396,6 +396,10 @@ async function eseguiCicloInterno(
         }
       }
       if (scelta.azione === "compra") {
+        const { data: attuali, error: errore } = await supabaseAdmin.from("automazioni_conti").select("liquidita_limite, acquisto_limite, limiti_conto_id").eq("user_id", userId).eq("piattaforma", "alpaca").eq("ambiente", reale ? "reale" : "paper").maybeSingle();
+        if (errore || (attuali?.limiti_conto_id && attuali.limiti_conto_id !== contoId)) throw new Error("Limiti del conto non verificabili: nessun nuovo acquisto.");
+        // Il residuo del ciclo scende soltanto; le riduzioni salvate durante l'analisi valgono subito.
+        residuo = Math.min(residuo, attuali?.liquidita_limite == null ? Infinity : Number(attuali.liquidita_limite), attuali?.acquisto_limite == null ? Infinity : Number(attuali.acquisto_limite));
         // Arrotonda per difetto: l'arrotondamento al centesimo non supera la liquidità residua.
         scelta.importo = Math.floor(Math.min(scelta.importo, residuo) * 100) / 100;
         if (scelta.importo < 1) {

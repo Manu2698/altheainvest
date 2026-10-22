@@ -384,7 +384,7 @@ function Index() {
             </RuntimeErrorBoundary>
           </div>
 
-          <div className="mt-4 grid gap-4">
+          <div className="mt-4 grid min-w-0 grid-cols-[minmax(0,1fr)] gap-4">
             <RuntimeErrorBoundary area="statistiche">
               <StatisticheStrategie reale={reale} />
             </RuntimeErrorBoundary>

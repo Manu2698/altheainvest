@@ -356,7 +356,7 @@ export function MotoreIA({ strategia, capitale }: { strategia: StrategyId; capit
   const attivi = conti.filter((c) => c.attivo).length;
 
   return (
-    <div className="panel p-6">
+    <div className="panel min-w-0 p-4 sm:p-6">
       <div className="flex flex-wrap items-center gap-2">
         <Bot className="size-4 text-primary" />
         <h3 className="text-sm font-semibold">Motore operativo</h3>

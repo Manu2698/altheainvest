@@ -1,11 +1,12 @@
 # Audit PAPER prioritario
-- [ ] Limiti personali di liquidità e potere d'acquisto entro disponibilità broker.
-- [ ] Registro persistente ordini e osservazioni contabili; rendimento bloccato su dati parziali.
-- [ ] Verifica offline e in anteprima senza inviare ordini.
+- [x] Limiti personali di liquidità e potere d'acquisto entro disponibilità Alpaca (senza aumentare leva).
+- [x] Registro persistente per tutti i percorsi d'invio; esecuzioni/istantanee Alpaca riconciliate, rendimento bloccato su dati parziali.
+- [x] 70 test offline e lettura registro PAPER in anteprima senza inviare ordini.
 - [x] Verificare moltiplicatori; isolare apprendimento e statistiche al conto attribuito.
 - [x] Separare 35 ordini attivi e 3 non determinati; deduplicare ID nel report.
 - [x] Verificare liquidità e limite giornaliero; conservare 50 USD su conferma utente.
 - [x] Aggiungere controlli prezzi approvati, split e paginazione; verificare negoziabilità.
 - [x] Sopprimere rendimento con flussi non allineati; identificare differenza contabile ancora non definitiva.
 - [x] Test offline e audit, nessun ordine/deploy.
-- [ ] Riconciliazione definitiva al centesimo: richiede un'esportazione PAPER immutabile di ordini, esecuzioni, attività, equity e posizioni alla stessa data/ora; le letture live cambiano durante l'automazione già attiva.
+- [ ] Contabilità definitiva del profitto realizzato storico: manca base di costo iniziale immutabile e allineamento temporale broker; le istantanee persistenti non inventano i dati mancanti.
+- [ ] Riconciliazione contabile su broker esterni: gli adattatori non espongono ancora identità verificata, esecuzioni e flussi completi; il registro li segnala non riconciliati.
