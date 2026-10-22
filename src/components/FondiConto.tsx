@@ -12,7 +12,7 @@ export function FondiConto({ conto }: { conto: ContoAutomazione }) {
   const qc = useQueryClient();
   const leggi = useServerFn(getRiconciliazione);
   const salva = useServerFn(salvaFondi);
-  const q = useQuery({ queryKey: ["riconciliazione", conto.ambiente], queryFn: () => leggi({ data: { reale: conto.ambiente === "reale" } }), enabled: conto.piattaforma === "alpaca" && conto.collegato, retry: false });
+  const q = useQuery({ queryKey: ["riconciliazione", conto.ambiente], queryFn: () => leggi({ data: { reale: conto.ambiente === "reale" } }), enabled: conto.piattaforma === "alpaca" && conto.collegato, retry: 1, retryDelay: 3000, refetchInterval: 60_000 });
   const mutation = useMutation({ mutationFn: () => salva({ data: { piattaforma: conto.piattaforma, ambiente: conto.ambiente, liquidita: cash.trim() ? Number(cash) : null, acquisto: power.trim() ? Number(power) : null } }), onSuccess: () => { void qc.invalidateQueries({ queryKey: ["automazioni-conti"] }); void q.refetch(); } });
   if (conto.piattaforma !== "alpaca") return null;
   const fmt = (n: number | null | undefined) => n == null ? "—" : `${Number(n).toLocaleString("it-IT", { maximumFractionDigits: 2 })} ${q.data?.valuta ?? "USD"}`;

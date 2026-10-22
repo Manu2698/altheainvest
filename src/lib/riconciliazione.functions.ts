@@ -8,9 +8,26 @@ export const getRiconciliazione = createServerFn({ method: "POST" })
   .inputValidator((i: { reale: boolean }) => ({ reale: Boolean(i.reale) }))
   .handler(async ({ data, context }) => {
     const { conLeaseConto, riconciliaAlpacaPersistente } = await import("./riconciliazione.server");
-    const r = await conLeaseConto(context.userId, "alpaca", data.reale ? "reale" : "paper", () => riconciliaAlpacaPersistente(context.userId, data.reale));
+    let r = await conLeaseConto(context.userId, "alpaca", data.reale ? "reale" : "paper", () => riconciliaAlpacaPersistente(context.userId, data.reale));
+    if (!r) {
+      const { identitaAlpaca } = await import("./conti.server");
+      const identity = await identitaAlpaca(context.userId, data.reale);
+      if (identity && identity !== "assente") {
+        const { data: saved } = await context.supabase.from("istantanee_contabili").select("*").eq("user_id", context.userId).eq("piattaforma", "alpaca").eq("ambiente", data.reale ? "reale" : "paper").eq("conto_id", identity.contoId).order("created_at", { ascending: false }).limit(1).maybeSingle();
+        r = saved;
+      }
+    }
     if (!r) throw new Error("Ciclo in corso: riconciliazione disponibile al termine.");
     return { stato: r.stato, motivo: r.motivo, equity: r.equity, liquidita: r.liquidita, potereAcquisto: r.potere_acquisto, valuta: r.valuta, aggiornatoIl: r.osservato_al };
+  });
+
+export const getRegistroOrdini = createServerFn({ method: "GET" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((i: { reale: boolean }) => ({ reale: Boolean(i.reale) }))
+  .handler(async ({ data, context }) => {
+    const { data: rows, error } = await context.supabase.from("registro_ordini").select("id,piattaforma,ticker,lato,stato,quantita_eseguita,prezzo_medio,riconciliato_il,created_at,strategia").eq("user_id", context.userId).eq("ambiente", data.reale ? "reale" : "paper").order("created_at", { ascending: false }).limit(200);
+    if (error) throw new Error("Registro non disponibile.");
+    return rows ?? [];
   });
 
 export const salvaFondi = createServerFn({ method: "POST" })

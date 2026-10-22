@@ -20,6 +20,8 @@ export async function conLeaseConto<T>(userId: string, piattaforma: string, ambi
 export async function registraIntento(i: { userId: string; piattaforma: string; ambiente: string; contoId: string; ticker: string; lato: string; strategia: string; importo: number }) {
   const clientId = `althea-${crypto.randomUUID()}`;
   const client = await db();
+  const { data: incerti, error: queryError } = await client.from("registro_ordini").select("id").eq("user_id", i.userId).eq("piattaforma", i.piattaforma).eq("ambiente", i.ambiente).eq("conto_id", i.contoId).in("stato", ["invio_in_corso", "esito_incerto"]).limit(1);
+  if (queryError || incerti?.length) throw new Error("Esito di un ordine precedente non confermato: nessun nuovo invio.");
   const { data, error } = await client.from("registro_ordini").insert({ user_id: i.userId, piattaforma: i.piattaforma, ambiente: i.ambiente, conto_id: i.contoId, client_id: clientId, ticker: i.ticker, lato: i.lato, strategia: i.strategia, importo_richiesto: i.importo, stato: "invio_in_corso" }).select("id").single();
   if (error || !data) throw new Error("Ordine non inviato: impossibile registrarlo in modo persistente.");
   return { id: data.id, clientId };
@@ -48,7 +50,7 @@ export async function riconciliaAlpacaPersistente(userId: string, reale: boolean
   const prima = await leggi("/v2/account") as Record<string, unknown>;
   if (!prima["id"]) throw new Error("Identità del conto non disponibile.");
   const contoId = `alpaca:${String(prima["id"])}`;
-  const dal = new Date(Date.now() - 90 * 86400000).toISOString();
+  const dal = `${new Date(Date.now() - 90 * 86400000).toISOString().slice(0,10)}T00:00:00Z`;
   let completo = true;
   const attivita: Record<string, unknown>[] = [];
   const ordini: Record<string, unknown>[] = [];
@@ -84,9 +86,18 @@ export async function riconciliaAlpacaPersistente(userId: string, reale: boolean
   let stabili = false;
   try {
     await Promise.all([paginaAttivita(), paginaOrdini()]);
-    const [positions, history] = await Promise.all([leggi("/v2/positions"), storicoConto(userId, reale)]);
+    const [positions, history] = await Promise.all([leggi("/v2/positions"), leggi("/v2/account/portfolio/history?period=3M&timeframe=1D")]);
     pos = positions as Record<string, unknown>[];
-    storico = history;
+    const h = history as { timestamp?: number[]; equity?: (number | null)[] };
+    if (!h.timestamp || !h.equity || h.timestamp.length !== h.equity.length) completo = false;
+    storico = (h.timestamp ?? []).map((t, idx) => ({ giorno: new Date(t * 1000).toISOString().slice(0,10), valore: numero(h.equity?.[idx]) }));
+    if (storico.some(p => !Number.isFinite(p.valore))) completo = false;
+    // Importa anche gli ordini broker precedenti senza inventare la loro strategia.
+    for (const o of [...new Map(ordini.map(o => [String(o["id"]), o])).values()]) {
+      if (!o["id"] || !o["created_at"] || !o["symbol"]) { completo = false; continue; }
+      const { error: importError } = await client.from("registro_ordini").upsert({ user_id: userId, piattaforma: "alpaca", ambiente, conto_id: contoId, broker_id: String(o["id"]), client_id: String(o["client_order_id"] ?? `broker-${o["id"]}`), ticker: String(o["symbol"]), lato: String(o["side"]), strategia: "non_attribuita", stato: String(o["status"]), created_at: String(o["created_at"]) }, { onConflict: "user_id,piattaforma,ambiente,conto_id,client_id", ignoreDuplicates: true });
+      if (importError) throw importError;
+    }
     const { data: registrati, error } = await client.from("registro_ordini").select("*").eq("user_id", userId).eq("piattaforma", "alpaca").eq("ambiente", ambiente).eq("conto_id", contoId);
     if (error) throw error;
     for (const o of registrati ?? []) {
@@ -99,7 +110,7 @@ export async function riconciliaAlpacaPersistente(userId: string, reale: boolean
       if (!broker) { completo = false; continue; }
       ordini.push(broker);
       const qty = numero(broker["filled_qty"]);
-      const fills = attivita.filter(a => a["activity_type"] === "FILL" && String(a["order_id"]) === String(broker["id"]));
+      const fills = [...new Map(attivita.filter(a => a["activity_type"] === "FILL" && String(a["order_id"]) === String(broker["id"])).map(a => [String(a["id"]), a])).values()];
       const sum = fills.reduce((s, f) => s + numero(f["qty"]), 0);
       const confermato = Number.isFinite(qty) && Math.abs(sum - qty) < 1e-8;
       if (!confermato) completo = false;
