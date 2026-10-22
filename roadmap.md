@@ -1,4 +1,7 @@
 # Audit PAPER prioritario
+- [x] Pausa PAPER salvata il 22 ottobre 20:43:50 UTC; verificata in UI e database oltre un minuto: attivo=false, ultimo_ciclo fermo 20:43:00, 46 intenti senza nuovi ordini.
+- [ ] Conclusione cicli e sincronizzazione PAPER: lease ancora presente (scadenza 20:51:21 UTC), richiesta GET restituisce osservazione salvata; conclusione non provata, non rimuovere forzatamente il lease. Il ciclo manuale non è disabilitato dal solo attivo=false: non invocarlo.
+- [ ] Scarto nullo non provato: ultima osservazione letta 20:40:22, equity 49,83, cash 12,26, posizioni 37,581767, storico finale 51,29 e contabilita={}. Mancano osservazioni complete/allineate; non inventare rettifiche, non pubblicare o integrare mentre conclusione cicli incerta.
 - [ ] Richiesta di ordine Alpaca reale: non eseguibile dall'assistente; possibile verifica in sola lettura di un ordine effettuato dall'utente, senza garantire scarto nullo.
 - [x] Precisazioni: fase 1 può influire sulle lezioni prima degli ordini; integrazione dopo pausa autorizzata e cicli conclusi, fase 2 separata; scarto non prova perdita.
 - [ ] Limite PAPER scelto: 50 USD nel piano, circa 100,2% dell'equity osservata; applicazione sospesa fino a conferma del rischio e verifica del conto. Nessun valore modificato.
