@@ -1,5 +1,7 @@
 import { credenzialiUtente, logServer } from "./alpaca.server";
 import { getStrategia, type StrategyId } from "./strategies";
+import type { LeaseConto } from "./riconciliazione.server";
+import { capitalePendenti } from "./esecuzioni";
 import type { DecisioneIA, EsitoCiclo, OrdineBroker } from "./trading.types";
 
 const base = (reale: boolean) =>
@@ -24,12 +26,22 @@ export async function serieStorica(
   const cripto = tickers.filter(isCripto);
   const out: Record<string, number[]> = {};
 
+  const barre: Record<string, {c:number;t:string}[]> = {};
+  const invalida = () => { for (const t of tickers) { delete out[t]; delete out[t.replace("/", "")]; if (ultimi) {delete ultimi[t];delete ultimi[t.replace("/", "")];} } };
+  let fallito = false;
   const raccogli = (payload: unknown, mappa: (s: string) => string) => {
-    const bars = (payload as { bars?: Record<string, { c: number; t?: string }[]> })?.bars ?? {};
-    for (const [sym, righe] of Object.entries(bars)) {
-      out[mappa(sym)] = [...(out[mappa(sym)] ?? []), ...righe.map((r) => num(r.c))];
-      const t = righe.at(-1)?.t;
-      if (ultimi && t) ultimi[mappa(sym)] = t;
+    const bars = (payload as {bars?:Record<string,{c:number;t?:string}[]>})?.bars;
+    if (!bars || typeof bars !== "object") throw new Error("Storico incompleto.");
+    for (const [sym,righe] of Object.entries(bars)) {
+      const key=mappa(sym);
+      for (const r of righe) {
+        const prev=barre[key]?.at(-1);
+        if (!r.t || !Number.isFinite(Date.parse(r.t)) || Date.parse(r.t)>Date.now() || !Number.isFinite(Number(r.c)) || Number(r.c)<=0 || (prev && Date.parse(r.t)<=Date.parse(prev.t))) throw new Error("Barre duplicate, future o non confrontabili.");
+        (barre[key] ??= []).push({c:Number(r.c),t:r.t});
+      }
+      out[key]=(barre[key] ?? []).map(r=>r.c);
+      const t=barre[key]?.at(-1)?.t;
+      if (ultimi && t) ultimi[key]=t;
     }
   };
 
@@ -45,15 +57,15 @@ export async function serieStorica(
   const pagine = async (url: string, origine: string, mappa: (s: string) => string) => {
     let token: string | null = null;
     for (let pagina = 0; pagina < 30; pagina++) {
-      const r = await fetch(`${url}${token ? `&page_token=${encodeURIComponent(token)}` : ""}`, { headers });
+      const r = await fetch(`${url}${token ? `&page_token=${encodeURIComponent(token)}` : ""}`, { headers, signal: AbortSignal.timeout(15000) });
       const j = await controlla(r, origine) as { bars?: Record<string, { c: number; t?: string }[]>; next_page_token?: string | null } | null;
-      if (!j) { for (const t of tickers) { delete out[t]; if (ultimi) delete ultimi[t]; } return; }
+      if (!j) { fallito=true; invalida(); return; }
       raccogli(j, mappa);
       token = j.next_page_token ?? null;
       if (!token) return;
     }
     // Serie troncata: non presentarla al motore come completa.
-    for (const t of tickers) { delete out[t]; if (ultimi) delete ultimi[t]; }
+    fallito=true; invalida();
   };
 
   if (azioni.length) {
@@ -62,7 +74,7 @@ export async function serieStorica(
     )}&timeframe=1Day&limit=1000&start=${inizio}&feed=iex&adjustment=split&sort=asc`;
     richieste.push(
       pagine(url, "trading.serieStorica.azioni", (s) => s)
-        .catch((e) => logServer("trading.serieStorica.azioni", e)),
+        .catch((e) => { fallito=true; invalida(); logServer("trading.serieStorica.azioni", e); }),
     );
   }
 
@@ -72,12 +84,13 @@ export async function serieStorica(
     )}&timeframe=1Day&limit=1000&start=${inizio}&sort=asc`;
     richieste.push(
       pagine(url, "trading.serieStorica.cripto", (s) => s.replace("/", ""))
-        .catch((e) => logServer("trading.serieStorica.cripto", e)),
+        .catch((e) => { fallito=true; invalida(); logServer("trading.serieStorica.cripto", e); }),
     );
   }
 
 
   await Promise.all(richieste);
+  if (fallito) invalida();
   return out;
 }
 
@@ -95,7 +108,7 @@ export function decide(
   if (chiusure.length < 6) {
     return { azione: "attendi", importo: 0, motivo: "Storico prezzi insufficiente." };
   }
-  const ultimo = chiusure[chiusure.length - 1]!;
+  const ultimo = chiusure.at(-1) ?? 0;
   const sma10 = media(chiusure.slice(-10));
   const sma20 = media(chiusure.slice(-20));
   const scostamento = ((ultimo - sma10) / sma10) * 100;
@@ -169,7 +182,7 @@ export async function leggiOrdini(
       id: String(o["id"] ?? ""),
       ticker: String(o["symbol"] ?? ""),
       lato: o["side"] === "sell" ? "sell" : "buy",
-      quantita: num(o["filled_qty"] || o["qty"]),
+      quantita: num(o["filled_qty"]),
       importo: o["notional"] ? num(o["notional"]) : null,
       stato: String(o["status"] ?? ""),
       tipo: String(o["type"] ?? ""),
@@ -188,12 +201,14 @@ export async function eseguiCiclo(
 ): Promise<EsitoCiclo> {
   const { conLeaseConto, riconciliaAlpacaPersistente } = await import("./riconciliazione.server");
   const p = input.piattaforma || "alpaca";
-  const result = await conLeaseConto(userId, p, input.reale ? "reale" : "paper", async () => {
+  const result = await conLeaseConto(userId, p, input.reale ? "reale" : "paper", async (lease) => {
     // Nessun invio senza registro disponibile; la riconciliazione non invia ordini.
-    if (p === "alpaca") await riconciliaAlpacaPersistente(userId, input.reale);
-    const esito = await eseguiCicloInterno(userId, input);
+    if (p !== "alpaca") return {ok:false,messaggio:"Operazioni bloccate: questo broker non espone ancora esecuzioni, identità e capitale pendente verificabili.",mercatoAperto:false,decisioni:[],eseguiti:0};
+    const snapshot = await riconciliaAlpacaPersistente(userId, input.reale, lease);
+    if (snapshot.stato !== "riconciliato") return {ok:false,messaggio:`Nessun ordine inviato: ${snapshot.motivo}`,mercatoAperto:false,decisioni:[],eseguiti:0};
+    const esito = await eseguiCicloInterno(userId, input, lease);
     if (p === "alpaca") {
-      try { await riconciliaAlpacaPersistente(userId, input.reale); }
+      try { await riconciliaAlpacaPersistente(userId, input.reale, lease); }
       catch { esito.messaggio += " Riconciliazione incompleta: rendimento non definitivo."; }
     }
     return esito;
@@ -212,6 +227,7 @@ async function eseguiCicloInterno(
     perditaMax?: number | null;
     piattaforma?: string | null;
   },
+  lease: LeaseConto,
 ): Promise<EsitoCiclo> {
   if (input.piattaforma && input.piattaforma !== "alpaca") {
     const { eseguiCicloEsterno } = await import("./piattaforme.server");
@@ -238,7 +254,7 @@ async function eseguiCicloInterno(
   const headers = cred.headers;
   const url = base(reale);
   const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-  const { data: fondi, error: erroreFondi } = await supabaseAdmin.from("automazioni_conti").select("liquidita_limite, acquisto_limite, limiti_conto_id").eq("user_id", userId).eq("piattaforma", "alpaca").eq("ambiente", reale ? "reale" : "paper").maybeSingle();
+  const { data: fondi, error: erroreFondi } = await supabaseAdmin.from("automazioni_conti").select("liquidita_limite, acquisto_limite, limiti_conto_id, perdita_max_giornaliera").eq("user_id", userId).eq("piattaforma", "alpaca").eq("ambiente", reale ? "reale" : "paper").maybeSingle();
   if (erroreFondi) throw new Error("Limiti utilizzabili non verificabili: ciclo non eseguito.");
 
   // L'IA sceglie da sola su cosa investire analizzando il mercato.
@@ -277,7 +293,8 @@ async function eseguiCicloInterno(
   }
 
   // Limite di perdita giornaliera: se raggiunto, l'IA si ferma prima di operare.
-  const limite = input.perditaMax ?? null;
+  const limite = fondi?.perdita_max_giornaliera == null ? null : Number(fondi.perdita_max_giornaliera);
+  if (limite != null && (!Number.isFinite(limite) || limite < 0)) throw new Error("Limite giornaliero incoerente: nessun ordine.");
   if (limite && limite > 0 && perditaOggi != null && perditaOggi >= limite) {
     return {
       ok: false,
@@ -311,8 +328,10 @@ async function eseguiCicloInterno(
     // Ordini ancora aperti presso il broker: niente nuovi ordini sullo stesso titolo (anti-duplicati).
     const { motivoBloccoAcquisti, problemaDati, simboliAperti } = await import("./protezioni");
     let aperti = new Set<string>();
-    const ordiniApertiOk = Boolean(apertiRes?.ok);
-    if (apertiRes?.ok) aperti = simboliAperti((await apertiRes.json()) as { symbol?: unknown }[]);
+    const apertiRaw = apertiRes?.ok ? await apertiRes.json() as Record<string,unknown>[] : null;
+    const impegno = apertiRaw ? capitalePendenti(apertiRaw) : null;
+    const ordiniApertiOk = Array.isArray(apertiRaw) && apertiRaw.length < 500 && impegno != null;
+    if (apertiRaw) aperti = simboliAperti(apertiRaw);
     const bloccoAcquisti = motivoBloccoAcquisti({
       contoOk,
       posizioniOk: posRes.ok,
@@ -345,7 +364,7 @@ async function eseguiCicloInterno(
 
     // Tetto rigido: il totale investito non supera mai il capitale scelto dall'utente.
     const investito = [...posizioni.values()].reduce((a, p) => a + p.valore, 0);
-    let residuo = Math.max(0, Math.min(capitale - investito, liquidita));
+    let residuo = Math.max(0, Math.min(capitale - investito - (impegno ?? capitale), liquidita));
     const quota = capitale / Math.max(1, auto.universo.length || universo.length);
     const decisioni: DecisioneIA[] = [];
     const { leggiLezioni, applicaLezioni } = await import("./apprendimento");
@@ -361,7 +380,7 @@ async function eseguiCicloInterno(
         lezioni,
       );
       const chiave = ticker.replace("/", "").toUpperCase();
-      if (scelta.azione !== "attendi" && aperti.has(chiave)) {
+      if (scelta.azione !== "attendi" && (!ordiniApertiOk || aperti.has(chiave))) {
         scelta.azione = "attendi";
         scelta.importo = 0;
         scelta.motivo = "Ordine già in corso presso il broker: nessun nuovo ordine su questo titolo.";
@@ -396,7 +415,7 @@ async function eseguiCicloInterno(
         }
       }
       if (scelta.azione === "compra") {
-        const { data: attuali, error: errore } = await supabaseAdmin.from("automazioni_conti").select("liquidita_limite, acquisto_limite, limiti_conto_id").eq("user_id", userId).eq("piattaforma", "alpaca").eq("ambiente", reale ? "reale" : "paper").maybeSingle();
+        const { data: attuali, error: errore } = await supabaseAdmin.from("automazioni_conti").select("liquidita_limite, acquisto_limite, limiti_conto_id, perdita_max_giornaliera").eq("user_id", userId).eq("piattaforma", "alpaca").eq("ambiente", reale ? "reale" : "paper").maybeSingle();
         if (errore || (attuali?.limiti_conto_id && attuali.limiti_conto_id !== contoId)) throw new Error("Limiti del conto non verificabili: nessun nuovo acquisto.");
         // Il residuo del ciclo scende soltanto; le riduzioni salvate durante l'analisi valgono subito.
         residuo = Math.min(residuo, attuali?.liquidita_limite == null ? Infinity : Number(attuali.liquidita_limite), attuali?.acquisto_limite == null ? Infinity : Number(attuali.acquisto_limite));
@@ -415,9 +434,24 @@ async function eseguiCicloInterno(
         eseguito: false,
       };
 
-      const { registraIntento, aggiornaRicevuta } = await import("./riconciliazione.server");
+      // Rivalida conto/posizioni/pendenti immediatamente prima dell'invio, non dopo una lunga analisi.
+      if (scelta.azione !== "attendi") {
+        const [ar,pr,orr] = await Promise.all([fetch(`${url}/v2/account`,{headers,signal:AbortSignal.timeout(15000)}),fetch(`${url}/v2/positions`,{headers,signal:AbortSignal.timeout(15000)}),fetch(`${url}/v2/orders?status=open&limit=500`,{headers,signal:AbortSignal.timeout(15000)})]);
+        if (!ar.ok || !pr.ok || !orr.ok) throw new Error("Verifica pre-invio incompleta: nessun nuovo ordine.");
+        const a=await ar.json() as Record<string,unknown>, positions=await pr.json() as Record<string,unknown>[], pending=await orr.json() as Record<string,unknown>[];
+        const committed=capitalePendenti(pending);
+        if (`alpaca:${a["id"]}`!==contoId || a["trading_blocked"]===true || a["account_blocked"]===true || a["currency"]!=="USD" || ![a["cash"],a["equity"],a["buying_power"],a["last_equity"]].every(v=>v!=null && v!=="" && Number.isFinite(Number(v))) || positions.some(p=>![p["market_value"],p["qty"]].every(v=>v!=null && Number.isFinite(Number(v)))) || committed==null || pending.length>=500 || simboliAperti(pending).has(chiave)) throw new Error("Conto o ordini incoerenti nella verifica pre-invio: operazione bloccata.");
+        if (limite && Number(a["last_equity"])-Number(a["equity"])>=limite) return {ok:false,messaggio:"Trading sospeso: raggiunto il limite giornaliero durante l’analisi.",mercatoAperto,decisioni,eseguiti:decisioni.filter(d=>d.eseguito).length,bloccoPerdita:{perdita:Number(a["last_equity"])-Number(a["equity"]),limite}};
+        if (scelta.azione === "compra") {
+          const budget=input.modalita==="conto" ? Number(a["equity"]) : capitale;
+          const esposto=positions.reduce((sum,p)=>sum+Math.abs(Number(p["market_value"])),0);
+          decisione.importo=Math.floor(Math.max(0,Math.min(decisione.importo,residuo,budget-esposto-committed,Number(a["cash"]),Number(a["buying_power"]))) *100)/100;
+          if (decisione.importo<1) { decisione.azione="attendi";decisione.motivo="Capitale impegnato o fondi insufficienti nella verifica pre-invio.";decisioni.push(decisione);continue; }
+        }
+      }
+      const { registraIntento, aggiornaRicevuta, verificaLease } = await import("./riconciliazione.server");
       const invio = scelta.azione !== "attendi" && contoId
-        ? await registraIntento({ userId, piattaforma: "alpaca", ambiente: reale ? "reale" : "paper", contoId, ticker, lato: scelta.azione === "vendi" ? "sell" : "buy", strategia: input.strategia, importo: decisione.importo }) : null;
+        ? await registraIntento({ userId, piattaforma: "alpaca", ambiente: reale ? "reale" : "paper", contoId, ticker, lato: scelta.azione === "vendi" ? "sell" : "buy", strategia: input.strategia, importo: decisione.importo }, lease) : null;
       if (scelta.azione !== "attendi" && !invio) {
         decisione.azione = "attendi";
         decisione.motivo = "Identità o registro non disponibili: nessun ordine inviato.";
@@ -425,18 +459,20 @@ async function eseguiCicloInterno(
         continue;
       }
       if (scelta.azione === "vendi" && posizioni.has(ticker)) {
-        // Chiusura integrale della posizione: funziona anche su titoli non frazionabili.
+        // Vendita esplicita con lo stesso client ID persistito: recuperabile anche dopo timeout.
         const sym = isCripto(ticker) ? paioCripto(ticker) : ticker;
-        const res = await fetch(
-          `${url}/v2/positions/${encodeURIComponent(sym)}?percentage=100`,
-          { method: "DELETE", headers },
-        );
+        const position = await fetch(`${url}/v2/positions/${encodeURIComponent(sym)}`, {headers,signal:AbortSignal.timeout(15000)});
+        const actual = position.ok ? await position.json() as Record<string,unknown> : null;
+        const quantity = Number(actual?.["qty"]);
+        if (!Number.isFinite(quantity) || quantity<=0) { if (invio) await aggiornaRicevuta(invio.id,null,"non_inviato"); throw new Error("Quantità da vendere non verificabile."); }
+        await verificaLease(lease);
+        const res = await fetch(`${url}/v2/orders`, {method:"POST",headers:{...headers,"content-type":"application/json"},signal:AbortSignal.timeout(15000),body:JSON.stringify({symbol:sym,side:"sell",type:"market",qty:String(actual?.["qty"]),time_in_force:isCripto(ticker)?"gtc":"day",client_order_id:invio?.clientId})});
         if (res.ok) {
           decisione.eseguito = true;
           if (invio) await aggiornaRicevuta(invio.id, await res.json(), "accettato");
         }
         else {
-          if (invio) await aggiornaRicevuta(invio.id, null, "esito_incerto");
+          if (invio) await aggiornaRicevuta(invio.id, null, [400,401,403,422].includes(res.status) ? "rifiutato_http" : "esito_incerto");
           const testo = await res.text();
           decisione.errore = testo.slice(0, 180);
           logServer("trading.chiusura", new Error(testo), { ticker, reale });
@@ -444,7 +480,9 @@ async function eseguiCicloInterno(
       } else if (scelta.azione === "compra" && decisione.importo >= 1) {
         residuo -= decisione.importo;
         const cripto = isCripto(ticker);
+        await verificaLease(lease);
         const res = await fetch(`${url}/v2/orders`, {
+          signal: AbortSignal.timeout(15000),
           method: "POST",
           headers: { ...headers, "content-type": "application/json" },
           body: JSON.stringify({
@@ -461,7 +499,7 @@ async function eseguiCicloInterno(
           if (invio) await aggiornaRicevuta(invio.id, await res.json(), "accettato");
         }
         else {
-          if (invio) await aggiornaRicevuta(invio.id, null, "esito_incerto");
+          if (invio) await aggiornaRicevuta(invio.id, null, [400,401,403,422].includes(res.status) ? "rifiutato_http" : "esito_incerto");
           const testo = await res.text();
           decisione.errore = testo.slice(0, 180);
           logServer("trading.ordine", new Error(testo), { ticker, reale });
@@ -520,7 +558,7 @@ async function eseguiCicloInterno(
     logServer("trading.eseguiCiclo", error, { reale });
     return {
       ok: false,
-      messaggio: "Non riesco a raggiungere il broker in questo momento.",
+      messaggio: error instanceof Error ? `${error.message} Gli invii con esito incerto restano bloccati fino alla riconciliazione; nessun tentativo automatico di reinvio.` : "Verifica non riuscita: nessun reinvio automatico.",
       mercatoAperto: false,
       decisioni: [],
       eseguiti: 0,

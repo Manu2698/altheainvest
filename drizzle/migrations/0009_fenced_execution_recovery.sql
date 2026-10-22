@@ -1,0 +1,12 @@
+ALTER TABLE public.registro_ordini ADD COLUMN broker_creato_il timestamptz, ADD COLUMN broker_aggiornato_il timestamptz, ADD COLUMN annullato_il timestamptz, ADD COLUMN riconciliazione_motivo text;
+ALTER TABLE public.istantanee_contabili ADD COLUMN contabilita jsonb NOT NULL DEFAULT '{}';
+CREATE FUNCTION public.verifica_lease_conto(p_user uuid,p_piattaforma text,p_ambiente text,p_proprietario uuid) RETURNS boolean LANGUAGE plpgsql SECURITY DEFINER SET search_path=public AS $$ DECLARE n integer; BEGIN UPDATE public.lease_conti SET scade_il=now()+interval '10 minutes' WHERE user_id=p_user AND piattaforma=p_piattaforma AND ambiente=p_ambiente AND proprietario=p_proprietario AND scade_il>now(); GET DIAGNOSTICS n=ROW_COUNT; RETURN n=1; END; $$;
+REVOKE ALL ON FUNCTION public.verifica_lease_conto(uuid,text,text,uuid) FROM PUBLIC,anon,authenticated;
+GRANT EXECUTE ON FUNCTION public.verifica_lease_conto(uuid,text,text,uuid) TO service_role;
+CREATE FUNCTION public.prepara_intento_ordine(p_user uuid,p_piattaforma text,p_ambiente text,p_proprietario uuid,p_conto text,p_client text,p_ticker text,p_lato text,p_strategia text,p_importo numeric) RETURNS uuid LANGUAGE plpgsql SECURITY DEFINER SET search_path=public AS $$ DECLARE nuovo uuid; BEGIN
+PERFORM 1 FROM public.lease_conti WHERE user_id=p_user AND piattaforma=p_piattaforma AND ambiente=p_ambiente AND proprietario=p_proprietario AND scade_il>now() FOR UPDATE;
+IF NOT FOUND THEN RAISE EXCEPTION 'Lease unavailable'; END IF;
+IF EXISTS(SELECT 1 FROM public.registro_ordini WHERE user_id=p_user AND piattaforma=p_piattaforma AND ambiente=p_ambiente AND conto_id=p_conto AND (stato IN ('invio_in_corso','esito_incerto','accettato_non_riconciliato') OR (replace(upper(ticker),'/','')=replace(upper(p_ticker),'/','') AND (riconciliato_il IS NULL OR stato NOT IN ('filled','canceled','expired','rejected','replaced','non_inviato','rifiutato_http','solo_validazione'))))) THEN RAISE EXCEPTION 'Previous execution unresolved'; END IF;
+INSERT INTO public.registro_ordini(user_id,piattaforma,ambiente,conto_id,client_id,ticker,lato,strategia,importo_richiesto,stato) VALUES(p_user,p_piattaforma,p_ambiente,p_conto,p_client,p_ticker,p_lato,p_strategia,p_importo,'invio_in_corso') RETURNING id INTO nuovo; RETURN nuovo; END; $$;
+REVOKE ALL ON FUNCTION public.prepara_intento_ordine(uuid,text,text,uuid,text,text,text,text,text,numeric) FROM PUBLIC,anon,authenticated;
+GRANT EXECUTE ON FUNCTION public.prepara_intento_ordine(uuid,text,text,uuid,text,text,text,text,text,numeric) TO service_role;

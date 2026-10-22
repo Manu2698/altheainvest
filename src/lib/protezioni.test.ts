@@ -46,4 +46,5 @@ describe("protezioni del motore", () => {
   it("consente un ribasso normale (−5%)", () => {
     expect(problemaDati([...Array(9).fill(10), 9.5], "2026-10-21T04:00:00Z", ORA)).toBeNull();
   });
+  it("blocca prezzi con data futura",()=>expect(problemaDati([10,11],"2026-10-23T04:00:00Z",ORA)).toMatch(/futura/));
 });

@@ -358,6 +358,7 @@ export type Database = {
       istantanee_contabili: {
         Row: {
           ambiente: string
+          contabilita: Json
           conto_id: string
           created_at: string
           equity: number | null
@@ -378,6 +379,7 @@ export type Database = {
         }
         Insert: {
           ambiente: string
+          contabilita?: Json
           conto_id: string
           created_at?: string
           equity?: number | null
@@ -398,6 +400,7 @@ export type Database = {
         }
         Update: {
           ambiente?: string
+          contabilita?: Json
           conto_id?: string
           created_at?: string
           equity?: number | null
@@ -673,6 +676,9 @@ export type Database = {
       registro_ordini: {
         Row: {
           ambiente: string
+          annullato_il: string | null
+          broker_aggiornato_il: string | null
+          broker_creato_il: string | null
           broker_id: string | null
           client_id: string
           conto_id: string
@@ -685,6 +691,7 @@ export type Database = {
           prezzo_medio: number | null
           quantita_eseguita: number
           riconciliato_il: string | null
+          riconciliazione_motivo: string | null
           stato: string
           strategia: string
           ticker: string
@@ -693,6 +700,9 @@ export type Database = {
         }
         Insert: {
           ambiente: string
+          annullato_il?: string | null
+          broker_aggiornato_il?: string | null
+          broker_creato_il?: string | null
           broker_id?: string | null
           client_id: string
           conto_id: string
@@ -705,6 +715,7 @@ export type Database = {
           prezzo_medio?: number | null
           quantita_eseguita?: number
           riconciliato_il?: string | null
+          riconciliazione_motivo?: string | null
           stato?: string
           strategia: string
           ticker: string
@@ -713,6 +724,9 @@ export type Database = {
         }
         Update: {
           ambiente?: string
+          annullato_il?: string | null
+          broker_aggiornato_il?: string | null
+          broker_creato_il?: string | null
           broker_id?: string | null
           client_id?: string
           conto_id?: string
@@ -725,6 +739,7 @@ export type Database = {
           prezzo_medio?: number | null
           quantita_eseguita?: number
           riconciliato_il?: string | null
+          riconciliazione_motivo?: string | null
           stato?: string
           strategia?: string
           ticker?: string
@@ -747,8 +762,32 @@ export type Database = {
         }
         Returns: boolean
       }
+      prepara_intento_ordine: {
+        Args: {
+          p_ambiente: string
+          p_client: string
+          p_conto: string
+          p_importo: number
+          p_lato: string
+          p_piattaforma: string
+          p_proprietario: string
+          p_strategia: string
+          p_ticker: string
+          p_user: string
+        }
+        Returns: string
+      }
       registra_accesso_condivisione: {
         Args: { p_finestra_secondi: number; p_id: string; p_massimo: number }
+        Returns: boolean
+      }
+      verifica_lease_conto: {
+        Args: {
+          p_ambiente: string
+          p_piattaforma: string
+          p_proprietario: string
+          p_user: string
+        }
         Returns: boolean
       }
     }

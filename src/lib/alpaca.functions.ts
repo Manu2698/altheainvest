@@ -131,13 +131,14 @@ export const eseguiCicloIA = createServerFn({ method: "POST" })
   )
   .handler(async ({ data, context }): Promise<EsitoCiclo> => {
     const { eseguiCiclo } = await import("./trading.server");
-    const { data: auto } = await context.supabase
+    const { data: auto, error: autoError } = await context.supabase
       .from("automazioni_conti")
       .select("perdita_max_giornaliera")
       .eq("user_id", context.userId)
       .eq("piattaforma", data.piattaforma)
       .eq("ambiente", data.reale ? "reale" : "paper")
       .maybeSingle();
+    if (autoError) throw new Error("Limite di perdita non verificabile: nessun ciclo eseguito.");
     const perditaMax =
       auto?.perdita_max_giornaliera != null ? Number(auto.perdita_max_giornaliera) : null;
     const esito = await eseguiCiclo(context.userId, { ...data, perditaMax });

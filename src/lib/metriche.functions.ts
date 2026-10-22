@@ -1,3 +1,4 @@
+import { leggiContabilita, venditeConfermate } from "./contabilita";
 import { createServerFn } from "@tanstack/react-start";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import type { Flusso, Metriche, PuntoPrezzo } from "./metriche";
@@ -41,7 +42,7 @@ export const getMetrichePortafoglio = createServerFn({ method: "GET" })
     const identita = await identitaAlpaca(context.userId, data.reale);
     const contoId = identita && identita !== "assente" ? identita.contoId : "identita-non-verificabile";
     const { conLeaseConto, riconciliaAlpacaPersistente } = await import("./riconciliazione.server");
-    try { await conLeaseConto(context.userId, "alpaca", ambiente, () => riconciliaAlpacaPersistente(context.userId, data.reale)); } catch { /* use persisted incomplete/stale state below */ }
+    try { await conLeaseConto(context.userId, "alpaca", ambiente, (lease) => riconciliaAlpacaPersistente(context.userId, data.reale, lease)); } catch { /* use persisted incomplete/stale state below */ }
     const { data: snapshot } = await context.supabase.from("istantanee_contabili").select("*").eq("user_id", context.userId).eq("piattaforma", "alpaca").eq("ambiente", ambiente).eq("conto_id", contoId).order("created_at", { ascending: false }).limit(1).maybeSingle();
     const riconciliato = snapshot?.stato === "riconciliato" && Date.now() - Date.parse(snapshot.osservato_al) < 120_000;
     const storicoPersistito = Array.isArray(snapshot?.storico) ? snapshot.storico as unknown as { giorno: string; valore: number }[] : [];
@@ -56,16 +57,14 @@ export const getMetrichePortafoglio = createServerFn({ method: "GET" })
         .then(async (r) => (r.ok ? ((await r.json()) as { bars?: Record<string, { t: string; c: number }[]> }) : null))
         .catch(() => null),
       context.supabase
-        .from("ordini_ia")
-        .select("created_at, importo, pnl_pct, strategia, piattaforma")
+        .from("registro_ordini")
+        .select("broker_id,stato,riconciliato_il,strategia")
         .eq("user_id", context.userId)
         .eq("ambiente", ambiente)
         .eq("piattaforma", "alpaca")
         .eq("lato", "sell")
         // Solo ordini attribuiti con certezza a un conto: i "non determinati" restano esclusi.
         .eq("conto_id", contoId)
-        .not("pnl_pct", "is", null)
-        .gte("created_at", dal)
         .limit(5000),
     ]);
     // Trasferimenti (journal JNLC/JNLS) trattati come versamenti/prelievi in base al segno.
@@ -82,14 +81,9 @@ export const getMetrichePortafoglio = createServerFn({ method: "GET" })
       flussiCompleti: riconciliato,
       riconciliazioneCompleta: riconciliato,
       benchmark,
-      chiuse: (ordini.data ?? []).map((o) => ({
-        giorno: o.created_at.slice(0, 10),
-        importo: Number(o.importo),
-        pnlPct: Number(o.pnl_pct),
-        strategia: o.strategia,
-      })),
+      chiuse: venditeConfermate(leggiContabilita(snapshot?.contabilita).vendite,ordini.data ?? []).filter(v=>v.ora.slice(0,10)>=dal).map(v=>({giorno:v.ora.slice(0,10),importo:v.costo+v.pnl,pnlPct:v.pnl/v.costo*100,strategia:v.strategia})),
     });
-    metriche.avvisi.push("P&L realizzato e qualità delle vendite sono stime pre-esecuzione: commissioni e slippage non riconciliati per singola operazione.");
+    metriche.avvisi.push("P&L delle vendite da esecuzioni effettive e costo medio verificabile, al lordo delle fee non allocate. Ordini aperti, storia incoerente e strategia non attribuita esclusi; nessuna stima pre-esecuzione utilizzata.");
     metriche.avvisi.unshift(snapshot ? `Registro persistente: ${snapshot.stato} · ${snapshot.motivo}` : "Nessuna istantanea contabile persistente disponibile.");
     return { ...base, aggiornatoIl: snapshot?.osservato_al ?? base.aggiornatoIl, collegato: true, costiInclusi: [...base.costiInclusi], costiMancanti: [...base.costiMancanti], metriche };
   });

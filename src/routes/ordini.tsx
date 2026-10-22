@@ -6,6 +6,7 @@ import { ArrowLeft, ExternalLink, Loader2, RefreshCw } from "lucide-react";
 import { getOrdiniBroker } from "@/lib/alpaca.functions";
 import { useSessione } from "@/hooks/useSessione";
 import { cn } from "@/lib/utils";
+import { Button } from "@/components/ui/button";
 import { getRegistroOrdini } from "@/lib/riconciliazione.functions";
 
 export const Route = createFileRoute("/ordini")({
@@ -87,7 +88,7 @@ function PaginaOrdini() {
               { v: false, label: "Paper" },
               { v: true, label: "Reale" },
             ].map((m) => (
-              <button
+              <Button
                 key={m.label}
                 onClick={() => setReale(m.v)}
                 className={cn(
@@ -98,7 +99,7 @@ function PaginaOrdini() {
                 )}
               >
                 {m.label}
-              </button>
+              </Button>
             ))}
           </div>
           <a
@@ -109,7 +110,7 @@ function PaginaOrdini() {
           >
             Apri su Alpaca <ExternalLink className="size-3.5" />
           </a>
-          <button
+          <Button
             onClick={() => void ordini.refetch()}
             className="inline-flex items-center gap-1.5 rounded-lg border border-border px-3 py-2 text-xs text-muted-foreground hover:text-foreground"
           >
@@ -119,7 +120,7 @@ function PaginaOrdini() {
               <RefreshCw className="size-3.5" />
             )}
             Aggiorna
-          </button>
+          </Button>
         </div>
       </div>
 
@@ -190,8 +191,8 @@ function PaginaOrdini() {
         <p className="mt-1 text-xs text-muted-foreground">PAPER e REALE separati · gli ordini precedenti senza strategia certa restano non attribuiti. Le piattaforme esterne restano non riconciliate.</p>
         <div className="mt-3 overflow-x-auto">
           <table className="w-full min-w-[640px] text-left text-xs">
-            <thead><tr className="border-b border-border"><th className="py-2">Data UTC</th><th>Broker</th><th>Strumento</th><th>Lato</th><th>Quantità eseguita</th><th>Prezzo medio</th><th>Stato</th><th>Riconciliato UTC</th></tr></thead>
-            <tbody>{(registro.data ?? []).map(o => <tr key={o.id} className="border-b border-border"><td className="py-2">{dataOra(o.created_at)} {ora(o.created_at)}</td><td>{o.piattaforma}</td><td>{o.ticker}</td><td>{o.lato}</td><td className="numeric">{o.quantita_eseguita}</td><td className="numeric">{o.prezzo_medio ?? "—"}</td><td>{o.stato}</td><td>{o.riconciliato_il ? `${dataOra(o.riconciliato_il)} ${ora(o.riconciliato_il)}` : "Non confermato"}</td></tr>)}</tbody>
+            <thead><tr className="border-b border-border"><th className="py-2">Data UTC</th><th>Broker</th><th>Strumento</th><th>Lato</th><th>Quantità eseguita</th><th>Prezzo medio</th><th>Stato</th><th>Riconciliato UTC</th><th>ID broker</th><th>Esecuzione UTC / blocco</th></tr></thead>
+            <tbody>{(registro.data ?? []).map(o => <tr key={o.id} className="border-b border-border"><td className="py-2">{dataOra(o.created_at)} {ora(o.created_at)}</td><td>{o.piattaforma}</td><td>{o.ticker}</td><td>{o.lato}</td><td className="numeric">{o.quantita_eseguita}</td><td className="numeric">{o.prezzo_medio ?? "—"}</td><td>{o.stato}</td><td>{o.riconciliato_il ? `${dataOra(o.riconciliato_il)} ${ora(o.riconciliato_il)}` : "Non confermato"}</td><td className="max-w-40 break-all">{o.broker_id ?? "Esito da verificare"}</td><td>{o.eseguito_il ? `${dataOra(o.eseguito_il)} ${ora(o.eseguito_il)}` : "—"}{o.riconciliazione_motivo && <p className="text-warn">{o.riconciliazione_motivo}</p>}</td></tr>)}</tbody>
           </table>
           {!registro.data?.length && <p className="py-4 text-xs text-muted-foreground">{registro.error?.message ?? "Nessun ordine nel registro persistente."}</p>}
         </div>
