@@ -7,7 +7,7 @@ Non è possibile confermare tutti i requisiti richiesti. Verifica in sola lettur
 - Conto PAPER: **46 ordini** (45 `filled`, 1 `accepted`), tutti con ID broker e data di sincronizzazione. Lo stato sincronizzato non significa che l'ordine sia concluso o la contabilità completa.
 - Nessun gruppo duplicato di client ID o ID di esecuzione nei dati letti. Questo non prova assenza di concorrenza in ogni scenario.
 - Istantanea **incompleta**: equity 49,91 USD, liquidità 12,26 USD, 8 posizioni per 37,655134 USD; scarto −0,005134 USD. Non dimostra una perdita né identifica la causa. Contabilità `{}` e motivo generico impediscono certificazione storica; non allentare i controlli per far coincidere i numeri.
-- Automazione PAPER attiva; capitale configurato 500 USD, perdita giornaliera **20 USD**, circa 40,1% dell'equity osservata. È ampio, ma non predice una perdita di 20 USD né garantisce una perdita massima. Non coincide con i 50 USD del brief. **Scelta esplicita pendente:** confermare 20 USD o indicare un nuovo valore; nessuna modifica automatica. Capitale operativo sempre entro modalità e fondi effettivi.
+- Automazione PAPER attiva; capitale configurato 500 USD, perdita giornaliera **20 USD**, circa 40,1% dell'equity osservata. È ampio, ma non predice una perdita di 20 USD né garantisce una perdita massima. Non coincide con i 50 USD del brief. **Scelta:** l'utente vuole indicare un nuovo importo; valore ancora da fornire, nessuna modifica applicata. Capitale operativo sempre entro modalità e fondi effettivi.
 - Le funzioni di lock presenti nel database confermano la granularità per utente/broker/ambiente. Non esistono colonne di versione/parametri nel registro ordini esaminato.
 
 ## Già implementato: conservare, non duplicare
