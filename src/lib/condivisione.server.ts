@@ -157,7 +157,7 @@ export async function costruisciVista(
     for (const a of ambienti(o)) {
       if (!pannelli.some((p) => p.piattaforma === "alpaca" && p.ambiente === a && p.stato === "collegato")) continue;
       for (const b of await leggiOrdini(userId, a === "reale", 100))
-        ordiniBroker.push({ ambiente: a, ticker: b.ticker, lato: b.lato, stato: b.stato, tipo: b.tipo, quantita: b.quantita, prezzoMedio: imp(b.prezzoMedio), importo: imp(b.importo), creatoIl: b.creatoIl });
+        ordiniBroker.push({ ambiente: a, ticker: b.ticker, lato: b.lato, stato: b.stato, tipo: b.tipo, quantita: quantita(o, b.quantita), prezzoMedio: imp(b.prezzoMedio), importo: imp(b.importo), creatoIl: b.creatoIl });
     }
   }
 
@@ -174,6 +174,21 @@ export async function costruisciVista(
     link,
     opzioni: o,
     motore: VERSIONE_MOTORE,
+    metadati: {
+      valuta: "USD",
+      notaValuta: "Tutti gli importi, prezzi, capitali e la curva sono in dollari USA (USD), valuta dei conti Alpaca; per le altre piattaforme il valore è convertito/riportato in USD dall'adattatore.",
+      ambienti: o.reale ? ["paper", "reale"] : ["paper"],
+      periodi: {
+        confrontoConti: "Vincite, perdite, risultati realizzati e grafico settimanale: ultimi 30 giorni fino a generataIl.",
+        strategie: "Statistiche per strategia: tutto lo storico ordini_ia disponibile (massimo ultimi 2.000 ordini).",
+        ordiniIA: "Ultimi 300 ordini registrati dall'IA, dal più recente.",
+        ordiniBroker: "Ultimi 100 ordini per conto Alpaca letti dal broker.",
+        curva: "Equity giornaliera Alpaca degli ultimi 3 mesi.",
+        lezioni: "Lezioni dell'IA calcolate sulle vendite degli ultimi 60 giorni.",
+      },
+      campiNascosti: campiNascosti(o),
+      campiNonDisponibili: "Un campo null NON elencato in campiNascosti significa dato non disponibile (broker non raggiungibile o dato non registrato), non nascosto per scelta.",
+    },
     avvisi,
     collegamenti,
     confronto: {
@@ -191,7 +206,7 @@ export async function costruisciVista(
     },
     posizioni: o.posizioni
       ? pannelli.flatMap((p) =>
-          p.posizioni.map((x) => ({ piattaforma: p.piattaforma, nome: p.nome, ambiente: p.ambiente, ticker: x.ticker, quantita: x.quantita, valore: imp(x.valore), pnlPct: x.pnlPct })),
+          p.posizioni.map((x) => ({ piattaforma: p.piattaforma, nome: p.nome, ambiente: p.ambiente, ticker: x.ticker, quantita: quantita(o, x.quantita), valore: imp(x.valore), pnlPct: x.pnlPct })),
         )
       : null,
     automazioni: autom,

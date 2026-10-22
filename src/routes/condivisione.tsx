@@ -207,7 +207,7 @@ function Vista({ v }: { v: VistaCondivisa }) {
               <thead className="text-muted-foreground"><tr><th className="text-left">Conto</th><th className="text-left">Titolo</th><th>Quantità</th><th>Valore</th><th>P&L</th></tr></thead>
               <tbody className="numeric">
                 {v.posizioni.map((p, i) => (
-                  <tr key={i} className="text-center"><td className="text-left">{p.nome} {p.ambiente.toUpperCase()}</td><td className="text-left">{p.ticker}</td><td>{fmt(p.quantita, "", 4)}</td><td>{fmt(p.valore)}</td><td className={p.pnlPct >= 0 ? "text-bull" : "text-bear"}>{fmt(p.pnlPct)}%</td></tr>
+                  <tr key={i} className="text-center"><td className="text-left">{p.nome} {p.ambiente.toUpperCase()}</td><td className="text-left">{p.ticker}</td><td>{p.quantita == null ? "—" : fmt(p.quantita, "", 4)}</td><td>{fmt(p.valore)}</td><td className={p.pnlPct >= 0 ? "text-bull" : "text-bear"}>{fmt(p.pnlPct)}%</td></tr>
                 ))}
               </tbody>
             </table>
@@ -247,7 +247,7 @@ function Vista({ v }: { v: VistaCondivisa }) {
                 <thead className="text-muted-foreground"><tr><th className="text-left">Data</th><th>Conto</th><th>Titolo</th><th>Lato</th><th>Stato</th><th>Quantità</th><th>Prezzo medio</th></tr></thead>
                 <tbody className="numeric">
                   {v.ordiniBroker.map((o, i) => (
-                    <tr key={i} className="border-t border-border/50 text-center"><td className="text-left">{fmtData(o.creatoIl)}</td><td>{o.ambiente.toUpperCase()}</td><td>{o.ticker}</td><td>{o.lato}</td><td>{o.stato}</td><td>{fmt(o.quantita, "", 4)}</td><td>{o.prezzoMedio == null ? "—" : fmt(o.prezzoMedio)}</td></tr>
+                    <tr key={i} className="border-t border-border/50 text-center"><td className="text-left">{fmtData(o.creatoIl)}</td><td>{o.ambiente.toUpperCase()}</td><td>{o.ticker}</td><td>{o.lato}</td><td>{o.stato}</td><td>{o.quantita == null ? "—" : fmt(o.quantita, "", 4)}</td><td>{o.prezzoMedio == null ? "—" : fmt(o.prezzoMedio)}</td></tr>
                   ))}
                 </tbody>
               </table>

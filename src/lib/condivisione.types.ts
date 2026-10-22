@@ -23,6 +23,14 @@ export type VistaCondivisa = {
   link: { nome: string; scadeIl: string };
   opzioni: OpzioniCondivisione;
   motore: typeof VERSIONE_MOTORE;
+  metadati: {
+    valuta: "USD";
+    notaValuta: string;
+    ambienti: Fonte[];
+    periodi: Record<string, string>;
+    campiNascosti: { campo: string; motivo: string }[];
+    campiNonDisponibili: string;
+  };
   avvisi: string[];
   collegamenti: { piattaforma: string; nome: string; ambiente: Fonte; stato: "collegato" | "errore" | "non collegato"; messaggio: string | null }[];
   confronto: {
@@ -37,7 +45,7 @@ export type VistaCondivisa = {
     storici: (Omit<ConfrontoConti["storici"][number], "id" | "pnlRealizzato"> & { pnlRealizzato: number | null })[];
     nonDeterminati: (Omit<ConfrontoConti["nonDeterminati"][number], "pnlRealizzato"> & { pnlRealizzato: number | null })[];
   };
-  posizioni: { piattaforma: string; nome: string; ambiente: Fonte; ticker: string; quantita: number; valore: number | null; pnlPct: number }[] | null;
+  posizioni: { piattaforma: string; nome: string; ambiente: Fonte; ticker: string; quantita: number | null; valore: number | null; pnlPct: number }[] | null;
   automazioni: {
     piattaforma: string;
     nome: string;
@@ -73,7 +81,7 @@ export type VistaCondivisa = {
     segnale: string | null;
     motivo: string | null;
   }[] | null;
-  ordiniBroker: { ambiente: Fonte; ticker: string; lato: string; stato: string; tipo: string; quantita: number; prezzoMedio: number | null; importo: number | null; creatoIl: string }[] | null;
+  ordiniBroker: { ambiente: Fonte; ticker: string; lato: string; stato: string; tipo: string; quantita: number | null; prezzoMedio: number | null; importo: number | null; creatoIl: string }[] | null;
   curva: Record<Fonte, { giorno: string; valore: number }[]> | null;
 };
 

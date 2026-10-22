@@ -63,3 +63,17 @@ describe("attribuzione ordini ai conti", () => {
     expect(rendimentoNetto({ iniziale: null, attuale: 1600, versamenti: 0, prelievi: 0 })).toBeNull();
   });
 });
+
+import { campiNascosti, quantita, normalizzaOpzioni as norm2 } from "./condivisione";
+describe("privacy quantità e campi nascosti", () => {
+  it("nasconde le quantità quando gli importi sono disattivati", () => {
+    expect(quantita(norm2({ importi: false }), 3.5)).toBeNull();
+    expect(quantita(norm2({ importi: true }), 3.5)).toBe(3.5);
+  });
+  it("elenca i campi esclusi con il motivo", () => {
+    const c = campiNascosti(norm2({ storico: true }));
+    expect(c.map((x) => x.campo).join(" ")).toContain("quantità");
+    expect(c.some((x) => x.campo.includes("REALI"))).toBe(true);
+    expect(campiNascosti(norm2({ reale: true, importi: true, posizioni: true, storico: true }))).toEqual([]);
+  });
+});
