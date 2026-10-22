@@ -628,7 +628,8 @@ export async function panoramicaPiattaforme(userId: string): Promise<PannelloPia
     .limit(500);
 
   const attivitaDi = (p: string, amb: string, contoId: string | null) => {
-    const ordini = (righe ?? []).filter((r) => contoId != null && r.conto_id === contoId && ["motore", "verificato_broker"].includes(r.conto_attribuzione ?? "") && r.piattaforma === p && r.ambiente === amb);
+    const { ordiniContoAttuale } = await import("./storico-conto");
+    const ordini = ordiniContoAttuale(righe ?? [], p, amb, contoId);
     const giorni: { data: string; totale: number }[] = [];
     for (let i = 13; i >= 0; i--) {
       giorni.push({ data: new Date(Date.now() - i * 86_400_000).toISOString().slice(0, 10), totale: 0 });
