@@ -211,6 +211,54 @@ export type Database = {
         }
         Relationships: []
       }
+      conti_broker: {
+        Row: {
+          ambiente: string
+          archiviato_il: string | null
+          collegato_il: string
+          conto_id: string
+          etichetta: string | null
+          id: string
+          motivo: string | null
+          piattaforma: string
+          riconciliato_il: string | null
+          stato: string
+          ultimo_visto: string
+          user_id: string
+          verificato: boolean
+        }
+        Insert: {
+          ambiente: string
+          archiviato_il?: string | null
+          collegato_il?: string
+          conto_id: string
+          etichetta?: string | null
+          id?: string
+          motivo?: string | null
+          piattaforma: string
+          riconciliato_il?: string | null
+          stato?: string
+          ultimo_visto?: string
+          user_id: string
+          verificato?: boolean
+        }
+        Update: {
+          ambiente?: string
+          archiviato_il?: string | null
+          collegato_il?: string
+          conto_id?: string
+          etichetta?: string | null
+          id?: string
+          motivo?: string | null
+          piattaforma?: string
+          riconciliato_il?: string | null
+          stato?: string
+          ultimo_visto?: string
+          user_id?: string
+          verificato?: boolean
+        }
+        Relationships: []
+      }
       event_log: {
         Row: {
           ambiente: string | null
@@ -250,6 +298,51 @@ export type Database = {
           tipo?: string
           url?: string | null
           user_agent?: string | null
+        }
+        Relationships: []
+      }
+      link_condivisione: {
+        Row: {
+          accessi: number
+          accessi_finestra: number
+          creato_il: string
+          finestra_inizio: string | null
+          id: string
+          nome: string
+          opzioni: Json
+          revocato_il: string | null
+          scade_il: string
+          token_hash: string
+          ultimo_accesso: string | null
+          user_id: string
+        }
+        Insert: {
+          accessi?: number
+          accessi_finestra?: number
+          creato_il?: string
+          finestra_inizio?: string | null
+          id?: string
+          nome: string
+          opzioni?: Json
+          revocato_il?: string | null
+          scade_il: string
+          token_hash: string
+          ultimo_accesso?: string | null
+          user_id: string
+        }
+        Update: {
+          accessi?: number
+          accessi_finestra?: number
+          creato_il?: string
+          finestra_inizio?: string | null
+          id?: string
+          nome?: string
+          opzioni?: Json
+          revocato_il?: string | null
+          scade_il?: string
+          token_hash?: string
+          ultimo_accesso?: string | null
+          user_id?: string
         }
         Relationships: []
       }
@@ -298,6 +391,8 @@ export type Database = {
       ordini_ia: {
         Row: {
           ambiente: string
+          conto_attribuzione: string | null
+          conto_id: string | null
           created_at: string
           id: string
           importo: number
@@ -311,6 +406,8 @@ export type Database = {
         }
         Insert: {
           ambiente?: string
+          conto_attribuzione?: string | null
+          conto_id?: string | null
           created_at?: string
           id?: string
           importo?: number
@@ -324,6 +421,8 @@ export type Database = {
         }
         Update: {
           ambiente?: string
+          conto_attribuzione?: string | null
+          conto_id?: string | null
           created_at?: string
           id?: string
           importo?: number
