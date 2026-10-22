@@ -156,10 +156,12 @@ export async function leggiLezioni(
   piattaforma: string,
   ambiente: "paper" | "reale",
   strategia: string,
+  /** Se noto, l'apprendimento usa solo gli ordini di questo conto (non quelli di conti chiusi). */
+  contoId?: string | null,
 ): Promise<Lezioni> {
   try {
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-    const { data } = await supabaseAdmin
+    let q = supabaseAdmin
       .from("ordini_ia")
       .select("ticker, pnl_pct, lato, motivo, created_at")
       .eq("user_id", userId)
@@ -169,6 +171,8 @@ export async function leggiLezioni(
       .gte("created_at", new Date(Date.now() - 60 * 86400_000).toISOString())
       .order("created_at", { ascending: true })
       .limit(1000);
+    if (contoId) q = q.eq("conto_id", contoId);
+    const { data } = await q;
     // Abbina ogni vendita all'ultimo acquisto dello stesso titolo per sapere quale segnale l'ha generata.
     const ultimoAcquisto = new Map<string, string | null>();
     const esiti: EsitoPassato[] = [];
