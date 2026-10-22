@@ -33,6 +33,14 @@ describe("segnali appresi", () => {
     expect(s.importo).toBe(4);
     expect(s.motivo).not.toMatch(/×/);
   });
+  it("un segnale vincente non annulla una riduzione di rischio e non si cumula", () => {
+    const segnale = Array.from({ length: 20 }, (_, i) => ({ ticker: `S${i}`, pnlPct: i % 4 === 0 ? -1 : 3, segnale: "acquisto sul ribasso" }));
+    const perdite = Array.from({ length: 40 }, (_, i) => ({ ticker: `L${i}`, pnlPct: -2 }));
+    const ridotto = calcolaLezioni([...segnale, ...perdite]);
+    expect(applicaLezioni({ azione: "compra", importo: 100, motivo: "Ribasso del -3% sotto la media 10g." }, "aggressivo", "N", undefined, ridotto).importo).toBeCloseTo(60);
+    const buono = calcolaLezioni(segnale);
+    expect(applicaLezioni({ azione: "compra", importo: 100, motivo: "Ribasso del -3% sotto la media 10g." }, "aggressivo", "N", undefined, buono).importo).toBeCloseTo(130);
+  });
   const es = (segnale: string, pnl: number[]) => pnl.map((p, i) => ({ ticker: `T${segnale}${i}`, pnlPct: p, segnale }));
   it("non potenzia un segnale con solo 3 esiti vincenti", () => {
     const l = calcolaLezioni([...es("trend sopra media 20g", [3, 4, 2]), ...es("acquisto sul ribasso", [-2, -3, -1])]);

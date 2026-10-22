@@ -68,7 +68,8 @@ export function calcolaLezioni(esiti: EsitoPassato[]): Lezioni {
     const vinte = r.length - perse;
     const somma = r.reduce((a, b) => a + b, 0);
     if (perse >= 2 && perse > vinte && somma < 0) bloccati.add(t);
-    else if (vinte >= 2 && perse === 0 && aumentiValidati) favoriti.add(t);
+    // Un titolo è favorito solo se il SUO storico supera la validazione (non quello globale).
+    else if (vinte >= 2 && perse === 0 && aumentiValidati && validaFuoriCampione(r)) favoriti.add(t);
   }
 
   const perSegnale = new Map<string, number[]>();
@@ -139,8 +140,12 @@ export function applicaLezioni(
     const segnale = segnaleDi(scelta.motivo);
     if (segnale && l.segnaliPerdenti.has(segnale))
       return { azione: "attendi", importo: 0, motivo: `Segnale "${segnale}" scartato: in passato ha fatto perdere.` };
-    let fattore = l.favoriti.has(ticker) ? Math.max(l.fattoreQuota, 1.2) : l.fattoreQuota;
-    if (segnale && l.segnaliVincenti.has(segnale)) fattore = Math.max(fattore, 1) * 1.3;
+    // Una riduzione di rischio appresa non può essere annullata da un aumento; gli aumenti non si cumulano.
+    let fattore = l.fattoreQuota;
+    if (fattore >= 1) {
+      if (l.favoriti.has(ticker)) fattore = Math.max(fattore, 1.2);
+      if (segnale && l.segnaliVincenti.has(segnale)) fattore = Math.max(fattore, 1.3);
+    }
     if (fattore !== 1)
       return {
         ...scelta,
