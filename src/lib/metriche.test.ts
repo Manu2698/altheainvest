@@ -86,6 +86,15 @@ describe("casi limite individuati dall'audit", () => {
   it("valori non numerici esclusi dalle operazioni", () => {
     expect(metricheOperazioni([{ giorno: "x", importo: 100, pnlPct: Number.NaN, strategia: "m" }]).operazioni).toBe(0);
   });
+  it("deposito non riflesso nel valore del conto (caso PAPER 50 $): nessun risultato definitivo", () => {
+    const m = calcolaMetriche({ ...base, storico: st([50, 50.5, 51.29]), flussi: [{ giorno: "2026-01-02", tipo: "deposito", importo: 50 }] });
+    expect(m.pnlNetto).toBeNull();
+    expect(m.rendimentoPct).toBeNull();
+  });
+  it("flussi incompleti: rendimento non mostrato", () => {
+    const m = calcolaMetriche({ ...base, storico: st([1000, 1010]), flussiCompleti: false });
+    expect(m.rendimentoPct).toBeNull();
+  });
 });
 
 describe("validazione fuori campione", () => {

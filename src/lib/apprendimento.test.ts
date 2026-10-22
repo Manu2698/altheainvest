@@ -26,6 +26,13 @@ describe("apprendimento", () => {
 });
 
 describe("segnali appresi", () => {
+  it("dati PAPER attuali (13 vendite, 10 vinte): nessun moltiplicatore sugli importi", () => {
+    const pnl = [-7.18, 5.54, 5.7, 5.01, 5.95, 5.01, 5.36, 5.02, 5.11, 5.2, -7.0, 5.1, -6.9];
+    const l = calcolaLezioni(pnl.map((p, i) => ({ ticker: i % 2 ? "CIFR" : "CRWV", pnlPct: p, segnale: "acquisto sul ribasso" })));
+    const s = applicaLezioni({ azione: "compra", importo: 4, motivo: "Ribasso del -3.0% sotto la media 10g." }, "aggressivo", "CRWV", undefined, l);
+    expect(s.importo).toBe(4);
+    expect(s.motivo).not.toMatch(/×/);
+  });
   const es = (segnale: string, pnl: number[]) => pnl.map((p, i) => ({ ticker: `T${segnale}${i}`, pnlPct: p, segnale }));
   it("non potenzia un segnale con solo 3 esiti vincenti", () => {
     const l = calcolaLezioni([...es("trend sopra media 20g", [3, 4, 2]), ...es("acquisto sul ribasso", [-2, -3, -1])]);
