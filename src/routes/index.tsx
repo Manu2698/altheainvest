@@ -18,6 +18,7 @@ import { MotoreIA } from "@/components/MotoreIA";
 import { PiattaformeConnect } from "@/components/PiattaformeConnect";
 import { PannelliPiattaforme } from "@/components/PannelliPiattaforme";
 import { RiepilogoConti } from "@/components/RiepilogoConti";
+import { CondivisioneAnalisi } from "@/components/CondivisioneAnalisi";
 import { PannelloSegnali } from "@/components/PannelloSegnali";
 import { StatisticheStrategie } from "@/components/StatisticheStrategie";
 import { useQuery } from "@tanstack/react-query";
@@ -394,6 +395,9 @@ function Index() {
             </RuntimeErrorBoundary>
             <RuntimeErrorBoundary area="riepilogo conti">
               <RiepilogoConti />
+            </RuntimeErrorBoundary>
+            <RuntimeErrorBoundary area="condivisione">
+              <CondivisioneAnalisi />
             </RuntimeErrorBoundary>
             <RuntimeErrorBoundary area="pannelli piattaforme">
               <PannelliPiattaforme />
