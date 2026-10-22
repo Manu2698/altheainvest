@@ -23,7 +23,9 @@ export function CondivisioneAnalisi() {
   const [durata, setDurata] = useState<number>(24);
   const [opz, setOpz] = useState<OpzioniCondivisione>(OPZIONI_PREDEFINITE);
   const [creato, setCreato] = useState<string | null>(null);
+  const [creatoApi, setCreatoApi] = useState<string | null>(null);
   const [copiato, setCopiato] = useState(false);
+  const [copiatoApi, setCopiatoApi] = useState(false);
 
   const lista = useServerFn(listaLinkCondivisione);
   const crea = useServerFn(creaLinkCondivisione);
@@ -34,7 +36,11 @@ export function CondivisioneAnalisi() {
     onSuccess: (r) => {
       // Il token sta dopo "#": il browser non lo invia a nessun server né come referrer.
       setCreato(`${window.location.origin}/condivisione#t=${r.token}`);
+      // Variante per strumenti automatici (ChatGPT): il token viaggia come parametro
+      // perché quei lettori non eseguono JavaScript né vedono il frammento.
+      setCreatoApi(`${window.location.origin}/api/public/condivisione?t=${r.token}`);
       setCopiato(false);
+      setCopiatoApi(false);
       void qc.invalidateQueries({ queryKey: ["link-condivisione"] });
     },
   });
