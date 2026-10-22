@@ -125,7 +125,7 @@ export function CondivisioneAnalisi() {
           </div>
           <p className="mt-3 text-muted-foreground">Per ChatGPT o altri strumenti automatici (dati in formato testo/JSON):</p>
           <div className="mt-1 flex gap-2">
-            <input readOnly value={creatoApi} className="numeric flex-1 rounded-lg border border-border bg-surface px-3 py-2 text-[11px]" onFocus={(e) => e.currentTarget.select()} />
+            <input readOnly value={creatoApi ?? ""} className="numeric flex-1 rounded-lg border border-border bg-surface px-3 py-2 text-[11px]" onFocus={(e) => e.currentTarget.select()} />
             <button
               onClick={() => void navigator.clipboard.writeText(creatoApi).then(() => setCopiatoApi(true))}
               className="inline-flex items-center gap-1 rounded-lg border border-border px-3"
