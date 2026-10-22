@@ -10,6 +10,7 @@ import type { EsitoCiclo, OrdineBroker } from "./trading.types";
 import type { StrategyId } from "./strategies";
 import { isPiattaforma, type Piattaforma } from "./piattaforme.types";
 import type { Json } from "@/integrations/supabase/types";
+import { ordiniContoAttuale } from "./storico-conto";
 
 export type {
   AssetInvestibile,
@@ -185,18 +186,25 @@ export const getAndamentoConto = createServerFn({ method: "GET" })
   .inputValidator((input: { reale?: boolean } | undefined) => ({ reale: Boolean(input?.reale) }))
   .handler(async ({ data, context }) => {
     const { storicoConto } = await import("./alpaca.server");
+    const { identitaAlpaca } = await import("./conti.server");
+    const identita = await identitaAlpaca(context.userId, data.reale);
+    if (!identita || identita === "assente") return { storico: [], decisioni: [] };
     const ambiente = data.reale ? "reale" : "paper";
     const [storico, ordini] = await Promise.all([
       storicoConto(context.userId, data.reale),
       context.supabase
         .from("ordini_ia")
-        .select("id, created_at, ticker, lato, importo, pnl_pct, motivo, strategia, piattaforma")
+        .select("id, created_at, ticker, lato, importo, pnl_pct, motivo, strategia, piattaforma, ambiente, conto_id, conto_attribuzione")
         .eq("user_id", context.userId)
         .eq("ambiente", ambiente)
+        .eq("piattaforma", "alpaca")
+        .eq("conto_id", identita.contoId)
+        .in("conto_attribuzione", ["motore", "verificato_broker"])
         .order("created_at", { ascending: false })
         .limit(200),
     ]);
-    const decisioni: DecisioneLog[] = (ordini.data ?? []).map((o) => ({
+    if (ordini.error) throw new Error("Storico del conto non disponibile.");
+    const decisioni: DecisioneLog[] = ordiniContoAttuale(ordini.data ?? [], "alpaca", ambiente, identita.contoId).map((o) => ({
       id: o.id,
       createdAt: o.created_at,
       ticker: o.ticker,

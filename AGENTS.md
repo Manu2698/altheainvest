@@ -10,6 +10,8 @@
 <!-- LOVABLE:END -->
 
 ## Architecture rules
+- Dashboard history, execution register and strategy statistics resolve the currently connected broker identity before selecting account-scoped records; unknown identity returns no history, and previous-account records remain persisted for accounting.
+- Additional buys on an existing holding pass the pure accumulation guard after learning and again against pre-submit positions; only the existing medium SMA20 trend on a non-losing position qualifies, and sells remain unchanged.
 - The phase-one snapshot eligibility proposal is offline-only and must not be imported by runtime trading or learning until an explicitly authorized pause and verified cycle completion; isolated tests are not operational integration.
 - Strategy evaluation is read-only and uses persisted owner-scoped reconciled snapshots; offline factor comparisons remain separate from execution and require pre-entry observations, complete allocated costs, chronological holdouts and comparable portfolio risk/returns, so descriptive trade selection cannot become an automatic signal change.
 - Broker mutations require an atomic lease-owned pre-submit intent in registro_ordini; renew/verify ownership before each bounded submission, use the persisted client ID for both buys and sells, and never resend an uncertain intent. Non-Alpaca execution remains fail-closed until adapters expose verified identity, receipts, pending exposure and recovery.

@@ -7,6 +7,24 @@ export const MAX_SCOSTAMENTO_SMA10 = 40;
 /** Variazione giornaliera oltre la quale la serie è sospetta (split non corretto, errore di dati). */
 export const MAX_SALTO_GIORNALIERO = 50;
 
+/** Non mediare una posizione: l'eccezione usa il trend SMA20 già previsto dal profilo medio. */
+export function problemaAccumulo(
+  strategia: string,
+  posizione: { valore: number; pnlPct: number } | undefined,
+  chiusure: number[],
+): string | null {
+  if (!posizione) return null;
+  if (!Number.isFinite(posizione.valore) || !Number.isFinite(posizione.pnlPct))
+    return "Posizione non verificabile: nessun acquisto aggiuntivo.";
+  if (posizione.valore <= 0) return null;
+  const ultimi = chiusure.slice(-20);
+  const prezzo = ultimi.at(-1);
+  const media = ultimi.reduce((a, b) => a + b, 0) / 20;
+  if (strategia === "medio" && posizione.pnlPct >= 0 && ultimi.length === 20
+    && ultimi.every(p => Number.isFinite(p) && p > 0) && prezzo != null && prezzo > media) return null;
+  return "Posizione già presente: nessun accumulo senza trend positivo verificato; non si media una posizione in perdita.";
+}
+
 /** Ragione per cui in questo ciclo non si fanno nuovi acquisti (null = acquisti consentiti). */
 export function motivoBloccoAcquisti(s: {
   contoOk: boolean;

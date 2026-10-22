@@ -4,15 +4,15 @@ import { leggiContabilita, venditeConfermate } from "./contabilita";
 import { calcolaMetriche, type Flusso, type PuntoValore } from "./metriche";
 import { raggruppaEsiti, riepilogaEsiti, type EsitoValutabile } from "./valutazione";
 
-/** Lecture seule: aucune synchronisation broker, aucun ordre, aucune modification. */
+/** Lettura contabile, con sola verifica GET dell'identità broker; nessun ordine o modifica. */
 export const getEvaluationStrategie = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
   .inputValidator((i: { reale?: boolean; giorni?: number }) => ({ reale: Boolean(i?.reale), giorni: [7, 30, 90].includes(Number(i?.giorni)) ? Number(i.giorni) : 30 }))
   .handler(async ({ data, context }) => {
     const ambiente = data.reale ? "reale" : "paper";
-    const { data: conti, error: errConti } = await context.supabase.from("conti_broker").select("conto_id").eq("user_id", context.userId).eq("piattaforma", "alpaca").eq("ambiente", ambiente).eq("stato", "attivo");
-    if (errConti) throw new Error("Elenco conti non disponibile.");
-    const ids = [...new Set((conti ?? []).map(c => c.conto_id))];
+    const { identitaAlpaca } = await import("./conti.server");
+    const identita = await identitaAlpaca(context.userId, data.reale);
+    const ids = identita && identita !== "assente" ? [identita.contoId] : [];
     const dal = new Date(Date.now() - data.giorni * 86400000).toISOString().slice(0, 10);
     const esiti: EsitoValutabile[] = [];
     const contabili = [];

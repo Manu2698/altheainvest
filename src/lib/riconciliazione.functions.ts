@@ -25,7 +25,10 @@ export const getRegistroOrdini = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
   .inputValidator((i: { reale: boolean }) => ({ reale: Boolean(i.reale) }))
   .handler(async ({ data, context }) => {
-    const { data: rows, error } = await context.supabase.from("registro_ordini").select("id,piattaforma,ticker,lato,stato,quantita_eseguita,prezzo_medio,riconciliato_il,created_at,strategia,broker_id,eseguito_il,riconciliazione_motivo").eq("user_id", context.userId).eq("ambiente", data.reale ? "reale" : "paper").order("created_at", { ascending: false }).limit(200);
+    const { identitaAlpaca } = await import("./conti.server");
+    const identita = await identitaAlpaca(context.userId, data.reale);
+    if (!identita || identita === "assente") return [];
+    const { data: rows, error } = await context.supabase.from("registro_ordini").select("id,piattaforma,ticker,lato,stato,quantita_eseguita,prezzo_medio,riconciliato_il,created_at,strategia,broker_id,eseguito_il,riconciliazione_motivo").eq("user_id", context.userId).eq("ambiente", data.reale ? "reale" : "paper").eq("piattaforma", "alpaca").eq("conto_id", identita.contoId).order("created_at", { ascending: false }).limit(200);
     if (error) throw new Error("Registro non disponibile.");
     return rows ?? [];
   });

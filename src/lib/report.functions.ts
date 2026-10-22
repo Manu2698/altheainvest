@@ -10,8 +10,9 @@ export const getStatisticheStrategie = createServerFn({ method: "GET" })
   .inputValidator((input: { reale?: boolean } | undefined) => ({ reale: Boolean(input?.reale) }))
   .handler(async ({ data, context }): Promise<StatisticheStrategie> => {
     const { calcolaStatistiche } = await import("./report.server");
-    const { data: conti } = await context.supabase.from("conti_broker").select("conto_id").eq("user_id", context.userId).eq("ambiente", data.reale ? "reale" : "paper").eq("stato", "attivo");
-    const ids = (conti ?? []).map((c) => c.conto_id);
+    const { identitaAlpaca } = await import("./conti.server");
+    const identita = await identitaAlpaca(context.userId, data.reale);
+    const ids = identita && identita !== "assente" ? [identita.contoId] : [];
     if (!ids.length) return calcolaStatistiche([]);
     const [{data:rows,error},{data:snapshots}] = await Promise.all([
       context.supabase.from("registro_ordini").select("*").eq("user_id",context.userId).eq("ambiente",data.reale?"reale":"paper").eq("piattaforma","alpaca").in("conto_id",ids).order("created_at",{ascending:false}).limit(5000),

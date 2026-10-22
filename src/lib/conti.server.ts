@@ -2,6 +2,7 @@
 // Nessuna funzione qui invia ordini o modifica la logica d'investimento.
 import { credenzialiUtente, logServer, storicoConto } from "./alpaca.server";
 import { abbinaOrdini, pnlNonRealizzato, rendimentoNetto, risultatiChiusi } from "./conti";
+import { ordiniContoAttuale } from "./storico-conto";
 import { salvaEvento } from "./event-log.server";
 import {
   INFO_PIATTAFORME,
@@ -273,7 +274,7 @@ export async function confrontoConti(
     db.from("conti_broker").select("*").eq("user_id", userId),
     db
       .from("ordini_ia")
-      .select("piattaforma, ambiente, conto_id, lato, importo, pnl_pct, created_at")
+      .select("piattaforma, ambiente, conto_id, conto_attribuzione, lato, importo, pnl_pct, created_at")
       .eq("user_id", userId)
       .order("created_at", { ascending: false })
       .limit(5000),
@@ -285,8 +286,10 @@ export async function confrontoConti(
 
   const attivi: RiepilogoConto[] = [];
   for (const p of pannelli) {
-    const conto = (conti ?? []).find((c) => c.piattaforma === p.piattaforma && c.ambiente === p.ambiente && c.stato === "attivo");
-    const ordini = conto ? tutti.filter((r) => r.conto_id === conto.conto_id && r.piattaforma === p.piattaforma && r.ambiente === p.ambiente && r.created_at >= dal30) : [];
+    const identita = p.piattaforma === "alpaca" ? await identitaAlpaca(userId, p.ambiente === "reale") : null;
+    const corrente = identita && identita !== "assente" ? identita.contoId : null;
+    const conto = (conti ?? []).find((c) => c.conto_id === corrente && c.piattaforma === p.piattaforma && c.ambiente === p.ambiente);
+    const ordini = ordiniContoAttuale(tutti, p.piattaforma, p.ambiente, corrente).filter(r => r.created_at >= dal30);
     const ris = risultatiChiusi(ordini);
     const flussi = p.piattaforma === "alpaca" && p.stato === "collegato" ? await flussiAlpaca(userId, p.ambiente === "reale") : null;
     attivi.push({
