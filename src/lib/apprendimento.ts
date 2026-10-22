@@ -37,6 +37,7 @@ export type Lezioni = {
 const MIN_CAMPIONE = 3;
 
 export function calcolaLezioni(esiti: EsitoPassato[]): Lezioni {
+  esiti = esiti.filter((e) => Number.isFinite(e.pnlPct));
   const vendite = esiti.length;
   const vincite = esiti.filter((e) => e.pnlPct > 0);
   const tassoVincite = vendite ? vincite.length / vendite : 0;
@@ -69,7 +70,7 @@ export function calcolaLezioni(esiti: EsitoPassato[]): Lezioni {
     const somma = r.reduce((a, b) => a + b, 0);
     if (perse >= 2 && perse > vinte && somma < 0) bloccati.add(t);
     // Un titolo è favorito solo se il SUO storico supera la validazione (non quello globale).
-    else if (vinte >= 2 && perse === 0 && aumentiValidati && validaFuoriCampione(r)) favoriti.add(t);
+    else if (vinte >= 2 && somma > 0 && aumentiValidati && validaFuoriCampione(r)) favoriti.add(t);
   }
 
   const perSegnale = new Map<string, number[]>();
@@ -80,7 +81,7 @@ export function calcolaLezioni(esiti: EsitoPassato[]): Lezioni {
     if (r.length < MIN_CAMPIONE) continue;
     const tasso = r.filter((x) => x > 0).length / r.length;
     const somma = r.reduce((a, b) => a + b, 0);
-    if (tasso >= 0.6 && somma > 0 && validaFuoriCampione(r)) segnaliVincenti.add(g);
+    if (tasso >= 0.6 && somma > 0 && aumentiValidati && validaFuoriCampione(r)) segnaliVincenti.add(g);
     else if (tasso < 0.4 && somma < 0) segnaliPerdenti.add(g);
   }
 
@@ -142,7 +143,7 @@ export function applicaLezioni(
       return { azione: "attendi", importo: 0, motivo: `Segnale "${segnale}" scartato: in passato ha fatto perdere.` };
     // Una riduzione di rischio appresa non può essere annullata da un aumento; gli aumenti non si cumulano.
     let fattore = l.fattoreQuota;
-    if (fattore >= 1) {
+    if (fattore >= 1 && l.aumentiValidati) {
       if (l.favoriti.has(ticker)) fattore = Math.max(fattore, 1.2);
       if (segnale && l.segnaliVincenti.has(segnale)) fattore = Math.max(fattore, 1.3);
     }
@@ -164,6 +165,8 @@ export async function leggiLezioni(
   /** Se noto, l'apprendimento usa solo gli ordini di questo conto (non quelli di conti chiusi). */
   contoId?: string | null,
 ): Promise<Lezioni> {
+  // Identità ignota: nessun apprendimento aggregato tra conti.
+  if (!contoId) return calcolaLezioni([]);
   try {
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     let q = supabaseAdmin
@@ -176,10 +179,9 @@ export async function leggiLezioni(
       .gte("created_at", new Date(Date.now() - 60 * 86400_000).toISOString())
       .order("created_at", { ascending: true })
       .limit(1000);
-    if (contoId) q = q.eq("conto_id", contoId);
-    // Senza conto noto si escludono comunque gli ordini "non determinati" (vecchi conti chiusi).
-    else q = q.not("conto_id", "is", null);
-    const { data } = await q;
+    q = q.eq("conto_id", contoId);
+    const { data, error } = await q;
+    if (error) return calcolaLezioni([]);
     // Abbina ogni vendita all'ultimo acquisto dello stesso titolo per sapere quale segnale l'ha generata.
     const ultimoAcquisto = new Map<string, string | null>();
     const esiti: EsitoPassato[] = [];

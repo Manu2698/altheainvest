@@ -27,7 +27,7 @@ export async function serieStorica(
   const raccogli = (payload: unknown, mappa: (s: string) => string) => {
     const bars = (payload as { bars?: Record<string, { c: number; t?: string }[]> })?.bars ?? {};
     for (const [sym, righe] of Object.entries(bars)) {
-      out[mappa(sym)] = righe.map((r) => num(r.c));
+      out[mappa(sym)] = [...(out[mappa(sym)] ?? []), ...righe.map((r) => num(r.c))];
       const t = righe.at(-1)?.t;
       if (ultimi && t) ultimi[mappa(sym)] = t;
     }
@@ -42,17 +42,26 @@ export async function serieStorica(
     logServer(origine, new Error(`HTTP ${r.status}: ${(await r.text()).slice(0, 200)}`));
     return null;
   };
+  const pagine = async (url: string, origine: string, mappa: (s: string) => string) => {
+    let token: string | null = null;
+    for (let pagina = 0; pagina < 30; pagina++) {
+      const r = await fetch(`${url}${token ? `&page_token=${encodeURIComponent(token)}` : ""}`, { headers });
+      const j = await controlla(r, origine) as { bars?: Record<string, { c: number; t?: string }[]>; next_page_token?: string | null } | null;
+      if (!j) { for (const t of tickers) { delete out[t]; if (ultimi) delete ultimi[t]; } return; }
+      raccogli(j, mappa);
+      token = j.next_page_token ?? null;
+      if (!token) return;
+    }
+    // Serie troncata: non presentarla al motore come completa.
+    for (const t of tickers) { delete out[t]; if (ultimi) delete ultimi[t]; }
+  };
 
   if (azioni.length) {
     const url = `https://data.alpaca.markets/v2/stocks/bars?symbols=${encodeURIComponent(
       azioni.join(","),
-    )}&timeframe=1Day&limit=1000&start=${inizio}&feed=iex&adjustment=raw&sort=asc`;
+    )}&timeframe=1Day&limit=1000&start=${inizio}&feed=iex&adjustment=split&sort=asc`;
     richieste.push(
-      fetch(url, { headers })
-        .then(async (r) => {
-          const j = await controlla(r, "trading.serieStorica.azioni");
-          if (j) raccogli(j, (s) => s);
-        })
+      pagine(url, "trading.serieStorica.azioni", (s) => s)
         .catch((e) => logServer("trading.serieStorica.azioni", e)),
     );
   }
@@ -62,11 +71,7 @@ export async function serieStorica(
       cripto.map(paioCripto).join(","),
     )}&timeframe=1Day&limit=1000&start=${inizio}&sort=asc`;
     richieste.push(
-      fetch(url, { headers })
-        .then(async (r) => {
-          const j = await controlla(r, "trading.serieStorica.cripto");
-          if (j) raccogli(j, (s) => s.replace("/", ""));
-        })
+      pagine(url, "trading.serieStorica.cripto", (s) => s.replace("/", ""))
         .catch((e) => logServer("trading.serieStorica.cripto", e)),
     );
   }
@@ -224,20 +229,22 @@ export async function eseguiCiclo(
   const selezione = auto.motivo;
 
   // Modalità "conto": l'IA usa tutto il capitale del conto Alpaca.
-  let liquidita = Infinity;
+  let liquidita = 0;
   let perditaOggi: number | null = null;
   let contoId: string | null = null; // solo per registrare a quale conto appartiene l'ordine
   let contoOk = false;
   try {
     const acc = await fetch(`${url}/v2/account`, { headers });
     if (acc.ok) {
-      contoOk = true;
       const a = (await acc.json()) as Record<string, unknown>;
+      contoOk = Boolean(a["id"]) && a["cash"] != null && a["equity"] != null && a["buying_power"] != null
+        && [a["cash"], a["equity"], a["buying_power"]].every((v) => Number.isFinite(Number(v)))
+        && a["trading_blocked"] !== true && a["account_blocked"] !== true;
       if (a["id"]) contoId = `alpaca:${String(a["id"])}`;
-      liquidita = num(a["cash"]);
+      liquidita = Math.max(0, Math.min(num(a["cash"]), num(a["buying_power"])));
       if (input.modalita === "conto") capitale = num(a["portfolio_value"] ?? a["equity"]);
       // Perdita della giornata: valore a chiusura di ieri meno valore attuale.
-      if (a["last_equity"] != null && a["equity"] != null) {
+      if (a["last_equity"] != null && a["equity"] != null && Number.isFinite(Number(a["last_equity"])) && Number.isFinite(Number(a["equity"]))) {
         perditaOggi = num(a["last_equity"]) - num(a["equity"]);
       }
     }
@@ -354,7 +361,9 @@ export async function eseguiCiclo(
           ? "Negoziabilità non verificabile: acquisto saltato."
           : asset["tradable"] !== true || asset["status"] !== "active"
             ? "Strumento non negoziabile presso il broker: acquisto saltato."
-            : null;
+            : !isCripto(ticker) && asset["fractionable"] !== true
+              ? "Strumento non frazionabile: ordine in importo non consentito, acquisto saltato."
+              : null;
         if (motivoAsset) {
           scelta.azione = "attendi";
           scelta.importo = 0;
@@ -363,7 +372,8 @@ export async function eseguiCiclo(
         }
       }
       if (scelta.azione === "compra") {
-        scelta.importo = Math.min(scelta.importo, residuo);
+        // Arrotonda per difetto: l'arrotondamento al centesimo non supera la liquidità residua.
+        scelta.importo = Math.floor(Math.min(scelta.importo, residuo) * 100) / 100;
         if (scelta.importo < 1) {
           scelta.azione = "attendi";
           scelta.motivo = `Capitale impostato (${capitale} $) già interamente investito.`;

@@ -30,6 +30,8 @@ type Riga = {
 };
 
 export function calcolaStatistiche(righe: Riga[]): StatisticheStrategie {
+  // Lo stesso record ricevuto due volte non rappresenta due ordini diversi.
+  righe = [...new Map(righe.map((r) => [r.id, r])).values()];
   const riepilogo: RiepilogoStrategia[] = IDS.map((s) => {
     const r = righe.filter((x) => x.strategia === s);
     const vendite = r.filter((x) => x.lato === "sell");

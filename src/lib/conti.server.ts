@@ -29,7 +29,7 @@ export async function improntaChiave(keyId: string) {
 type Identita = { piattaforma: Piattaforma; ambiente: Amb; contoId: string; verificato: boolean; etichetta: string | null };
 
 /** Legge l'identità del conto Alpaca dal broker. null = non verificabile ora. */
-async function identitaAlpaca(userId: string, reale: boolean): Promise<Identita | null | "assente"> {
+export async function identitaAlpaca(userId: string, reale: boolean): Promise<Identita | null | "assente"> {
   const cred = await credenzialiUtente(userId, reale);
   if (!cred) return "assente";
   try {
@@ -286,7 +286,7 @@ export async function confrontoConti(
   const attivi: RiepilogoConto[] = [];
   for (const p of pannelli) {
     const conto = (conti ?? []).find((c) => c.piattaforma === p.piattaforma && c.ambiente === p.ambiente && c.stato === "attivo");
-    const ordini = conto ? tutti.filter((r) => r.conto_id === conto.conto_id && r.created_at >= dal30) : [];
+    const ordini = conto ? tutti.filter((r) => r.conto_id === conto.conto_id && r.piattaforma === p.piattaforma && r.ambiente === p.ambiente && r.created_at >= dal30) : [];
     const ris = risultatiChiusi(ordini);
     const flussi = p.piattaforma === "alpaca" && p.stato === "collegato" ? await flussiAlpaca(userId, p.ambiente === "reale") : null;
     attivi.push({

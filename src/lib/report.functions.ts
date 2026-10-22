@@ -9,11 +9,15 @@ export const getStatisticheStrategie = createServerFn({ method: "GET" })
   .inputValidator((input: { reale?: boolean } | undefined) => ({ reale: Boolean(input?.reale) }))
   .handler(async ({ data, context }): Promise<StatisticheStrategie> => {
     const { calcolaStatistiche } = await import("./report.server");
+    const { data: conti } = await context.supabase.from("conti_broker").select("conto_id").eq("user_id", context.userId).eq("ambiente", data.reale ? "reale" : "paper").eq("stato", "attivo");
+    const ids = (conti ?? []).map((c) => c.conto_id);
+    if (!ids.length) return calcolaStatistiche([]);
     const { data: righe } = await context.supabase
       .from("ordini_ia")
       .select("id, strategia, ticker, lato, importo, pnl_pct, motivo, created_at")
       .eq("ambiente", data.reale ? "reale" : "paper")
-      .not("conto_id", "is", null)
+      .in("conto_id", ids)
+      .eq("user_id", context.userId)
       .order("created_at", { ascending: false })
       .limit(2000);
     return calcolaStatistiche(righe ?? []);

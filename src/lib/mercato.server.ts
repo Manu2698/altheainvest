@@ -105,7 +105,9 @@ export async function segnali(
   const cred = await credenzialiUtente(userId, reale);
   if (!cred || !tickers.length) return [];
   const { serieStorica } = await import("./trading.server");
-  const storico = await serieStorica(tickers, cred.headers);
+  const { problemaDati } = await import("./protezioni");
+  const ultimi: Record<string, string> = {};
+  const storico = await serieStorica(tickers, cred.headers, ultimi);
 
   return tickers.map((ticker) => {
     const serie = storico[ticker] ?? storico[ticker.replace("/", "")] ?? [];
@@ -122,7 +124,7 @@ export async function segnali(
     const tendenza: SegnaleStrumento["tendenza"] =
       sma20 && prezzo > sma20 * 1.005 ? "rialzo" : sma20 && prezzo < sma20 * 0.995 ? "ribasso" : "laterale";
     const giudizio: SegnaleStrumento["giudizio"] =
-      serie.length < 6
+      serie.length < 6 || problemaDati(serie, ultimi[ticker] ?? ultimi[ticker.replace("/", "")]) != null
         ? "attendi"
         : r < 35 || (tendenza === "rialzo" && scostamento > -1)
           ? "compra"

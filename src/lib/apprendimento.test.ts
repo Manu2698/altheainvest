@@ -26,12 +26,17 @@ describe("apprendimento", () => {
 });
 
 describe("segnali appresi", () => {
-  it("dati PAPER attuali (13 vendite, 10 vinte): nessun moltiplicatore sugli importi", () => {
+  it("campione sintetico di 13 vendite con 10 vincite: nessun moltiplicatore", () => {
     const pnl = [-7.18, 5.54, 5.7, 5.01, 5.95, 5.01, 5.36, 5.02, 5.11, 5.2, -7.0, 5.1, -6.9];
     const l = calcolaLezioni(pnl.map((p, i) => ({ ticker: i % 2 ? "CIFR" : "CRWV", pnlPct: p, segnale: "acquisto sul ribasso" })));
     const s = applicaLezioni({ azione: "compra", importo: 4, motivo: "Ribasso del -3.0% sotto la media 10g." }, "aggressivo", "CRWV", undefined, l);
     expect(s.importo).toBe(4);
     expect(s.motivo).not.toMatch(/×/);
+  });
+  it("20 esiti con PF esattamente 1,2 in entrambi i segmenti supera la soglia", () => {
+    const esiti = [...Array(12).fill(1), -5, -5, ...Array(4).fill(1), -5 / 3, -5 / 3];
+    const l = calcolaLezioni(esiti.map((pnlPct, i) => ({ ticker: `T${i}`, pnlPct })));
+    expect(l.aumentiValidati).toBe(true);
   });
   it("un segnale vincente non annulla una riduzione di rischio e non si cumula", () => {
     const segnale = Array.from({ length: 20 }, (_, i) => ({ ticker: `S${i}`, pnlPct: i % 4 === 0 ? -1 : 3, segnale: "acquisto sul ribasso" }));
