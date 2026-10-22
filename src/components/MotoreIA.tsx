@@ -14,18 +14,15 @@ import type { EsitoCiclo } from "@/lib/trading.types";
 import { STRATEGIE, type StrategyId } from "@/lib/strategies";
 import { useSessione } from "@/hooks/useSessione";
 import { cn } from "@/lib/utils";
-import { FondiConto } from "./FondiConto";
 
 const giorno = (iso: string) => (iso ? iso.slice(0, 10) : "—");
 
 function CardConto({
   conto,
   defStrategia,
-  defCapitale,
 }: {
   conto: ContoAutomazione;
   defStrategia: StrategyId;
-  defCapitale: number;
 }) {
   const qc = useQueryClient();
   const esegui = useServerFn(eseguiCicloIA);
@@ -33,7 +30,7 @@ function CardConto({
   const salvaLimiteFn = useServerFn(salvaLimitePerdita);
 
   const [strategia, setStrategia] = useState<StrategyId>(conto.strategia);
-  const [capitaleT, setCapitaleT] = useState(conto.capitale > 0 ? String(conto.capitale) : String(defCapitale));
+  const [capitaleT, setCapitaleT] = useState(String(conto.capitale));
   const [modalita, setModalita] = useState<"limite" | "conto">(conto.modalita);
   const [limiteT, setLimiteT] = useState(
     conto.perditaMaxGiornaliera != null ? String(conto.perditaMaxGiornaliera) : "",
@@ -280,7 +277,6 @@ function CardConto({
         </div>
       )}
 
-      <FondiConto conto={conto} />
 
       {esitoMostrato?.selezione && (
         <p className="mt-2 rounded-lg border border-border bg-surface-2 px-3 py-2 text-[11px] text-muted-foreground">
@@ -341,7 +337,7 @@ function CardConto({
   );
 }
 
-export function MotoreIA({ strategia, capitale }: { strategia: StrategyId; capitale: number }) {
+export function MotoreIA({ strategia }: { strategia: StrategyId }) {
   const { autenticato } = useSessione();
   const leggi = useServerFn(getAutomazioni);
   const impostazioni = useQuery({
@@ -391,7 +387,6 @@ export function MotoreIA({ strategia, capitale }: { strategia: StrategyId; capit
               key={`${c.piattaforma}-${c.ambiente}-${c.attivo ? 1 : 0}`}
               conto={c}
               defStrategia={strategia}
-              defCapitale={capitale}
             />
           ))}
         </div>

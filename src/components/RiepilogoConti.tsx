@@ -231,7 +231,6 @@ export function RiepilogoConti() {
       ) : (
         <p className="text-xs text-muted-foreground">Nessun conto attivo collegato.</p>
       )}
-      <StoriciEIndeterminati storici={d.storici} nonDeterminati={d.nonDeterminati} onArchivia={(id) => azione.mutate(id)} inCorso={azione.isPending} />
     </div>
   );
 }

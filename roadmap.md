@@ -1,4 +1,6 @@
 # Audit PAPER prioritario
+- [ ] Pulizia richiesta: rimuovere allocatore capitale, storico conti precedenti, condivisione, fondi e rischio dalla dashboard; mantenere registri persistenti.
+- [ ] Verificare acquisti ripetuti su posizioni esistenti e storico/statistiche esclusivamente del conto attualmente collegato; nessun ordine o nuova soglia.
 - [x] Pausa PAPER salvata il 22 ottobre 20:43:50 UTC; verificata in UI e database oltre un minuto: attivo=false, ultimo_ciclo fermo 20:43:00, 46 intenti senza nuovi ordini.
 - [ ] Conclusione cicli e sincronizzazione PAPER: lease ancora presente (scadenza 20:51:21 UTC), richiesta GET restituisce osservazione salvata; conclusione non provata, non rimuovere forzatamente il lease. Il ciclo manuale non è disabilitato dal solo attivo=false: non invocarlo.
 - [ ] Scarto nullo non provato: ultima osservazione letta 20:40:22, equity 49,83, cash 12,26, posizioni 37,581767, storico finale 51,29 e contabilita={}. Mancano osservazioni complete/allineate; non inventare rettifiche, non pubblicare o integrare mentre conclusione cicli incerta.

@@ -18,7 +18,6 @@ import { MotoreIA } from "@/components/MotoreIA";
 import { PiattaformeConnect } from "@/components/PiattaformeConnect";
 import { PannelliPiattaforme } from "@/components/PannelliPiattaforme";
 import { RiepilogoConti } from "@/components/RiepilogoConti";
-import { CondivisioneAnalisi } from "@/components/CondivisioneAnalisi";
 import { PannelloSegnali } from "@/components/PannelloSegnali";
 import { StatisticheStrategie } from "@/components/StatisticheStrategie";
 import { MetrichePortafoglio } from "@/components/MetrichePortafoglio";
@@ -28,14 +27,12 @@ import { getContoBroker, getAndamentoConto } from "@/lib/alpaca.functions";
 import { useSessione } from "@/hooks/useSessione";
 
 
-import { CapitalAllocator, type Allocazioni } from "@/components/CapitalAllocator";
 import { EquityChart } from "@/components/EquityChart";
 import { RiskMeter } from "@/components/RiskMeter";
 import { TradeFeed } from "@/components/TradeFeed";
 import { cn } from "@/lib/utils";
 import {
   STRATEGIE,
-  formatEuro,
   formatPct,
   getStrategia,
   type StrategyId,
@@ -75,7 +72,6 @@ const CHIAVE_STRATEGIA = "althea:strategia";
 
 function Index() {
   const [attiva, setAttiva] = useState<StrategyId>("medio");
-  const [capitale, setCapitale] = useState(1000);
 
   // Ripristina la strategia scelta l'ultima volta (dopo l'idratazione).
   useEffect(() => {
@@ -94,11 +90,6 @@ function Index() {
     }
   };
 
-  const [allocazioni, setAllocazioni] = useState<Allocazioni>({
-    conservativo: 40,
-    medio: 40,
-    aggressivo: 10,
-  });
   const [reale, setReale] = useState(false);
   const [universi, setUniversi] = useState<Record<StrategyId, string[]>>(() =>
     Object.fromEntries(STRATEGIE.map((s) => [s.id, s.universo])) as Record<
@@ -116,12 +107,9 @@ function Index() {
     refetchInterval: 60_000,
     retry: false,
   });
-  const disponibile =
-    conto.data && conto.data.stato === "collegato" ? conto.data.valorePortafoglio : 0;
 
   const strategia = getStrategia(attiva);
   const universo = universi[attiva];
-  const capitaleStrategia = Math.round((capitale * allocazioni[attiva]) / 100);
   const andamentoFn = useServerFn(getAndamentoConto);
   const andamento = useQuery({
     queryKey: ["andamento-conto", reale],
@@ -342,10 +330,7 @@ function Index() {
               <h2 className="text-2xl font-semibold sm:text-3xl">Dashboard operativa</h2>
               <p className="mt-2 text-sm text-muted-foreground">
                 Profilo <span className="text-foreground">{strategia.nome}</span> ·{" "}
-                <span className="numeric text-foreground">
-                  {formatEuro(capitaleStrategia)}
-                </span>{" "}
-                allocati · conto{" "}
+                conto{" "}
                 <span className={reale ? "text-accent" : "text-primary"}>
                   {reale ? "reale" : "paper"}
                 </span>{" "}
@@ -369,16 +354,7 @@ function Index() {
             </div>
           )}
 
-          <div className="mt-6 grid gap-4 lg:grid-cols-2">
-            <CapitalAllocator
-              disponibile={disponibile}
-              capitale={capitale}
-              setCapitale={setCapitale}
-              allocazioni={allocazioni}
-              setAllocazioni={setAllocazioni}
-              attiva={attiva}
-              onAttiva={scegliStrategia}
-            />
+          <div className="mt-6">
             <RuntimeErrorBoundary area="broker">
               <BrokerConnect reale={reale} />
             </RuntimeErrorBoundary>
@@ -397,14 +373,11 @@ function Index() {
             <RuntimeErrorBoundary area="riepilogo conti">
               <RiepilogoConti />
             </RuntimeErrorBoundary>
-            <RuntimeErrorBoundary area="condivisione">
-              <CondivisioneAnalisi />
-            </RuntimeErrorBoundary>
             <RuntimeErrorBoundary area="pannelli piattaforme">
               <PannelliPiattaforme />
             </RuntimeErrorBoundary>
             <RuntimeErrorBoundary area="motore IA">
-              <MotoreIA strategia={attiva} capitale={capitaleStrategia} />
+              <MotoreIA strategia={attiva} />
             </RuntimeErrorBoundary>
           </div>
 
