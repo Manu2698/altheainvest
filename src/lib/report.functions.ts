@@ -1,3 +1,4 @@
+import { leggiContabilita, venditeConfermate } from "./contabilita";
 import { createServerFn } from "@tanstack/react-start";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import type { EsitoSimulazione, StatisticheStrategie } from "./report.types";
@@ -12,15 +13,18 @@ export const getStatisticheStrategie = createServerFn({ method: "GET" })
     const { data: conti } = await context.supabase.from("conti_broker").select("conto_id").eq("user_id", context.userId).eq("ambiente", data.reale ? "reale" : "paper").eq("stato", "attivo");
     const ids = (conti ?? []).map((c) => c.conto_id);
     if (!ids.length) return calcolaStatistiche([]);
-    const { data: righe } = await context.supabase
-      .from("ordini_ia")
-      .select("id, strategia, ticker, lato, importo, pnl_pct, motivo, created_at")
-      .eq("ambiente", data.reale ? "reale" : "paper")
-      .in("conto_id", ids)
-      .eq("user_id", context.userId)
-      .order("created_at", { ascending: false })
-      .limit(2000);
-    return calcolaStatistiche(righe ?? []);
+    const [{data:rows,error},{data:snapshots}] = await Promise.all([
+      context.supabase.from("registro_ordini").select("*").eq("user_id",context.userId).eq("ambiente",data.reale?"reale":"paper").eq("piattaforma","alpaca").in("conto_id",ids).order("created_at",{ascending:false}).limit(5000),
+      context.supabase.from("istantanee_contabili").select("conto_id,contabilita,created_at").eq("user_id",context.userId).eq("ambiente",data.reale?"reale":"paper").eq("piattaforma","alpaca").in("conto_id",ids).order("created_at",{ascending:false}).limit(100)
+    ]);
+    if (error) throw new Error("Statistiche delle esecuzioni non disponibili.");
+    const latest = new Map<string,NonNullable<typeof snapshots>[number]>();
+    for (const s of snapshots ?? []) if (!latest.has(s.conto_id)) latest.set(s.conto_id,s);
+    const sales=ids.flatMap(id=>venditeConfermate(leggiContabilita(latest.get(id)?.contabilita).vendite,(rows ?? []).filter(o=>o.conto_id===id)));
+    return calcolaStatistiche((rows ?? []).filter(o=>["conservativo","medio","aggressivo"].includes(o.strategia) && o.quantita_eseguita>0 && o.riconciliato_il && ["filled","canceled","expired"].includes(o.stato)).map(o=>{
+      const sale=sales.find(v=>v.ordine===o.broker_id);
+      return {id:o.id,strategia:o.strategia,ticker:o.ticker,lato:o.lato,importo:o.quantita_eseguita*Number(o.prezzo_medio ?? 0),pnl_pct:sale ? sale.pnl/sale.costo*100 : null,motivo:o.riconciliazione_motivo,created_at:o.eseguito_il ?? o.created_at};
+    }));
   });
 
 export const simulaPortafoglio = createServerFn({ method: "POST" })

@@ -3,6 +3,7 @@
 // Le riduzioni di rischio si applicano subito; ogni AUMENTO di importo richiede la validazione
 // fuori campione (validaFuoriCampione). Le lezioni si ricalcolano a ogni ciclo e non vengono
 // salvate: se la validazione smette di reggere si torna automaticamente alla configurazione base.
+import { leggiContabilita, venditeConfermate } from "./contabilita";
 import { validaFuoriCampione } from "./metriche";
 
 export type EsitoPassato = { ticker: string; pnlPct: number; segnale?: string | null };
@@ -169,27 +170,15 @@ export async function leggiLezioni(
   if (!contoId) return calcolaLezioni([]);
   try {
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-    let q = supabaseAdmin
-      .from("ordini_ia")
-      .select("ticker, pnl_pct, lato, motivo, created_at")
-      .eq("user_id", userId)
-      .eq("piattaforma", piattaforma)
-      .eq("ambiente", ambiente)
-      .eq("strategia", strategia)
-      .gte("created_at", new Date(Date.now() - 60 * 86400_000).toISOString())
-      .order("created_at", { ascending: true })
-      .limit(1000);
-    q = q.eq("conto_id", contoId);
-    const { data, error } = await q;
-    if (error) return calcolaLezioni([]);
-    // Abbina ogni vendita all'ultimo acquisto dello stesso titolo per sapere quale segnale l'ha generata.
-    const ultimoAcquisto = new Map<string, string | null>();
-    const esiti: EsitoPassato[] = [];
-    for (const r of data ?? []) {
-      if (r.lato === "buy") ultimoAcquisto.set(r.ticker, segnaleDi(r.motivo));
-      else if (r.pnl_pct != null)
-        esiti.push({ ticker: r.ticker, pnlPct: Number(r.pnl_pct), segnale: ultimoAcquisto.get(r.ticker) ?? null });
-    }
+    if (piattaforma !== "alpaca") return calcolaLezioni([]);
+    const [{data:snapshot},{data:ordini,error}] = await Promise.all([
+      supabaseAdmin.from("istantanee_contabili").select("contabilita,osservato_al").eq("user_id",userId).eq("piattaforma",piattaforma).eq("ambiente",ambiente).eq("conto_id",contoId).order("created_at",{ascending:false}).limit(1).maybeSingle(),
+      supabaseAdmin.from("registro_ordini").select("broker_id,stato,riconciliato_il,strategia").eq("user_id",userId).eq("piattaforma",piattaforma).eq("ambiente",ambiente).eq("conto_id",contoId).eq("strategia",strategia).limit(5000)
+    ]);
+    if (error || !snapshot || Date.now()-Date.parse(snapshot.osservato_al)>120000) return calcolaLezioni([]);
+    const dal = new Date(Date.now()-60*86400000).toISOString();
+    const esiti: EsitoPassato[] = venditeConfermate(leggiContabilita(snapshot.contabilita).vendite,ordini ?? []).filter(v=>v.ora>=dal).sort((a,b)=>a.ora.localeCompare(b.ora)).map(v=>({ticker:v.ticker,pnlPct:v.pnl/v.costo*100,segnale:null}));
+    // Il segnale di ingresso non viene dedotto dall'ultimo acquisto con lotti misti.
     return calcolaLezioni(esiti);
   } catch {
     return calcolaLezioni([]);
