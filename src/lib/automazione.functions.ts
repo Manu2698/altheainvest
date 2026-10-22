@@ -13,6 +13,8 @@ export type ContoAutomazione = {
   attivo: boolean;
   strategia: StrategyId;
   capitale: number;
+  liquiditaLimite: number | null;
+  acquistoLimite: number | null;
   modalita: "limite" | "conto";
   perditaMaxGiornaliera: number | null;
   pausaMotivo: string | null;
@@ -79,6 +81,8 @@ export const getAutomazioni = createServerFn({ method: "GET" })
           ? (r?.strategia as StrategyId)
           : "medio",
         capitale: r ? Number(r.capitale) : 0,
+        liquiditaLimite: r?.liquidita_limite == null ? null : Number(r.liquidita_limite),
+        acquistoLimite: r?.acquisto_limite == null ? null : Number(r.acquisto_limite),
         modalita: r?.modalita === "conto" ? "conto" : "limite",
         perditaMaxGiornaliera:
           r?.perdita_max_giornaliera != null ? Number(r.perdita_max_giornaliera) : null,
