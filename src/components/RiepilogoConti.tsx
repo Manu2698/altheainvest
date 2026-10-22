@@ -15,7 +15,7 @@ export const fmt = (n: number | null | undefined, valuta = "", dec = 2) => {
   if (n == null) return "nascosto";
   const [intero, decimali] = Math.abs(n).toFixed(dec).split(".");
   const seg = intero!.replace(/\B(?=(\d{3})+(?!\d))/g, ".");
-  return `${n < 0 ? "-" : ""}${seg},${decimali}${valuta ? ` ${valuta}` : ""}`;
+  return `${n < 0 ? "-" : ""}${seg}${decimali ? `,${decimali}` : ""}${valuta ? ` ${valuta}` : ""}`;
 };
 export const fmtData = (iso: string | null) =>
   iso ? `${iso.slice(8, 10)}/${iso.slice(5, 7)}/${iso.slice(0, 4)} ${iso.slice(11, 16)} UTC` : "—";
