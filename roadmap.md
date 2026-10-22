@@ -1,4 +1,8 @@
 # Audit PAPER prioritario
+- [ ] Rafforzare lock condiviso e idempotenza di acquisti/vendite, recupero sicuro degli esiti incerti.
+- [ ] Riconciliare stati e prezzi delle esecuzioni; costo medio/P&L da esecuzioni deduplicate, senza inventare base iniziale.
+- [ ] Dimensionamento con ordini pendenti e dati aggiornati; mostrare rischio dei limiti attuali e proposte non applicate.
+- [ ] Verificare anomalie/comparabilità dei prezzi e testare i percorsi critici senza inviare ordini.
 - [x] Limiti personali di liquidità e potere d'acquisto entro disponibilità Alpaca (senza aumentare leva).
 - [x] Registro persistente per tutti i percorsi d'invio; esecuzioni/istantanee Alpaca riconciliate, rendimento bloccato su dati parziali.
 - [x] 70 test offline e lettura registro PAPER in anteprima senza inviare ordini.
