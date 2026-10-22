@@ -8,7 +8,7 @@ export const getRiconciliazione = createServerFn({ method: "POST" })
   .inputValidator((i: { reale: boolean }) => ({ reale: Boolean(i.reale) }))
   .handler(async ({ data, context }) => {
     const { conLeaseConto, riconciliaAlpacaPersistente } = await import("./riconciliazione.server");
-    let r = await conLeaseConto(context.userId, "alpaca", data.reale ? "reale" : "paper", () => riconciliaAlpacaPersistente(context.userId, data.reale));
+    let r = await conLeaseConto(context.userId, "alpaca", data.reale ? "reale" : "paper", (lease) => riconciliaAlpacaPersistente(context.userId, data.reale, lease));
     if (!r) {
       const { identitaAlpaca } = await import("./conti.server");
       const identity = await identitaAlpaca(context.userId, data.reale);

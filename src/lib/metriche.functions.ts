@@ -42,7 +42,7 @@ export const getMetrichePortafoglio = createServerFn({ method: "GET" })
     const identita = await identitaAlpaca(context.userId, data.reale);
     const contoId = identita && identita !== "assente" ? identita.contoId : "identita-non-verificabile";
     const { conLeaseConto, riconciliaAlpacaPersistente } = await import("./riconciliazione.server");
-    try { await conLeaseConto(context.userId, "alpaca", ambiente, () => riconciliaAlpacaPersistente(context.userId, data.reale)); } catch { /* use persisted incomplete/stale state below */ }
+    try { await conLeaseConto(context.userId, "alpaca", ambiente, (lease) => riconciliaAlpacaPersistente(context.userId, data.reale, lease)); } catch { /* use persisted incomplete/stale state below */ }
     const { data: snapshot } = await context.supabase.from("istantanee_contabili").select("*").eq("user_id", context.userId).eq("piattaforma", "alpaca").eq("ambiente", ambiente).eq("conto_id", contoId).order("created_at", { ascending: false }).limit(1).maybeSingle();
     const riconciliato = snapshot?.stato === "riconciliato" && Date.now() - Date.parse(snapshot.osservato_al) < 120_000;
     const storicoPersistito = Array.isArray(snapshot?.storico) ? snapshot.storico as unknown as { giorno: string; valore: number }[] : [];

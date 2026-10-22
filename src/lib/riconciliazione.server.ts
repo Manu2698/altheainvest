@@ -42,7 +42,9 @@ export async function aggiornaRicevuta(id: string, ricevuta: Record<string, unkn
 }
 
 /** Solo GET broker. Le letture complete vengono persistite, mai dedotte da ordini inviati. */
-export async function riconciliaAlpacaPersistente(userId: string, reale: boolean) {
+export async function riconciliaAlpacaPersistente(userId: string, reale: boolean, lease: LeaseConto) {
+  if (lease.userId !== userId || lease.piattaforma !== "alpaca" || lease.ambiente !== (reale ? "reale" : "paper")) throw new Error("Lock di riconciliazione non valido.");
+  await verificaLease(lease);
   const cred = await credenzialiUtente(userId, reale);
   if (!cred) throw new Error("Conto non collegato.");
   const client = await db();
@@ -50,6 +52,7 @@ export async function riconciliaAlpacaPersistente(userId: string, reale: boolean
   const api = reale ? "https://api.alpaca.markets" : "https://paper-api.alpaca.markets";
   const iniziato = new Date().toISOString();
   const leggi = async (path: string) => {
+    await verificaLease(lease);
     const r = await fetch(`${api}${path}`, { headers: cred.headers, signal: AbortSignal.timeout(15000) });
     if (!r.ok) throw new Error("Dati del broker non disponibili per la riconciliazione.");
     return r.json();
@@ -111,11 +114,16 @@ export async function riconciliaAlpacaPersistente(userId: string, reale: boolean
     const { data: registrati, error } = await client.from("registro_ordini").select("*").eq("user_id", userId).eq("piattaforma", "alpaca").eq("ambiente", ambiente).eq("conto_id", contoId);
     if (error) throw error;
     for (const o of registrati ?? []) {
+      await verificaLease(lease);
       if (o.stato === "non_inviato" || o.stato === "rifiutato_http") continue;
       let broker = ordini.find(b => String(b["id"]) === o.broker_id || String(b["client_order_id"]) === o.client_id);
       if (!broker) {
         try { broker = await leggi(o.broker_id ? `/v2/orders/${encodeURIComponent(o.broker_id)}` : `/v2/orders:by_client_order_id?client_order_id=${encodeURIComponent(o.client_id)}`); }
-        catch { completo = false; continue; }
+        catch {
+          completo = false;
+          await client.from("registro_ordini").update({ riconciliato_il:null, riconciliazione_motivo:"Esito non determinabile: solo recupero con lo stesso ID, nessun reinvio. Se il broker non trova l’ordine occorre verifica manuale, non sblocco automatico." }).eq("id",o.id);
+          continue;
+        }
       }
       if (!broker) { completo = false; continue; }
       ordini.push(broker);
@@ -151,6 +159,7 @@ export async function riconciliaAlpacaPersistente(userId: string, reale: boolean
   // Journal di titoli o attività sconosciute non hanno un controvalore cash affidabile.
   if (flussi.some(f => !["CSD","CSW","FEE","JNLC","DIV","DIVNRA","DIVFT"].includes(f.tipo) || f.netto == null)) completo = false;
   const controllo = controllaIstantanea({ prima: { id: String(prima["id"]), equity: numero(prima["equity"]), cash: numero(prima["cash"]) }, dopo: { id: String(dopo["id"]), equity: numero(dopo["equity"]), cash: numero(dopo["cash"]) }, posizioni, datiCompleti: completo && storico.length > 0, ordiniStabili: stabili, ordiniPendenti: ordini.some(o => !terminali.has(String(o["status"]))) });
+  await verificaLease(lease);
   const { data: snapshot, error } = await client.from("istantanee_contabili").insert({ user_id: userId, piattaforma: "alpaca", ambiente, conto_id: contoId, valuta: String(dopo["currency"] ?? "USD"), equity: Number.isFinite(numero(dopo["equity"])) ? numero(dopo["equity"]) : null, liquidita: Number.isFinite(numero(dopo["cash"])) ? numero(dopo["cash"]) : null, potere_acquisto: Number.isFinite(numero(dopo["buying_power"])) ? numero(dopo["buying_power"]) : null, posizioni: json(posizioni), contabilita: json({ ...contabilita, origineCompleta: Boolean(origine), costi: "P&L da esecuzioni al lordo delle fee; fee già nell’equity, non allocate per vendita." }), storico: json(storico), flussi: json(flussi), stato: controllo.stato, motivo: controllo.motivo, scarto: controllo.scarto, osservato_dal: iniziato, osservato_al: new Date().toISOString() }).select("*").single();
   if (error || !snapshot) throw new Error("Impossibile conservare la riconciliazione.");
   return snapshot;

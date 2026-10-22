@@ -204,11 +204,11 @@ export async function eseguiCiclo(
   const result = await conLeaseConto(userId, p, input.reale ? "reale" : "paper", async (lease) => {
     // Nessun invio senza registro disponibile; la riconciliazione non invia ordini.
     if (p !== "alpaca") return {ok:false,messaggio:"Operazioni bloccate: questo broker non espone ancora esecuzioni, identità e capitale pendente verificabili.",mercatoAperto:false,decisioni:[],eseguiti:0};
-    const snapshot = await riconciliaAlpacaPersistente(userId, input.reale);
+    const snapshot = await riconciliaAlpacaPersistente(userId, input.reale, lease);
     if (snapshot.stato !== "riconciliato") return {ok:false,messaggio:`Nessun ordine inviato: ${snapshot.motivo}`,mercatoAperto:false,decisioni:[],eseguiti:0};
     const esito = await eseguiCicloInterno(userId, input, lease);
     if (p === "alpaca") {
-      try { await riconciliaAlpacaPersistente(userId, input.reale); }
+      try { await riconciliaAlpacaPersistente(userId, input.reale, lease); }
       catch { esito.messaggio += " Riconciliazione incompleta: rendimento non definitivo."; }
     }
     return esito;
@@ -254,7 +254,7 @@ async function eseguiCicloInterno(
   const headers = cred.headers;
   const url = base(reale);
   const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-  const { data: fondi, error: erroreFondi } = await supabaseAdmin.from("automazioni_conti").select("liquidita_limite, acquisto_limite, limiti_conto_id").eq("user_id", userId).eq("piattaforma", "alpaca").eq("ambiente", reale ? "reale" : "paper").maybeSingle();
+  const { data: fondi, error: erroreFondi } = await supabaseAdmin.from("automazioni_conti").select("liquidita_limite, acquisto_limite, limiti_conto_id, perdita_max_giornaliera").eq("user_id", userId).eq("piattaforma", "alpaca").eq("ambiente", reale ? "reale" : "paper").maybeSingle();
   if (erroreFondi) throw new Error("Limiti utilizzabili non verificabili: ciclo non eseguito.");
 
   // L'IA sceglie da sola su cosa investire analizzando il mercato.
@@ -293,7 +293,8 @@ async function eseguiCicloInterno(
   }
 
   // Limite di perdita giornaliera: se raggiunto, l'IA si ferma prima di operare.
-  const limite = input.perditaMax ?? null;
+  const limite = fondi?.perdita_max_giornaliera == null ? null : Number(fondi.perdita_max_giornaliera);
+  if (limite != null && (!Number.isFinite(limite) || limite < 0)) throw new Error("Limite giornaliero incoerente: nessun ordine.");
   if (limite && limite > 0 && perditaOggi != null && perditaOggi >= limite) {
     return {
       ok: false,
@@ -414,7 +415,7 @@ async function eseguiCicloInterno(
         }
       }
       if (scelta.azione === "compra") {
-        const { data: attuali, error: errore } = await supabaseAdmin.from("automazioni_conti").select("liquidita_limite, acquisto_limite, limiti_conto_id").eq("user_id", userId).eq("piattaforma", "alpaca").eq("ambiente", reale ? "reale" : "paper").maybeSingle();
+        const { data: attuali, error: errore } = await supabaseAdmin.from("automazioni_conti").select("liquidita_limite, acquisto_limite, limiti_conto_id, perdita_max_giornaliera").eq("user_id", userId).eq("piattaforma", "alpaca").eq("ambiente", reale ? "reale" : "paper").maybeSingle();
         if (errore || (attuali?.limiti_conto_id && attuali.limiti_conto_id !== contoId)) throw new Error("Limiti del conto non verificabili: nessun nuovo acquisto.");
         // Il residuo del ciclo scende soltanto; le riduzioni salvate durante l'analisi valgono subito.
         residuo = Math.min(residuo, attuali?.liquidita_limite == null ? Infinity : Number(attuali.liquidita_limite), attuali?.acquisto_limite == null ? Infinity : Number(attuali.acquisto_limite));
