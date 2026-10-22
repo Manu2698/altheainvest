@@ -6,8 +6,8 @@ Non è possibile confermare tutti i requisiti richiesti. Verifica in sola lettur
 ### Dati persistiti verificati il 22 ottobre 2026, circa 20:28–20:29 UTC
 - Conto PAPER: **46 ordini** (45 `filled`, 1 `accepted`), tutti con ID broker e data di sincronizzazione. Lo stato sincronizzato non significa che l'ordine sia concluso o la contabilità completa.
 - Nessun gruppo duplicato di client ID o ID di esecuzione nei dati letti. Questo non prova assenza di concorrenza in ogni scenario.
-- Ultima istantanea esaminata: **incompleta**, equity 49,91 USD, liquidità 12,26 USD, 8 posizioni con valore complessivo 37,655134 USD; differenza −0,005134 USD, che non si riconcilia al centesimo secondo il controllo attuale. La contabilità salvata è `{}`: costo medio/P&L storico non certificabili. Il motivo persistito è generico e non identifica quale lettura sia mancata.
-- Automazione PAPER salvata: attiva; capitale configurato 500 USD, perdita giornaliera **20 USD**, circa 40,1% di 49,91 USD. Non coincide con i 50 USD citati nel brief. Nessuna soglia modificata. Il capitale configurato è un tetto/impostazione, non denaro creato; il budget operativo dipende anche dalla modalità e dai fondi effettivi.
+- Istantanea **incompleta**: equity 49,91 USD, liquidità 12,26 USD, 8 posizioni per 37,655134 USD; scarto −0,005134 USD. Non dimostra una perdita né identifica la causa. Contabilità `{}` e motivo generico impediscono certificazione storica; non allentare i controlli per far coincidere i numeri.
+- Automazione PAPER attiva; capitale configurato 500 USD, perdita giornaliera **20 USD**, circa 40,1% dell'equity osservata. È ampio, ma non predice una perdita di 20 USD né garantisce una perdita massima. Non coincide con i 50 USD del brief. **Scelta esplicita pendente:** confermare 20 USD o indicare un nuovo valore; nessuna modifica automatica. Capitale operativo sempre entro modalità e fondi effettivi.
 - Le funzioni di lock presenti nel database confermano la granularità per utente/broker/ambiente. Non esistono colonne di versione/parametri nel registro ordini esaminato.
 
 ## Già implementato: conservare, non duplicare
@@ -19,14 +19,16 @@ Non è possibile confermare tutti i requisiti richiesti. Verifica in sola lettur
 - Aumenti non cumulabili, riduzioni di rischio preservate; confronti offline non collegati all'invio ordini.
 
 ## Difetti e interventi, in ordine
-L'approvazione avvia **solo il primo intervento**. Le fasi successive restano separate, con nuova descrizione prima di modifiche ampie o operative.
+L'approvazione autorizza **solo test isolati della fase 1**. Modifica operativa dopo pausa esplicitamente autorizzata e verifica dei cicli conclusi; nessuna pubblicazione implicita. Fase 2 separata, con propria approvazione e test isolati.
 
 ### 1. Minimo: impedire lezioni da osservazioni incomplete
-**Problema:** `leggiLezioni` controlla soltanto l'età, non `stato`, errore della lettura istantanea o data futura/non valida. Può accettare vendite presenti in un'osservazione globalmente incompleta. Il blocco iniziale del ciclo limita oggi la raggiungibilità, ma la funzione di apprendimento non impone autonomamente il requisito.
+**Problema:** `leggiLezioni` controlla l'età, non stato/errori/date invalide. Il blocco iniziale limita la raggiungibilità, ma non garantisce impatto nullo: `trading.server.ts:370–380` legge le lezioni una volta prima del ciclo sui titoli. Neutralizzarle può cambiare acquisti, importi o stop appresi. Non è una modifica puramente informativa.
 
 **File:** `src/lib/apprendimento.ts`, nuovo test mirato accanto a `apprendimento.test.ts`.
 
-**Soluzione minima:** richiedere lettura riuscita, istantanea `riconciliato`, data valida/non futura, freschezza già esistente e query ordini non troncata. In caso contrario restituire lezioni neutre. Nessuna modifica a moltiplicatori, formule di acquisto/vendita, capitale o soglie.
+**Soluzione minima:** lettura riuscita, stato `riconciliato`, data valida/non futura, freschezza esistente e ordini non troncati; altrimenti lezioni neutre. Formule e parametri invariati, ma decisioni indirettamente diverse con dati invalidi.
+
+**Esecuzione sicura:** prima test sintetici senza importare/invocare il motore reale. Non editare il modulo condiviso con automazione attiva. Prima dell'integrazione: autorizzazione alla pausa dei conti interessati, controllo in sola lettura di automazioni, lease e cicli in corso, attesa della conclusione. Pausa non cancella ordini broker già accettati e non arresta un ciclo già avviato: non basta `attivo=false` né la sola scadenza del lease. Se la conclusione non è provabile, rinviare l'integrazione. Dopo, nessun riavvio automatico; ripresa e pubblicazione richiedono autorizzazione separata. Le lezioni già lette non vengono ricalcolate retroattivamente, ma un ciclo ancora prima della lettura potrebbe osservare il nuovo comportamento: non garantire assenza d'impatto durante aggiornamenti a caldo.
 
 **Test:** istantanea fresca ma incompleta con vendite apparentemente valide → nessuna lezione; query fallita, data futura/illeggibile o dati troncati → nessuna lezione; istantanea valida → comportamento esistente. Tutto con dati sintetici e richieste simulate, nessun broker.
 
@@ -34,6 +36,8 @@ L'approvazione avvia **solo il primo intervento**. Le fasi successive restano se
 **Problemi:** lock separati fra utenti sullo stesso conto fisico; esiti `non_inviato`/`rifiutato_http` saltati dalla sincronizzazione ma ancora bloccati dal predicato SQL quando `riconciliato_il` è nullo; diagnosi contabile generica; limite giornaliero riletto durante analisi ma pre-invio usa il valore iniziale.
 
 **File:** `riconciliazione.server.ts`, `riconciliazione.ts`, `trading.server.ts`, nuova migrazione additiva per lock fisico e funzione di intenti; test `lease.test.ts`, `riconciliazione.test.ts`, test offline di orchestrazione.
+
+**Separazione obbligatoria:** nessun lock, migrazione o recupero timeout insieme alla fase 1. Prima prova su ambiente isolato; poi nuova autorizzazione all'integrazione, con rollback descritto.
 
 **Minimo proposto:** diagnosticare separatamente cause mancanti; lock su ID broker verificato mantenendo proprietà utente; distinguere prova certa di mancato invio da esito incerto senza dedurre uno sblocco da 404/timeout; applicare l'ultimo limite salvato prima di ogni invio senza cambiarne il valore. Non allentare il controllo al centesimo e non inventare base di costo.
 
@@ -73,7 +77,7 @@ L'approvazione avvia **solo il primo intervento**. Le fasi successive restano se
 **Bloccanti attuali:** osservazioni pre-ingresso e universo storico non archiviati, costi per trade incompleti, nessuna curva candidata riproducibile. Un backtest positivo non autorizza trading reale e non garantisce profitti futuri.
 
 ## Criteri di completamento del primo intervento
-- Test mirati e suite esistente superati; nessuna modifica alle regole operative né allo schema.
+- Test isolati superati; integrazione solo dopo pausa autorizzata e conclusione verificata dei cicli. Nessun cambio di formule/parametri/schema.
 - Consegna di file, difetto risolto e test.
 - Rimangono espliciti i blocchi delle fasi successive: nessuna affermazione che ogni ordine/account sia definitivamente riconciliato o che la strategia sia profittevole.
 - Nessun ordine reale/PAPER, nessuna pubblicazione; cambi piccoli e separati per poter tornare alla versione precedente.
