@@ -35,5 +35,14 @@ export function FondiConto({ conto }: { conto: ContoAutomazione }) {
     {mutation.isSuccess && <p role="status" className="mt-2 text-xs text-bull">Limiti salvati.</p>}
     {(mutation.error || q.error) && <p role="alert" className="mt-2 text-xs text-warn">{(mutation.error || q.error)?.message}</p>}
     {q.data && <p className="mt-2 text-[11px] text-muted-foreground">{q.data.stato === "riconciliato" ? "Riconciliato" : "Dati incompleti"} · {q.data.motivo} · {new Date(q.data.aggiornatoIl).toLocaleString("it-IT")}</p>}
+    {q.data && <div className="mt-3 border-t border-border pt-3 text-xs">
+      <h4 className="font-semibold">Rischio rispetto al capitale effettivo</h4>
+      <p className="mt-1 text-warn">Limite giornaliero attuale: {fmt(conto.perditaMaxGiornaliera)}{conto.perditaMaxGiornaliera != null && q.data.equity != null && q.data.equity > 0 ? ` · ${(conto.perditaMaxGiornaliera / q.data.equity * 100).toFixed(2)}% del conto` : " · percentuale non determinabile"}. Nessuna modifica automatica.</p>
+      <p className="mt-1 text-muted-foreground">Capitale configurato: {fmt(conto.capitale)} · {conto.modalita === "conto" ? "modalità tutto il conto: il valore configurato non crea fondi" : "tetto di allocazione, non denaro disponibile"}.</p>
+      <p className="mt-1 text-muted-foreground">Acquisti entro liquidità, potere d'acquisto e tetto residuo dopo posizioni e ordini pendenti. Dati non verificabili: nessun nuovo ordine.</p>
+      <p className="mt-1 text-muted-foreground">Non sono ancora attivi limiti indipendenti per rischio per operazione, concentrazione per titolo/settore, numero di posizioni o drawdown.</p>
+      {q.data.equity != null && q.data.equity > 0 && <p className="mt-1 text-muted-foreground">Proposta da confermare, non applicata: perdita giornaliera 1% ({fmt(Math.floor(q.data.equity * 0.01 * 100) / 100)}); esposizione 80%; concentrazione titolo 10%, settore 25%; massimo 10 posizioni. Su capitali piccoli il minimo d'ordine può rendere questi vincoli incompatibili.</p>}
+      <p className="mt-2 text-warn">Gli stop sono controlli periodici, non garanzie: gap, slippage o interruzioni possono causare perdite superiori alle soglie e un prezzo di uscita diverso.</p>
+    </div>}
   </div>;
 }
