@@ -21,6 +21,7 @@ import { RiepilogoConti } from "@/components/RiepilogoConti";
 import { CondivisioneAnalisi } from "@/components/CondivisioneAnalisi";
 import { PannelloSegnali } from "@/components/PannelloSegnali";
 import { StatisticheStrategie } from "@/components/StatisticheStrategie";
+import { MetrichePortafoglio } from "@/components/MetrichePortafoglio";
 import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { getContoBroker, getAndamentoConto } from "@/lib/alpaca.functions";
@@ -410,23 +411,29 @@ function Index() {
 
 
 
+          <div className="mt-4">
+            <RuntimeErrorBoundary area="metriche portafoglio">
+              <MetrichePortafoglio reale={reale} />
+            </RuntimeErrorBoundary>
+          </div>
+
           <div className="mt-4 grid gap-4 lg:grid-cols-3">
             {[
               { k: "Valore portafoglio", v: `${valoreAttuale.toFixed(2)} $`, c: "" },
               {
-                k: "Rendimento 3 mesi",
+                k: "Variazione grezza 3 mesi (include versamenti/prelievi)",
                 v: formatPct(rendimento),
-                c: rendimento >= 0 ? "text-bull" : "text-bear",
+                c: "",
               },
               {
-                k: "Operazioni vincenti",
+                k: "Operazioni vincenti (statistica secondaria)",
                 v: chiuse.length ? `${Math.round((vincenti / chiuse.length) * 100)}% (${vincenti}/${chiuse.length})` : "—",
                 c: "",
               },
             ].map((m) => (
               <div key={m.k} className="panel p-5">
                 <p className="text-xs text-muted-foreground">{m.k}</p>
-                <p className={cn("numeric mt-2 text-2xl font-semibold", m.c)}>{m.v}</p>
+                <p className={cn("numeric mt-2 text-xl font-semibold", m.c)}>{m.v}</p>
               </div>
             ))}
           </div>
