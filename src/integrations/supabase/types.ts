@@ -534,7 +534,10 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
-      [_ in never]: never
+      registra_accesso_condivisione: {
+        Args: { p_finestra_secondi: number; p_id: string; p_massimo: number }
+        Returns: boolean
+      }
     }
     Enums: {
       [_ in never]: never
