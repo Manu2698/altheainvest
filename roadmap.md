@@ -1,6 +1,6 @@
 # Audit PAPER prioritario
 - [x] Precisazioni: fase 1 può influire sulle lezioni prima degli ordini; integrazione dopo pausa autorizzata e cicli conclusi, fase 2 separata; scarto non prova perdita.
-- [ ] Nuovo limite giornaliero PAPER: l'utente vuole sostituire 20 USD, attende importo numerico; nessun valore modificato.
+- [ ] Limite PAPER scelto: 50 USD nel piano, circa 100,2% dell'equity osservata; applicazione sospesa fino a conferma del rischio e verifica del conto. Nessun valore modificato.
 - [x] Audit del 22 ottobre: 102 test isolati, stato persistito e funzioni SQL verificati; difetti e piano per fasi con file/test, nessun ordine/deploy/cambio soglie.
 - [ ] Primo intervento proposto: gate completo delle lezioni da istantanee; attende approvazione del piano.
 - [x] Valutazione graduale: metriche delle vendite verificate per conto/titolo/strategia; confronto offline separato dei primi fattori trend e momentum, senza attivazione operativa.
