@@ -64,6 +64,13 @@
       "when": 1792697054058,
       "tag": "0008_persistent_broker_reconciliation",
       "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1792699798972,
+      "tag": "0009_fenced_execution_recovery",
+      "breakpoints": true
     }
   ]
 }
