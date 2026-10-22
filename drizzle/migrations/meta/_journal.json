@@ -43,6 +43,13 @@
       "when": 1792433453493,
       "tag": "0005_automazioni_conti",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1792676343884,
+      "tag": "0006_conti_broker_e_condivisione",
+      "breakpoints": true
     }
   ]
 }

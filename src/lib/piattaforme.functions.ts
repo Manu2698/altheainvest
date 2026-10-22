@@ -51,3 +51,16 @@ export const getRiepilogoConti = createServerFn({ method: "GET" })
     const { riepilogoConti } = await import("./piattaforme.server");
     return riepilogoConti(context.userId);
   });
+
+/** Archivia un conto "da confermare" su conferma esplicita dell'utente. */
+export const archiviaConto = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((i: { id: string }) => {
+    const id = String(i?.id ?? "");
+    if (!/^[0-9a-f-]{36}$/.test(id)) throw new Error("Conto non valido.");
+    return { id };
+  })
+  .handler(async ({ data, context }) => {
+    const { archiviaConto: archivia } = await import("./conti.server");
+    return archivia(context.userId, data.id);
+  });
