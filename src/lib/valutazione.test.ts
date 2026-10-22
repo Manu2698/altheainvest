@@ -20,10 +20,11 @@ describe("valutazione verificabile", () => {
   });
   it("esclude duplicati in conflitto anziché scegliere un P&L", () => { const r=riepilogaEsiti([e("1", 2),e("1", 3)]); expect(r.operazioni).toBe(0); expect(r.conflitti).toBe(1); });
   it("non inventa settore o condizioni di mercato", () => { expect(raggruppaEsiti([e("1", 2)], "settore")[0]?.nome).toBe("Non disponibile"); });
-  const osservazioni = (): OsservazioneFattori[] => Array.from({length: 40}, (_,i) => ({ ...e(String(i), i%4 === 0 ? -1 : 5), ingressoIl: `2026-09-${String(1+Math.floor(i/2)).padStart(2,"0")}T10:00:00Z`, osservatoIl: "2026-08-31T10:00:00Z", sma10: 11, sma20: 10, momentum5: 0.1, costoAllocato: 0.1 }));
+  const osservazioni = (): OsservazioneFattori[] => Array.from({length: 40}, (_,i) => ({ ...e(String(i), i%4 === 0 ? -1 : 5), ora: `2026-09-${String(1+Math.floor(i/2)).padStart(2,"0")}T11:00:00Z`, ingressoIl: `2026-09-${String(1+Math.floor(i/2)).padStart(2,"0")}T10:00:00Z`, osservatoIl: "2026-08-31T10:00:00Z", sma10: 11, sma20: 10, momentum5: 0.1, costoAllocato: 0.1 }));
   it("un fattore senza equity comparabile non è un miglioramento validato", () => { const r=confrontaFattore(osservazioni(), "trend"); expect(r.validato).toBe(true); expect(r.rischioConfrontabile).toBe(false); expect(r.miglioramento).toBe(false); expect(r.attivazioneAutomatica).toBe(false); });
   it("blocca dati conosciuti dopo l'ingresso (look-ahead)", () => { const rows= osservazioni(); rows[0] = {...rows[0] as OsservazioneFattori, osservatoIl: "2026-10-22T10:00:00Z"}; expect(confrontaFattore(rows,"momentum").completo).toBe(false); });
   it("non promuove pochi trade", () => { expect(confrontaFattore(osservazioni().slice(0,8),"trend").validato).toBe(false); });
+  it("esiti di training ancora aperti nel holdout impediscono validazione", () => { const rows= osservazioni(); rows[0] = {...rows[0] as OsservazioneFattori, ora: "2026-10-20T10:00:00Z"}; expect(confrontaFattore(rows,"trend").validato).toBe(false); });
   it("non mescola conti e strategie negli esperimenti", () => { const rows= osservazioni(); rows.push({...rows[0] as OsservazioneFattori,conto:"altro"}); expect(confrontaFattore(rows,"trend").completo).toBe(false); });
   it("non scarta selettivamente costi mancanti per validare", () => { const rows= osservazioni(); rows.push({...rows[0] as OsservazioneFattori,id:"extra",costoAllocato:null}); expect(confrontaFattore(rows,"trend").validato).toBe(false); });
 });

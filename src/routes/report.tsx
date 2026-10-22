@@ -76,7 +76,7 @@ function PaginaReport() {
         </div>
       </div>
 
-      <div className="mt-6 grid gap-4">
+      <div className="mt-6 grid gap-4 [&>*]:min-w-0">
         <ValutazioneStrategie reale={reale} />
         <StatisticheStrategie reale={reale} />
 

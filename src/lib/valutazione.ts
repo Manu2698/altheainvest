@@ -66,9 +66,11 @@ export function confrontaFattore(input: OsservazioneFattori[], fattore: "trend" 
   const valido = (e: OsservazioneFattori) => Number.isFinite(Date.parse(e.osservatoIl)) && Number.isFinite(Date.parse(e.ingressoIl)) && Date.parse(e.osservatoIl) <= Date.parse(e.ingressoIl) && Number.isFinite(e.pnlLordo) && e.costoAllocato != null && Number.isFinite(e.costoAllocato) && e.costoAllocato >= 0 && (fattore === "trend" ? e.sma10 != null && e.sma20 != null && Number.isFinite(e.sma10) && Number.isFinite(e.sma20) && e.sma10 > 0 && e.sma20 > 0 : e.momentum5 != null && Number.isFinite(e.momentum5));
   const seleziona = (e: OsservazioneFattori) => fattore === "trend" ? (e.sma10 ?? 0) > (e.sma20 ?? 0) : (e.momentum5 ?? 0) > 0;
   // Nessuna cancellazione silenziosa di osservazioni mancanti o contaminazione di conti/profili.
-  const completo = rows.length > 0 && !conflitti.size && new Set(rows.map(e => `${e.conto}:${e.strategia}`)).size === 1 && rows.every(valido);
   const taglio = Math.floor(rows.length * 0.7);
   const fuori = rows.slice(taglio);
+  const inizioHoldout = fuori[0]?.ingressoIl;
+  const separazioneTemporale = Boolean(inizioHoldout && rows.slice(0, taglio).every(e => Date.parse(e.ora) < Date.parse(inizioHoldout)));
+  const completo = rows.length > 0 && !conflitti.size && separazioneTemporale && new Set(rows.map(e => `${e.conto}:${e.strategia}`)).size === 1 && rows.every(e => valido(e) && Date.parse(e.ora) >= Date.parse(e.ingressoIl));
   const base = riepilogaEsiti(completo ? fuori : []);
   const candidato = riepilogaEsiti(completo ? fuori.filter(seleziona) : []);
   const netto = (e: OsservazioneFattori) => e.pnlLordo - (e.costoAllocato ?? 0);
