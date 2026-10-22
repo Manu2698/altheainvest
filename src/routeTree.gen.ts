@@ -21,6 +21,7 @@ import { Route as TerminiRouteImport } from './routes/termini'
 import { Route as ApiChatRouteImport } from './routes/api/chat'
 import { Route as AssistenteIndexRouteImport } from './routes/assistente.index'
 import { Route as AssistenteThreadIdRouteImport } from './routes/assistente.$threadId'
+import { Route as ApiPublicCondivisioneRouteImport } from './routes/api/public/condivisione'
 import { Route as ApiPublicJobsCicloIaRouteImport } from './routes/api/public/jobs/ciclo-ia'
 
 const IndexRoute = IndexRouteImport.update({
@@ -83,6 +84,11 @@ const AssistenteThreadIdRoute = AssistenteThreadIdRouteImport.update({
   path: '/assistente/$threadId',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiPublicCondivisioneRoute = ApiPublicCondivisioneRouteImport.update({
+  id: '/api/public/condivisione',
+  path: '/api/public/condivisione',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiPublicJobsCicloIaRoute = ApiPublicJobsCicloIaRouteImport.update({
   id: '/api/public/jobs/ciclo-ia',
   path: '/api/public/jobs/ciclo-ia',
@@ -102,6 +108,7 @@ export interface FileRoutesByFullPath {
   '/api/chat': typeof ApiChatRoute
   '/assistente/$threadId': typeof AssistenteThreadIdRoute
   '/assistente/': typeof AssistenteIndexRoute
+  '/api/public/condivisione': typeof ApiPublicCondivisioneRoute
   '/api/public/jobs/ciclo-ia': typeof ApiPublicJobsCicloIaRoute
 }
 export interface FileRoutesByTo {
@@ -117,6 +124,7 @@ export interface FileRoutesByTo {
   '/api/chat': typeof ApiChatRoute
   '/assistente/$threadId': typeof AssistenteThreadIdRoute
   '/assistente': typeof AssistenteIndexRoute
+  '/api/public/condivisione': typeof ApiPublicCondivisioneRoute
   '/api/public/jobs/ciclo-ia': typeof ApiPublicJobsCicloIaRoute
 }
 export interface FileRoutesById {
@@ -133,6 +141,7 @@ export interface FileRoutesById {
   '/api/chat': typeof ApiChatRoute
   '/assistente/$threadId': typeof AssistenteThreadIdRoute
   '/assistente/': typeof AssistenteIndexRoute
+  '/api/public/condivisione': typeof ApiPublicCondivisioneRoute
   '/api/public/jobs/ciclo-ia': typeof ApiPublicJobsCicloIaRoute
 }
 export interface FileRouteTypes {
@@ -150,6 +159,7 @@ export interface FileRouteTypes {
     | '/api/chat'
     | '/assistente/$threadId'
     | '/assistente/'
+    | '/api/public/condivisione'
     | '/api/public/jobs/ciclo-ia'
   fileRoutesByTo: FileRoutesByTo
   to:
@@ -165,6 +175,7 @@ export interface FileRouteTypes {
     | '/api/chat'
     | '/assistente/$threadId'
     | '/assistente'
+    | '/api/public/condivisione'
     | '/api/public/jobs/ciclo-ia'
   id:
     | '__root__'
@@ -180,6 +191,7 @@ export interface FileRouteTypes {
     | '/api/chat'
     | '/assistente/$threadId'
     | '/assistente/'
+    | '/api/public/condivisione'
     | '/api/public/jobs/ciclo-ia'
   fileRoutesById: FileRoutesById
 }
@@ -196,6 +208,7 @@ export interface RootRouteChildren {
   ApiChatRoute: typeof ApiChatRoute
   AssistenteThreadIdRoute: typeof AssistenteThreadIdRoute
   AssistenteIndexRoute: typeof AssistenteIndexRoute
+  ApiPublicCondivisioneRoute: typeof ApiPublicCondivisioneRoute
   ApiPublicJobsCicloIaRoute: typeof ApiPublicJobsCicloIaRoute
 }
 
@@ -285,6 +298,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AssistenteThreadIdRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/public/condivisione': {
+      id: '/api/public/condivisione'
+      path: '/api/public/condivisione'
+      fullPath: '/api/public/condivisione'
+      preLoaderRoute: typeof ApiPublicCondivisioneRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/public/jobs/ciclo-ia': {
       id: '/api/public/jobs/ciclo-ia'
       path: '/api/public/jobs/ciclo-ia'
@@ -308,6 +328,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiChatRoute: ApiChatRoute,
   AssistenteThreadIdRoute: AssistenteThreadIdRoute,
   AssistenteIndexRoute: AssistenteIndexRoute,
+  ApiPublicCondivisioneRoute: ApiPublicCondivisioneRoute,
   ApiPublicJobsCicloIaRoute: ApiPublicJobsCicloIaRoute,
 }
 export const routeTree = rootRouteImport
