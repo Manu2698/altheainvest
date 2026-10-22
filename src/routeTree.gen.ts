@@ -22,6 +22,7 @@ import { Route as ApiChatRouteImport } from './routes/api/chat'
 import { Route as AssistenteIndexRouteImport } from './routes/assistente.index'
 import { Route as AssistenteThreadIdRouteImport } from './routes/assistente.$threadId'
 import { Route as ApiPublicHooksCicloIaRouteImport } from './routes/api/public/hooks/ciclo-ia'
+import { Route as ApiPublicJobsCicloIaRouteImport } from './routes/api/public/jobs/ciclo-ia'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
@@ -88,6 +89,11 @@ const ApiPublicHooksCicloIaRoute = ApiPublicHooksCicloIaRouteImport.update({
   path: '/api/public/hooks/ciclo-ia',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiPublicJobsCicloIaRoute = ApiPublicJobsCicloIaRouteImport.update({
+  id: '/api/public/jobs/ciclo-ia',
+  path: '/api/public/jobs/ciclo-ia',
+  getParentRoute: () => rootRouteImport,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
@@ -103,6 +109,7 @@ export interface FileRoutesByFullPath {
   '/assistente/$threadId': typeof AssistenteThreadIdRoute
   '/assistente/': typeof AssistenteIndexRoute
   '/api/public/hooks/ciclo-ia': typeof ApiPublicHooksCicloIaRoute
+  '/api/public/jobs/ciclo-ia': typeof ApiPublicJobsCicloIaRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -118,6 +125,7 @@ export interface FileRoutesByTo {
   '/assistente/$threadId': typeof AssistenteThreadIdRoute
   '/assistente': typeof AssistenteIndexRoute
   '/api/public/hooks/ciclo-ia': typeof ApiPublicHooksCicloIaRoute
+  '/api/public/jobs/ciclo-ia': typeof ApiPublicJobsCicloIaRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -134,6 +142,7 @@ export interface FileRoutesById {
   '/assistente/$threadId': typeof AssistenteThreadIdRoute
   '/assistente/': typeof AssistenteIndexRoute
   '/api/public/hooks/ciclo-ia': typeof ApiPublicHooksCicloIaRoute
+  '/api/public/jobs/ciclo-ia': typeof ApiPublicJobsCicloIaRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -151,6 +160,7 @@ export interface FileRouteTypes {
     | '/assistente/$threadId'
     | '/assistente/'
     | '/api/public/hooks/ciclo-ia'
+    | '/api/public/jobs/ciclo-ia'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -166,6 +176,7 @@ export interface FileRouteTypes {
     | '/assistente/$threadId'
     | '/assistente'
     | '/api/public/hooks/ciclo-ia'
+    | '/api/public/jobs/ciclo-ia'
   id:
     | '__root__'
     | '/'
@@ -181,6 +192,7 @@ export interface FileRouteTypes {
     | '/assistente/$threadId'
     | '/assistente/'
     | '/api/public/hooks/ciclo-ia'
+    | '/api/public/jobs/ciclo-ia'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -197,6 +209,7 @@ export interface RootRouteChildren {
   AssistenteThreadIdRoute: typeof AssistenteThreadIdRoute
   AssistenteIndexRoute: typeof AssistenteIndexRoute
   ApiPublicHooksCicloIaRoute: typeof ApiPublicHooksCicloIaRoute
+  ApiPublicJobsCicloIaRoute: typeof ApiPublicJobsCicloIaRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -292,6 +305,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiPublicHooksCicloIaRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/public/jobs/ciclo-ia': {
+      id: '/api/public/jobs/ciclo-ia'
+      path: '/api/public/jobs/ciclo-ia'
+      fullPath: '/api/public/jobs/ciclo-ia'
+      preLoaderRoute: typeof ApiPublicJobsCicloIaRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
 
@@ -309,6 +329,7 @@ const rootRouteChildren: RootRouteChildren = {
   AssistenteThreadIdRoute: AssistenteThreadIdRoute,
   AssistenteIndexRoute: AssistenteIndexRoute,
   ApiPublicHooksCicloIaRoute: ApiPublicHooksCicloIaRoute,
+  ApiPublicJobsCicloIaRoute: ApiPublicJobsCicloIaRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
