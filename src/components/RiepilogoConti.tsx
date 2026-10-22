@@ -76,7 +76,7 @@ function Cella({ k, v, c }: { k: string; v: string; c?: string }) {
   );
 }
 
-export function QuadroConto({ c }: { c: Attivo }) {
+export function QuadroConto({ c }: { c: Attivo & { contoId?: string | null } }) {
   const chiusure = c.vincite + c.perdite;
   return (
     <div className="panel p-5">
@@ -113,7 +113,7 @@ export function QuadroConto({ c }: { c: Attivo }) {
         <GraficoSettimana settimana={c.settimana} valuta={c.valuta} />
       </div>
 
-      {!c.contoId && c.stato === "collegato" && (
+      {c.contoId === null && c.stato === "collegato" && (
         <p className="mt-3 text-[11px] text-warn">Identità del conto non ancora registrata: i risultati compariranno dopo la prima lettura.</p>
       )}
       {chiusure === 0 && (
