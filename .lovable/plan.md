@@ -66,7 +66,7 @@ L'approvazione avvia **solo il primo intervento**. Le fasi successive restano se
 
 **Test:** fattore raro non sposta il holdout; esiti training che attraversano il confine esclusi/bloccati; capitali/flussi/versioni/costi diversi → confronto non valido; campione insufficiente e fee mancanti → nessun miglioramento.
 
-**Replay più ampio — solo dopo i prerequisiti:** modulo offline che riusa le regole reali senza broker, serie con date e universo point-in-time, commissioni/spread/slippage espliciti e verificabili o stime etichettate, esecuzione non prima della barra successiva, limiti fondi/pendenti/frazioni, gap/ordini parziali e calendario, versioni di dati/costi/configurazione e periodi sviluppo/validazione congelati.
+**Replay più ampio — dopo i prerequisiti:** modulo offline con regole reali, serie datate e universo point-in-time, costi verificabili o stime etichettate, esecuzione dalla barra successiva, vincoli fondi/frazioni/pendenti, gap/parziali/calendario e versioni congelate di dati, costi e configurazione.
 
 **Test:** nessun dato futuro, ingressi ritardati, titoli delistati e split, costi una sola volta, curve e totale coincidenti, liquidità insufficiente, benchmark sul medesimo periodo, più regimi quando disponibili. Risultati con numero di operazioni, dipendenza fra esiti e incertezza; mai promozione dal solo tasso di vincita.
 
@@ -74,6 +74,6 @@ L'approvazione avvia **solo il primo intervento**. Le fasi successive restano se
 
 ## Criteri di completamento del primo intervento
 - Test mirati e suite esistente superati; nessuna modifica alle regole operative né allo schema.
-- Consegna di file cambiati, difetto risolto e casi verificati.
+- Consegna di file, difetto risolto e test.
 - Rimangono espliciti i blocchi delle fasi successive: nessuna affermazione che ogni ordine/account sia definitivamente riconciliato o che la strategia sia profittevole.
 - Nessun ordine reale/PAPER, nessuna pubblicazione; cambi piccoli e separati per poter tornare alla versione precedente.
