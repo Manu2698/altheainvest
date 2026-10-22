@@ -185,6 +185,9 @@ export const getAndamentoConto = createServerFn({ method: "GET" })
   .inputValidator((input: { reale?: boolean } | undefined) => ({ reale: Boolean(input?.reale) }))
   .handler(async ({ data, context }) => {
     const { storicoConto } = await import("./alpaca.server");
+    const { identitaAlpaca } = await import("./conti.server");
+    const identita = await identitaAlpaca(context.userId, data.reale);
+    if (!identita || identita === "assente") return { storico: [], decisioni: [] };
     const ambiente = data.reale ? "reale" : "paper";
     const [storico, ordini] = await Promise.all([
       storicoConto(context.userId, data.reale),
@@ -193,9 +196,13 @@ export const getAndamentoConto = createServerFn({ method: "GET" })
         .select("id, created_at, ticker, lato, importo, pnl_pct, motivo, strategia, piattaforma")
         .eq("user_id", context.userId)
         .eq("ambiente", ambiente)
+        .eq("piattaforma", "alpaca")
+        .eq("conto_id", identita.contoId)
+        .in("conto_attribuzione", ["motore", "verificato_broker"])
         .order("created_at", { ascending: false })
         .limit(200),
     ]);
+    if (ordini.error) throw new Error("Storico del conto non disponibile.");
     const decisioni: DecisioneLog[] = (ordini.data ?? []).map((o) => ({
       id: o.id,
       createdAt: o.created_at,

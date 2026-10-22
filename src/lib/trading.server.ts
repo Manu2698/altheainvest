@@ -326,7 +326,7 @@ async function eseguiCicloInterno(
       fetch(`${url}/v2/orders?status=open&limit=500`, { headers }).catch(() => null),
     ]);
     // Ordini ancora aperti presso il broker: niente nuovi ordini sullo stesso titolo (anti-duplicati).
-    const { motivoBloccoAcquisti, problemaDati, simboliAperti } = await import("./protezioni");
+    const { motivoBloccoAcquisti, problemaDati, problemaAccumulo, simboliAperti } = await import("./protezioni");
     let aperti = new Set<string>();
     const apertiRaw = apertiRes?.ok ? await apertiRes.json() as Record<string,unknown>[] : null;
     const impegno = apertiRaw ? capitalePendenti(apertiRaw) : null;
@@ -386,7 +386,8 @@ async function eseguiCicloInterno(
         scelta.motivo = "Ordine già in corso presso il broker: nessun nuovo ordine su questo titolo.";
       }
       if (scelta.azione === "compra") {
-        const problema = bloccoAcquisti ?? problemaDati(chiusure, ultimiGiorni[ticker] ?? ultimiGiorni[ticker.replace("/", "")]);
+        const problema = bloccoAcquisti ?? problemaDati(chiusure, ultimiGiorni[ticker] ?? ultimiGiorni[ticker.replace("/", "")])
+          ?? problemaAccumulo(input.strategia, posizioni.get(ticker), chiusure);
         if (problema) {
           scelta.azione = "attendi";
           scelta.importo = 0;
@@ -443,6 +444,9 @@ async function eseguiCicloInterno(
         if (`alpaca:${a["id"]}`!==contoId || a["trading_blocked"]===true || a["account_blocked"]===true || a["currency"]!=="USD" || ![a["cash"],a["equity"],a["buying_power"],a["last_equity"]].every(v=>v!=null && v!=="" && Number.isFinite(Number(v))) || positions.some(p=>![p["market_value"],p["qty"]].every(v=>v!=null && Number.isFinite(Number(v)))) || committed==null || pending.length>=500 || simboliAperti(pending).has(chiave)) throw new Error("Conto o ordini incoerenti nella verifica pre-invio: operazione bloccata.");
         if (limite && Number(a["last_equity"])-Number(a["equity"])>=limite) return {ok:false,messaggio:"Trading sospeso: raggiunto il limite giornaliero durante l’analisi.",mercatoAperto,decisioni,eseguiti:decisioni.filter(d=>d.eseguito).length,bloccoPerdita:{perdita:Number(a["last_equity"])-Number(a["equity"]),limite}};
         if (scelta.azione === "compra") {
+          const presente = positions.find(p => String(p["symbol"] ?? "").replace("/", "").toUpperCase() === chiave);
+          const bloccoAccumulo = problemaAccumulo(input.strategia, presente ? { valore: Math.abs(Number(presente["market_value"])), pnlPct: presente["unrealized_plpc"] == null ? NaN : Number(presente["unrealized_plpc"]) * 100 } : undefined, chiusure);
+          if (bloccoAccumulo) { decisione.azione="attendi";decisione.importo=0;decisione.motivo=bloccoAccumulo;decisioni.push(decisione);continue; }
           const budget=input.modalita==="conto" ? Number(a["equity"]) : capitale;
           const esposto=positions.reduce((sum,p)=>sum+Math.abs(Number(p["market_value"])),0);
           decisione.importo=Math.floor(Math.max(0,Math.min(decisione.importo,residuo,budget-esposto-committed,Number(a["cash"]),Number(a["buying_power"]))) *100)/100;

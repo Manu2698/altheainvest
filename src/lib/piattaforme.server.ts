@@ -526,11 +526,16 @@ export async function eseguiCicloEsterno(
     const aperta = borsaAperta();
     const decisioni: DecisioneIA[] = [];
     const { leggiLezioni, applicaLezioni } = await import("./apprendimento");
+    const { problemaAccumulo } = await import("./protezioni");
     const lezioni = await leggiLezioni(userId, p, input.reale ? "reale" : "paper", input.strategia);
 
     for (const t of elenco) {
       const pos = posizioni.get(t);
       const s = applicaLezioni(decide(input.strategia, t, serie[t] ?? [], pos, quota), input.strategia, t, pos, lezioni);
+      if (s.azione === "compra") {
+        const problema = problemaAccumulo(input.strategia, pos, serie[t] ?? []);
+        if (problema) { s.azione = "attendi"; s.importo = 0; s.motivo = problema; }
+      }
       if (!isCripto(t) && !aperta && s.azione !== "attendi") {
         s.azione = "attendi";
         s.motivo = "Borsa chiusa: l'IA attende l'apertura per operare.";
@@ -616,14 +621,14 @@ export async function panoramicaPiattaforme(userId: string): Promise<PannelloPia
   const dal = new Date(Date.now() - 30 * 86_400_000).toISOString();
   const { data: righe } = await supabaseAdmin
     .from("ordini_ia")
-    .select("id, piattaforma, ambiente, ticker, lato, importo, created_at")
+    .select("id, piattaforma, ambiente, ticker, lato, importo, created_at, conto_id, conto_attribuzione")
     .eq("user_id", userId)
     .gte("created_at", dal)
     .order("created_at", { ascending: false })
     .limit(500);
 
-  const attivitaDi = (p: string, amb: string) => {
-    const ordini = (righe ?? []).filter((r) => r.piattaforma === p && r.ambiente === amb);
+  const attivitaDi = (p: string, amb: string, contoId: string | null) => {
+    const ordini = (righe ?? []).filter((r) => contoId != null && r.conto_id === contoId && ["motore", "verificato_broker"].includes(r.conto_attribuzione ?? "") && r.piattaforma === p && r.ambiente === amb);
     const giorni: { data: string; totale: number }[] = [];
     for (let i = 13; i >= 0; i--) {
       giorni.push({ data: new Date(Date.now() - i * 86_400_000).toISOString().slice(0, 10), totale: 0 });
@@ -647,6 +652,7 @@ export async function panoramicaPiattaforme(userId: string): Promise<PannelloPia
   const pannelli: PannelloPiattaforma[] = [];
 
   const { leggiConto, statoCollegamento } = await import("./alpaca.server");
+  const { identitaAlpaca } = await import("./conti.server");
   const statoAlpaca = await statoCollegamento(userId);
   for (const amb of ["paper", "reale"] as const) {
     const conto = await leggiConto(amb === "reale", userId);
@@ -680,7 +686,7 @@ export async function panoramicaPiattaforme(userId: string): Promise<PannelloPia
             liquidita: 0,
             posizioni: [],
           }),
-      ...attivitaDi("alpaca", amb),
+      ...attivitaDi("alpaca", amb, await identitaAlpaca(userId, amb === "reale").then(id => id && id !== "assente" ? id.contoId : null)),
     });
   }
 
@@ -693,7 +699,8 @@ export async function panoramicaPiattaforme(userId: string): Promise<PannelloPia
     if (!PIATTAFORME_ESTERNE.includes(c.piattaforma as PiattaformaEsterna)) continue;
     const p = c.piattaforma as PiattaformaEsterna;
     const amb: "paper" | "reale" = c.ambiente === "reale" ? "reale" : "paper";
-    const base = { piattaforma: p, ambiente: amb, nome: INFO_PIATTAFORME[p].nome, ...attivitaDi(p, amb) };
+    // Gli adattatori esterni non espongono un'identità di conto verificata: niente storico attribuito per supposizione.
+    const base = { piattaforma: p, ambiente: amb, nome: INFO_PIATTAFORME[p].nome, ...attivitaDi(p, amb, null) };
     try {
       const conto = await adattatore(p, c.key_id, c.api_secret, amb === "reale").conto(
         await prezziUltimi(universoDi(p)),
