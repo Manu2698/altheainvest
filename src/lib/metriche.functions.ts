@@ -37,6 +37,9 @@ export const getMetrichePortafoglio = createServerFn({ method: "GET" })
     } as const;
     const cred = await credenzialiUtente(context.userId, data.reale);
     if (!cred) return { ...base, collegato: false, costiInclusi: [...base.costiInclusi], costiMancanti: [...base.costiMancanti], metriche: null };
+    const { identitaAlpaca } = await import("./conti.server");
+    const identita = await identitaAlpaca(context.userId, data.reale);
+    const contoId = identita && identita !== "assente" ? identita.contoId : "identita-non-verificabile";
 
     const dal = new Date(Date.now() - data.giorni * 86_400_000).toISOString().slice(0, 10);
     const api = data.reale ? "https://api.alpaca.markets" : "https://paper-api.alpaca.markets";
@@ -56,7 +59,7 @@ export const getMetrichePortafoglio = createServerFn({ method: "GET" })
         .eq("piattaforma", "alpaca")
         .eq("lato", "sell")
         // Solo ordini attribuiti con certezza a un conto: i "non determinati" restano esclusi.
-        .not("conto_id", "is", null)
+        .eq("conto_id", contoId)
         .not("pnl_pct", "is", null)
         .gte("created_at", dal)
         .limit(5000),
@@ -81,5 +84,6 @@ export const getMetrichePortafoglio = createServerFn({ method: "GET" })
         strategia: o.strategia,
       })),
     });
+    metriche.avvisi.push("P&L realizzato e qualità delle vendite sono stime pre-esecuzione: commissioni e slippage non riconciliati per singola operazione.");
     return { ...base, collegato: true, costiInclusi: [...base.costiInclusi], costiMancanti: [...base.costiMancanti], metriche };
   });

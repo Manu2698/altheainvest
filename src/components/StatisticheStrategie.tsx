@@ -74,8 +74,8 @@ export function StatisticheStrategie({ reale }: { reale: boolean }) {
             </ResponsiveContainer>
           </div>
           <p className="mt-2 text-[10px] text-muted-foreground">
-            Ordini settimanali inviati dall'IA (ultime 8 settimane). Vincite e perdite contano le
-            posizioni chiuse in utile o in perdita.
+            Ordini dei conti attivi (ultime 8 settimane). Vincite e perdite sono stime sulle vendite,
+            calcolate prima del riempimento; non certificano posizioni chiuse né risultati netti. Storico non determinato escluso.
           </p>
         </>
       )}
