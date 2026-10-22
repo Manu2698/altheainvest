@@ -10,6 +10,7 @@
 <!-- LOVABLE:END -->
 
 ## Architecture rules
+- The phase-one snapshot eligibility proposal is offline-only and must not be imported by runtime trading or learning until an explicitly authorized pause and verified cycle completion; isolated tests are not operational integration.
 - Strategy evaluation is read-only and uses persisted owner-scoped reconciled snapshots; offline factor comparisons remain separate from execution and require pre-entry observations, complete allocated costs, chronological holdouts and comparable portfolio risk/returns, so descriptive trade selection cannot become an automatic signal change.
 - Broker mutations require an atomic lease-owned pre-submit intent in registro_ordini; renew/verify ownership before each bounded submission, use the persisted client ID for both buys and sells, and never resend an uncertain intent. Non-Alpaca execution remains fail-closed until adapters expose verified identity, receipts, pending exposure and recovery.
 - Alpaca reconciliation persists sanitized deduplicated fills and bracketed account/position/history/flow observations; average-cost accounting replays fills from verified account inception, excludes corporate-action/incomplete histories, and hides results or blocks execution on incomplete observations. Order prices must match weighted fill prices, not submission estimates.
