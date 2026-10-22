@@ -1,4 +1,6 @@
 # Audit PAPER prioritario
+- [x] Precisazioni: fase 1 può influire sulle lezioni prima degli ordini; integrazione dopo pausa autorizzata e cicli conclusi, fase 2 separata; scarto non prova perdita.
+- [ ] Decisione esplicita sul limite giornaliero PAPER di 20 USD: attende scelta dell'utente; nessun valore modificato.
 - [x] Audit del 22 ottobre: 102 test isolati, stato persistito e funzioni SQL verificati; difetti e piano per fasi con file/test, nessun ordine/deploy/cambio soglie.
 - [ ] Primo intervento proposto: gate completo delle lezioni da istantanee; attende approvazione del piano.
 - [x] Valutazione graduale: metriche delle vendite verificate per conto/titolo/strategia; confronto offline separato dei primi fattori trend e momentum, senza attivazione operativa.
