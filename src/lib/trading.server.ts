@@ -17,15 +17,19 @@ const paioCripto = (t: string) => (t.includes("/") ? t : t.replace(/USD$/, "/USD
 export async function serieStorica(
   tickers: string[],
   headers: Record<string, string>,
+  /** Se fornito, riceve la data dell'ultima barra per ticker (controllo dati obsoleti). */
+  ultimi?: Record<string, string>,
 ): Promise<Record<string, number[]>> {
   const azioni = tickers.filter((t) => !isCripto(t));
   const cripto = tickers.filter(isCripto);
   const out: Record<string, number[]> = {};
 
   const raccogli = (payload: unknown, mappa: (s: string) => string) => {
-    const bars = (payload as { bars?: Record<string, { c: number }[]> })?.bars ?? {};
+    const bars = (payload as { bars?: Record<string, { c: number; t?: string }[]> })?.bars ?? {};
     for (const [sym, righe] of Object.entries(bars)) {
       out[mappa(sym)] = righe.map((r) => num(r.c));
+      const t = righe.at(-1)?.t;
+      if (ultimi && t) ultimi[mappa(sym)] = t;
     }
   };
 
@@ -223,9 +227,11 @@ export async function eseguiCiclo(
   let liquidita = Infinity;
   let perditaOggi: number | null = null;
   let contoId: string | null = null; // solo per registrare a quale conto appartiene l'ordine
+  let contoOk = false;
   try {
     const acc = await fetch(`${url}/v2/account`, { headers });
     if (acc.ok) {
+      contoOk = true;
       const a = (await acc.json()) as Record<string, unknown>;
       if (a["id"]) contoId = `alpaca:${String(a["id"])}`;
       liquidita = num(a["cash"]);
@@ -264,11 +270,26 @@ export async function eseguiCiclo(
 
 
   try {
-    const [clockRes, posRes, storico] = await Promise.all([
+    const ultimiGiorni: Record<string, string> = {};
+    const [clockRes, posRes, storico, apertiRes] = await Promise.all([
       fetch(`${url}/v2/clock`, { headers }),
       fetch(`${url}/v2/positions`, { headers }),
-      serieStorica(universo, headers),
+      serieStorica(universo, headers, ultimiGiorni),
+      fetch(`${url}/v2/orders?status=open&limit=500`, { headers }).catch(() => null),
     ]);
+    // Ordini ancora aperti presso il broker: niente nuovi ordini sullo stesso titolo (anti-duplicati).
+    const { motivoBloccoAcquisti, problemaDati, simboliAperti } = await import("./protezioni");
+    let aperti = new Set<string>();
+    const ordiniApertiOk = Boolean(apertiRes?.ok);
+    if (apertiRes?.ok) aperti = simboliAperti((await apertiRes.json()) as { symbol?: unknown }[]);
+    const bloccoAcquisti = motivoBloccoAcquisti({
+      contoOk,
+      posizioniOk: posRes.ok,
+      ordiniApertiOk,
+      limitePerdita: limite,
+      perditaOggi,
+    });
+    if (bloccoAcquisti) logServer("trading.protezione", new Error(bloccoAcquisti), { reale });
 
     const mercatoAperto = clockRes.ok
       ? Boolean(((await clockRes.json()) as { is_open?: boolean }).is_open)
@@ -289,7 +310,7 @@ export async function eseguiCiclo(
     // Le posizioni già aperte vengono sempre rianalizzate (per poterle vendere).
     for (const t of posizioni.keys()) if (!universo.includes(t)) universo.push(t);
     const mancanti = universo.filter((t) => !storico[t]);
-    if (mancanti.length) Object.assign(storico, await serieStorica(mancanti, headers));
+    if (mancanti.length) Object.assign(storico, await serieStorica(mancanti, headers, ultimiGiorni));
 
     // Tetto rigido: il totale investito non supera mai il capitale scelto dall'utente.
     const investito = [...posizioni.values()].reduce((a, p) => a + p.valore, 0);
@@ -297,7 +318,7 @@ export async function eseguiCiclo(
     const quota = capitale / Math.max(1, auto.universo.length || universo.length);
     const decisioni: DecisioneIA[] = [];
     const { leggiLezioni, applicaLezioni } = await import("./apprendimento");
-    const lezioni = await leggiLezioni(userId, "alpaca", reale ? "reale" : "paper", input.strategia);
+    const lezioni = await leggiLezioni(userId, "alpaca", reale ? "reale" : "paper", input.strategia, contoId);
 
     for (const ticker of universo) {
       const chiusure = storico[ticker] ?? storico[ticker.replace("/", "")] ?? [];
@@ -308,6 +329,20 @@ export async function eseguiCiclo(
         posizioni.get(ticker),
         lezioni,
       );
+      const chiave = ticker.replace("/", "").toUpperCase();
+      if (scelta.azione !== "attendi" && aperti.has(chiave)) {
+        scelta.azione = "attendi";
+        scelta.importo = 0;
+        scelta.motivo = "Ordine già in corso presso il broker: nessun nuovo ordine su questo titolo.";
+      }
+      if (scelta.azione === "compra") {
+        const problema = bloccoAcquisti ?? problemaDati(chiusure, ultimiGiorni[ticker] ?? ultimiGiorni[ticker.replace("/", "")]);
+        if (problema) {
+          scelta.azione = "attendi";
+          scelta.importo = 0;
+          scelta.motivo = problema;
+        }
+      }
       if (scelta.azione === "compra") {
         scelta.importo = Math.min(scelta.importo, residuo);
         if (scelta.importo < 1) {
@@ -348,6 +383,7 @@ export async function eseguiCiclo(
             type: "market",
             time_in_force: cripto ? "gtc" : "day",
             notional: decisione.importo,
+            client_order_id: `althea-${crypto.randomUUID()}`,
           }),
         });
         if (res.ok) decisione.eseguito = true;

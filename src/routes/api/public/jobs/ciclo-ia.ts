@@ -1,4 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
+import { authenticateCronRequest } from "@/integrations/supabase/cron-auth";
 
 // Chiamato ogni minuto dallo scheduler del database: fa girare l'IA per ogni
 // conto (piattaforma + ambiente) con il motore automatico attivo, anche a sito chiuso.
@@ -6,13 +7,13 @@ import { createFileRoute } from "@tanstack/react-router";
 // quindi chiamate ripetute non possono far operare l'IA più spesso del previsto.
 const MAX_CONTI = 25;
 
-export const Route = createFileRoute("/api/public/hooks/ciclo-ia")({
+export const Route = createFileRoute("/api/public/jobs/ciclo-ia")({
   server: {
     handlers: {
       POST: async ({ request }) => {
-        if (!request.headers.get("authorization")?.startsWith("Bearer ")) {
-          return new Response("Unauthorized", { status: 401 });
-        }
+        // Solo lo scheduler gestito può avviare i cicli: il segreto viene verificato, non solo la presenza.
+        const authFailure = await authenticateCronRequest(request);
+        if (authFailure) return authFailure;
         const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
         const { eseguiCiclo } = await import("@/lib/trading.server");
         const adesso = new Date();
