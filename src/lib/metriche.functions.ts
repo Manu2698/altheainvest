@@ -27,6 +27,7 @@ export const getMetrichePortafoglio = createServerFn({ method: "GET" })
     const base = {
       ambiente, giorni: data.giorni, benchmark: "SPY (ETF S&P 500, solo prezzo, dividendi esclusi)",
       costiInclusi: ["Commissioni e fee registrate da Alpaca (già comprese nel valore del conto)"],
+      // Le statistiche per operazione usano il P&L% letto prima dell'esecuzione: escludono fee e slippage.
       costiMancanti: [
         "Spread e slippage non stimati separatamente",
         "Conti su altre piattaforme non inclusi",
@@ -41,7 +42,7 @@ export const getMetrichePortafoglio = createServerFn({ method: "GET" })
     const api = data.reale ? "https://api.alpaca.markets" : "https://paper-api.alpaca.markets";
     const [storico, att, bench, ordini] = await Promise.all([
       storicoConto(context.userId, data.reale),
-      fetch(`${api}/v2/account/activities?activity_types=CSD,CSW,FEE&after=${dal}&page_size=100`, { headers: cred.headers })
+      fetch(`${api}/v2/account/activities?activity_types=CSD,CSW,FEE,JNLC,JNLS&after=${dal}&page_size=100`, { headers: cred.headers })
         .then(async (r) => (r.ok ? ((await r.json()) as Record<string, unknown>[]) : null))
         .catch(() => null),
       fetch(`https://data.alpaca.markets/v2/stocks/bars?symbols=SPY&timeframe=1Day&start=${dal}&feed=iex&adjustment=raw&sort=asc&limit=1000`, { headers: cred.headers })
@@ -58,12 +59,13 @@ export const getMetrichePortafoglio = createServerFn({ method: "GET" })
         .gte("created_at", dal)
         .limit(5000),
     ]);
-    const tipo = (t: unknown): Flusso["tipo"] => (t === "CSD" ? "deposito" : t === "CSW" ? "prelievo" : "costo");
-    const flussi: Flusso[] = (att ?? []).map((a) => ({
-      giorno: String(a["date"] ?? "").slice(0, 10),
-      tipo: tipo(a["activity_type"]),
-      importo: Math.abs(Number(a["net_amount"] ?? 0)) || 0,
-    }));
+    // Trasferimenti (journal JNLC/JNLS) trattati come versamenti/prelievi in base al segno.
+    const tipo = (t: unknown, netto: number): Flusso["tipo"] =>
+      t === "CSD" ? "deposito" : t === "CSW" ? "prelievo" : t === "FEE" ? "costo" : netto >= 0 ? "deposito" : "prelievo";
+    const flussi: Flusso[] = (att ?? []).map((a) => {
+      const netto = Number(a["net_amount"] ?? 0) || 0;
+      return { giorno: String(a["date"] ?? "").slice(0, 10), tipo: tipo(a["activity_type"], netto), importo: Math.abs(netto) };
+    });
     const benchmark: PuntoPrezzo[] = (bench?.bars?.["SPY"] ?? []).map((b) => ({ giorno: b.t.slice(0, 10), prezzo: Number(b.c) }));
     const metriche = calcolaMetriche({
       storico: storico.filter((p) => p.giorno >= dal),

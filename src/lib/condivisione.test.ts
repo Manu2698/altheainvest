@@ -55,7 +55,8 @@ describe("attribuzione ordini ai conti", () => {
       7,
       ORA,
     );
-    expect([r.vincite, r.perdite, r.pnlRealizzato]).toEqual([1, 1, 8]);
+    // 100 venduti a +10% → +9,09; 50 venduti a −4% → −2,08 (guadagno calcolato sul costo)
+    expect([r.vincite, r.perdite, r.pnlRealizzato]).toEqual([1, 1, 7.01]);
   });
   it("esclude versamenti e prelievi dal rendimento", () => {
     expect(rendimentoNetto({ iniziale: 1000, attuale: 1600, versamenti: 500, prelievi: 0 })).toBeCloseTo(6.67);
