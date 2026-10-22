@@ -19,3 +19,4 @@
 - «Condivisione per analisi» links store only a SHA-256 of a 256-bit token (`link_condivisione`); the token travels in the URL fragment and is verified on every call by the public `vistaCondivisa` server fn, which builds a fixed read-only DTO (`src/lib/condivisione.server.ts`) — no session or write endpoint is ever reachable through it.
 
 - Portfolio success metrics are computed by the pure `calcolaMetriche` in `src/lib/metriche.ts` (time-weighted, flow-adjusted, fees already in equity) — one tested source for net return, drawdown, volatility, benchmark and trade quality.
+- Buy-side safety guards live in pure `src/lib/protezioni.ts` and run in `eseguiCiclo` after `decide`/`applicaLezioni`: unreadable account/positions/open orders/daily loss, stale (>4 days) or incoherent prices, or an open order on the ticker block new orders — they never change signals. The scheduled cycle runs only via `/api/public/jobs/ciclo-ia`, authenticated with `authenticateCronRequest`.
