@@ -618,6 +618,7 @@ export async function eseguiCicloEsterno(
 /** Conto, posizioni e ordini IA di ogni conto collegato (piattaforma + ambiente). */
 export async function panoramicaPiattaforme(userId: string): Promise<PannelloPiattaforma[]> {
   const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+  const { ordiniContoAttuale } = await import("./storico-conto");
   const dal = new Date(Date.now() - 30 * 86_400_000).toISOString();
   const { data: righe } = await supabaseAdmin
     .from("ordini_ia")
@@ -628,7 +629,6 @@ export async function panoramicaPiattaforme(userId: string): Promise<PannelloPia
     .limit(500);
 
   const attivitaDi = (p: string, amb: string, contoId: string | null) => {
-    const { ordiniContoAttuale } = await import("./storico-conto");
     const ordini = ordiniContoAttuale(righe ?? [], p, amb, contoId);
     const giorni: { data: string; totale: number }[] = [];
     for (let i = 13; i >= 0; i--) {

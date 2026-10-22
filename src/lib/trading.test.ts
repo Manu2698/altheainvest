@@ -1,7 +1,21 @@
 import { describe, expect, it, vi, afterEach } from "vitest";
-import { serieStorica } from "./trading.server";
+import { decide, serieStorica } from "./trading.server";
+import { problemaAccumulo } from "./protezioni";
 
 afterEach(() => vi.unstubAllGlobals());
+describe("protezione accumulo dopo il segnale reale", () => {
+  it("vieta di ricomprare sul ribasso una posizione già detenuta", () => {
+    const posizione = { ticker: "TEST", valore: 1, pnlPct: -2 };
+    const serie = [...Array(19).fill(10), 9];
+    expect(decide("aggressivo", "TEST", serie, posizione, 10).azione).toBe("compra");
+    expect(problemaAccumulo("aggressivo", posizione, serie)).not.toBeNull();
+  });
+  it("mantiene la vendita di protezione invariata", () => {
+    const scelta = decide("aggressivo", "TEST", Array(20).fill(10), { ticker: "TEST", valore: 10, pnlPct: -8 }, 20);
+    expect(scelta.azione).toBe("vendi");
+    expect(scelta.importo).toBe(10);
+  });
+});
 describe("storico mercato offline", () => {
   it("legge tutte le pagine in unità corrette per split", async () => {
     const chiamate: string[] = [];

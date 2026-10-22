@@ -10,6 +10,7 @@ import type { EsitoCiclo, OrdineBroker } from "./trading.types";
 import type { StrategyId } from "./strategies";
 import { isPiattaforma, type Piattaforma } from "./piattaforme.types";
 import type { Json } from "@/integrations/supabase/types";
+import { ordiniContoAttuale } from "./storico-conto";
 
 export type {
   AssetInvestibile,
@@ -193,7 +194,7 @@ export const getAndamentoConto = createServerFn({ method: "GET" })
       storicoConto(context.userId, data.reale),
       context.supabase
         .from("ordini_ia")
-        .select("id, created_at, ticker, lato, importo, pnl_pct, motivo, strategia, piattaforma")
+        .select("id, created_at, ticker, lato, importo, pnl_pct, motivo, strategia, piattaforma, ambiente, conto_id, conto_attribuzione")
         .eq("user_id", context.userId)
         .eq("ambiente", ambiente)
         .eq("piattaforma", "alpaca")
@@ -203,7 +204,7 @@ export const getAndamentoConto = createServerFn({ method: "GET" })
         .limit(200),
     ]);
     if (ordini.error) throw new Error("Storico del conto non disponibile.");
-    const decisioni: DecisioneLog[] = (ordini.data ?? []).map((o) => ({
+    const decisioni: DecisioneLog[] = ordiniContoAttuale(ordini.data ?? [], "alpaca", ambiente, identita.contoId).map((o) => ({
       id: o.id,
       createdAt: o.created_at,
       ticker: o.ticker,
