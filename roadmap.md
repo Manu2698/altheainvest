@@ -1,4 +1,7 @@
 # Audit PAPER prioritario
+- [ ] Limiti personali di liquidità e potere d'acquisto entro disponibilità broker.
+- [ ] Registro persistente ordini e osservazioni contabili; rendimento bloccato su dati parziali.
+- [ ] Verifica offline e in anteprima senza inviare ordini.
 - [x] Verificare moltiplicatori; isolare apprendimento e statistiche al conto attribuito.
 - [x] Separare 35 ordini attivi e 3 non determinati; deduplicare ID nel report.
 - [x] Verificare liquidità e limite giornaliero; conservare 50 USD su conferma utente.
