@@ -11,6 +11,7 @@
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as AuthRouteImport } from './routes/auth'
+import { Route as CondivisioneRouteImport } from './routes/condivisione'
 import { Route as CookieRouteImport } from './routes/cookie'
 import { Route as OrdiniRouteImport } from './routes/ordini'
 import { Route as PrivacyRouteImport } from './routes/privacy'
@@ -30,6 +31,11 @@ const IndexRoute = IndexRouteImport.update({
 const AuthRoute = AuthRouteImport.update({
   id: '/auth',
   path: '/auth',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const CondivisioneRoute = CondivisioneRouteImport.update({
+  id: '/condivisione',
+  path: '/condivisione',
   getParentRoute: () => rootRouteImport,
 } as any)
 const CookieRoute = CookieRouteImport.update({
@@ -86,6 +92,7 @@ const ApiPublicHooksCicloIaRoute = ApiPublicHooksCicloIaRouteImport.update({
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/auth': typeof AuthRoute
+  '/condivisione': typeof CondivisioneRoute
   '/cookie': typeof CookieRoute
   '/ordini': typeof OrdiniRoute
   '/privacy': typeof PrivacyRoute
@@ -100,6 +107,7 @@ export interface FileRoutesByFullPath {
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/auth': typeof AuthRoute
+  '/condivisione': typeof CondivisioneRoute
   '/cookie': typeof CookieRoute
   '/ordini': typeof OrdiniRoute
   '/privacy': typeof PrivacyRoute
@@ -115,6 +123,7 @@ export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/auth': typeof AuthRoute
+  '/condivisione': typeof CondivisioneRoute
   '/cookie': typeof CookieRoute
   '/ordini': typeof OrdiniRoute
   '/privacy': typeof PrivacyRoute
@@ -131,6 +140,7 @@ export interface FileRouteTypes {
   fullPaths:
     | '/'
     | '/auth'
+    | '/condivisione'
     | '/cookie'
     | '/ordini'
     | '/privacy'
@@ -145,6 +155,7 @@ export interface FileRouteTypes {
   to:
     | '/'
     | '/auth'
+    | '/condivisione'
     | '/cookie'
     | '/ordini'
     | '/privacy'
@@ -159,6 +170,7 @@ export interface FileRouteTypes {
     | '__root__'
     | '/'
     | '/auth'
+    | '/condivisione'
     | '/cookie'
     | '/ordini'
     | '/privacy'
@@ -174,6 +186,7 @@ export interface FileRouteTypes {
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   AuthRoute: typeof AuthRoute
+  CondivisioneRoute: typeof CondivisioneRoute
   CookieRoute: typeof CookieRoute
   OrdiniRoute: typeof OrdiniRoute
   PrivacyRoute: typeof PrivacyRoute
@@ -200,6 +213,13 @@ declare module '@tanstack/react-router' {
       path: '/auth'
       fullPath: '/auth'
       preLoaderRoute: typeof AuthRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/condivisione': {
+      id: '/condivisione'
+      path: '/condivisione'
+      fullPath: '/condivisione'
+      preLoaderRoute: typeof CondivisioneRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/cookie': {
@@ -278,6 +298,7 @@ declare module '@tanstack/react-router' {
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   AuthRoute: AuthRoute,
+  CondivisioneRoute: CondivisioneRoute,
   CookieRoute: CookieRoute,
   OrdiniRoute: OrdiniRoute,
   PrivacyRoute: PrivacyRoute,
