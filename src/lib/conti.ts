@@ -50,7 +50,12 @@ const r2 = (n: number) => Math.round(n * 100) / 100;
 /** Vincite, perdite e risultato realizzato (solo operazioni chiuse = vendite). */
 export function risultatiChiusi(righe: RigaRisultato[], giorniGrafico = 7, ora = Date.now()) {
   const vendite = righe.filter((r) => r.lato === "sell" && r.pnl_pct != null);
-  const pnlDi = (r: RigaRisultato) => (Number(r.importo) * Number(r.pnl_pct ?? 0)) / 100;
+  // importo = valore venduto; pnl_pct rispetto al costo → guadagno = valore − valore/(1+pnl%).
+  const pnlDi = (r: RigaRisultato) => {
+    const v = Number(r.importo);
+    const p = Number(r.pnl_pct ?? 0);
+    return p <= -100 || !Number.isFinite(v * p) ? 0 : v - v / (1 + p / 100);
+  };
   const settimana: { data: string; pnl: number }[] = [];
   for (let i = giorniGrafico - 1; i >= 0; i--) {
     settimana.push({ data: new Date(ora - i * 86_400_000).toISOString().slice(0, 10), pnl: 0 });

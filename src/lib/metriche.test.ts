@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { calcolaMetriche, metricheOperazioni, validaFuoriCampione } from "./metriche";
+import { calcolaMetriche, guadagnoVendita, metricheOperazioni, validaFuoriCampione } from "./metriche";
 
 const st = (vals: number[]) => vals.map((valore, i) => ({ giorno: `2026-01-${String(i + 1).padStart(2, "0")}`, valore }));
 const base = { flussi: [], chiuse: [], benchmark: [] };
@@ -31,9 +31,9 @@ describe("metriche portafoglio", () => {
     const ops = [1, 1, 1, 1].map((p) => ({ giorno: "2026-01-02", importo: 100, pnlPct: p, strategia: "medio" }));
     const o = metricheOperazioni([...ops, { giorno: "2026-01-02", importo: 100, pnlPct: -20, strategia: "medio" }]);
     expect(o.percentualeVincite).toBe(80);
-    expect(o.profitFactor).toBe(0.2);
-    expect(o.pnlRealizzato).toBe(-16);
-    expect(o.rapportoVinciPerdi).toBe(0.05);
+    expect(o.profitFactor).toBe(0.16);
+    expect(o.pnlRealizzato).toBe(-21.04);
+    expect(o.rapportoVinciPerdi).toBe(0.04);
   });
   it("drawdown massimo", () => {
     const m = calcolaMetriche({ ...base, storico: st([100, 120, 90, 110]) });
@@ -65,7 +65,39 @@ describe("metriche portafoglio", () => {
   });
 });
 
+describe("casi limite individuati dall'audit", () => {
+  it("guadagno di una vendita calcolato sul costo, non sul valore venduto", () => {
+    // venduto a 120 con +20%: costo 100, guadagno 20 (non 24)
+    expect(guadagnoVendita(120, 20)).toBeCloseTo(20);
+    expect(guadagnoVendita(50, -50)).toBeCloseTo(-50);
+    expect(guadagnoVendita(10, -100)).toBe(0);
+  });
+  it("benchmark con date non coincidenti non viene confrontato", () => {
+    const m = calcolaMetriche({ ...base, storico: st([1000, 1010]), benchmark: [{ giorno: "2025-12-01", prezzo: 100 }, { giorno: "2026-01-02", prezzo: 110 }] });
+    expect(m.benchmarkPct).toBeNull();
+    expect(m.differenzaBenchmarkPct).toBeNull();
+  });
+  it("conto inizialmente vuoto: i giorni a zero sono esclusi e il primo deposito non è rendimento", () => {
+    const m = calcolaMetriche({ ...base, storico: st([0, 1000, 1000]), flussi: [{ giorno: "2026-01-02", tipo: "deposito", importo: 1000 }] });
+    expect(m.capitaleIniziale).toBe(1000);
+    expect(m.rendimentoPct).toBe(0);
+    expect(m.pnlNetto).toBe(0);
+  });
+  it("valori non numerici esclusi dalle operazioni", () => {
+    expect(metricheOperazioni([{ giorno: "x", importo: 100, pnlPct: Number.NaN, strategia: "m" }]).operazioni).toBe(0);
+  });
+});
+
 describe("validazione fuori campione", () => {
+  it("nessuna perdita: profit factor non stimabile, non valida", () => {
+    expect(validaFuoriCampione(Array(30).fill(2))).toBe(false);
+  });
+  it("esiti nulli/NaN non contano nel campione minimo", () => {
+    expect(validaFuoriCampione([...Array(15).fill(0).map((_, i) => (i % 4 === 0 ? -1 : 2)), ...Array(10).fill(Number.NaN)])).toBe(false);
+  });
+  it("ultimo 30% in perdita: non valida anche con storico iniziale ottimo", () => {
+    expect(validaFuoriCampione([...Array(21).fill(0).map((_, i) => (i % 3 === 0 ? -1 : 5)), ...Array(9).fill(0).map((_, i) => (i % 3 === 0 ? 1 : -2))])).toBe(false);
+  });
   it("rifiuta campioni piccoli anche se tutti vincenti", () => {
     expect(validaFuoriCampione(Array(10).fill(3))).toBe(false);
   });

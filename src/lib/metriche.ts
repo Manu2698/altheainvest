@@ -40,6 +40,7 @@ export type Metriche = {
 };
 
 export const MIN_GIORNI_VOLATILITA = 20;
+export const MAX_SCARTO_BENCHMARK_GIORNI = 4;
 const r2 = (n: number) => Math.round(n * 100) / 100;
 
 export function qualitaCampione(n: number): Qualita {
@@ -48,8 +49,19 @@ export function qualitaCampione(n: number): Qualita {
   return "insufficiente";
 }
 
-export function metricheOperazioni(ops: OperazioneChiusa[]): MetricheOperazioni {
-  const pnl = ops.map((o) => (o.importo * o.pnlPct) / 100);
+/**
+ * Guadagno realizzato in valuta di una vendita. `importo` è il valore di mercato venduto e `pnlPct`
+ * è il rendimento rispetto al costo: guadagno = valore − valore / (1 + pnl%). Costi e slippage
+ * del riempimento non sono inclusi (pnl% viene letto prima dell'esecuzione).
+ */
+export function guadagnoVendita(importo: number, pnlPct: number): number {
+  if (!Number.isFinite(importo) || !Number.isFinite(pnlPct) || pnlPct <= -100) return 0;
+  return importo - importo / (1 + pnlPct / 100);
+}
+
+export function metricheOperazioni(input: OperazioneChiusa[]): MetricheOperazioni {
+  const ops = input.filter((o) => Number.isFinite(o.importo) && Number.isFinite(o.pnlPct));
+  const pnl = ops.map((o) => guadagnoVendita(o.importo, o.pnlPct));
   const gains = pnl.filter((x) => x > 0);
   const losses = pnl.filter((x) => x < 0);
   const sg = gains.reduce((a, b) => a + b, 0);
@@ -147,9 +159,13 @@ export function calcolaMetriche(input: {
   const bInizio = b.filter((p) => p.giorno <= dal!).at(-1) ?? b.find((p) => p.giorno >= dal!);
   const bFine = b.filter((p) => p.giorno <= al!).at(-1);
   let benchmarkPct: number | null = null;
-  if (bInizio && bFine && bFine.giorno > bInizio.giorno && bInizio.prezzo > 0)
-    benchmarkPct = r2((bFine.prezzo / bInizio.prezzo - 1) * 100);
-  else avvisi.push("Benchmark non disponibile per il periodo.");
+  const giorniDiff = (a: string, c: string) => Math.abs(Date.parse(a) - Date.parse(c)) / 86_400_000;
+  if (bInizio && bFine && bFine.giorno > bInizio.giorno && bInizio.prezzo > 0) {
+    // Le date del benchmark devono coincidere con quelle del portafoglio (tolleranza: weekend/festivi).
+    if (giorniDiff(bInizio.giorno, dal!) > MAX_SCARTO_BENCHMARK_GIORNI || giorniDiff(bFine.giorno, al!) > MAX_SCARTO_BENCHMARK_GIORNI)
+      avvisi.push(`Benchmark non confrontabile: date ${bInizio.giorno}→${bFine.giorno} diverse dal periodo ${dal}→${al}.`);
+    else benchmarkPct = r2((bFine.prezzo / bInizio.prezzo - 1) * 100);
+  } else avvisi.push("Benchmark non disponibile per il periodo.");
 
   return {
     ...vuoto,
@@ -170,15 +186,20 @@ export function calcolaMetriche(input: {
  * profit factor ≥ 1,2. Se non è superata si resta alla configurazione base.
  */
 export const MIN_CAMPIONE_AUMENTO = 20;
-export function validaFuoriCampione(pnlCronologici: number[]): boolean {
+export const MIN_FUORI_CAMPIONE = 6;
+export function validaFuoriCampione(input: number[]): boolean {
+  // Valori nulli/non numerici esclusi; esiti pari a zero contano nel campione ma non come guadagno né perdita.
+  const pnlCronologici = input.filter((x) => Number.isFinite(x));
   if (pnlCronologici.length < MIN_CAMPIONE_AUMENTO) return false;
   const taglio = Math.floor(pnlCronologici.length * 0.7);
   const pf = (xs: number[]) => {
     const g = xs.filter((x) => x > 0).reduce((a, b) => a + b, 0);
     const l = Math.abs(xs.filter((x) => x < 0).reduce((a, b) => a + b, 0));
-    return l === 0 ? (g > 0 ? Infinity : 0) : g / l;
+    // Senza alcuna perdita il profit factor non è stimabile: per prudenza non si valida.
+    return l === 0 ? 0 : g / l;
   };
   const dentro = pnlCronologici.slice(0, taglio);
   const fuori = pnlCronologici.slice(taglio);
+  if (fuori.length < MIN_FUORI_CAMPIONE) return false;
   return pf(dentro) >= 1.2 && pf(fuori) >= 1.2;
 }
