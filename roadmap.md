@@ -1,16 +1,19 @@
 # Audit PAPER prioritario
-- [ ] Rafforzare lock condiviso e idempotenza di acquisti/vendite, recupero sicuro degli esiti incerti.
-- [ ] Riconciliare stati e prezzi delle esecuzioni; costo medio/P&L da esecuzioni deduplicate, senza inventare base iniziale.
-- [ ] Dimensionamento con ordini pendenti e dati aggiornati; mostrare rischio dei limiti attuali e proposte non applicate.
-- [ ] Verificare anomalie/comparabilità dei prezzi e testare i percorsi critici senza inviare ordini.
+- [x] Lock atomico per utente/broker/ambiente, rinnovo/verifica proprietario, intenti atomici e client ID anche per vendite; nessun reinvio incerto.
+- [x] Stati e prezzi ponderati delle esecuzioni; replay costo medio/P&L deduplicato, risultati non verificabili esclusi da apprendimento/statistiche.
+- [x] Dimensionamento con ordini pendenti e verifica pre-invio; rischio dei limiti mostrato senza modifiche.
+- [x] Barre duplicate/future/fuori sequenza o paginazione fallita bloccate; 89 test offline e registro autenticato verificati, nessun ordine/deploy.
 - [x] Limiti personali di liquidità e potere d'acquisto entro disponibilità Alpaca (senza aumentare leva).
 - [x] Registro persistente per tutti i percorsi d'invio; esecuzioni/istantanee Alpaca riconciliate, rendimento bloccato su dati parziali.
 - [x] 70 test offline e lettura registro PAPER in anteprima senza inviare ordini.
 - [x] Verificare moltiplicatori; isolare apprendimento e statistiche al conto attribuito.
 - [x] Separare 35 ordini attivi e 3 non determinati; deduplicare ID nel report.
-- [x] Verificare liquidità e limite giornaliero; conservare 50 USD su conferma utente.
+- [x] Verificare liquidità e limite giornaliero senza modifica: anteprima autenticata il 22 ottobre mostra 20 USD su circa 50 USD; i 50 USD del brief non coincidono con l'impostazione corrente.
 - [x] Aggiungere controlli prezzi approvati, split e paginazione; verificare negoziabilità.
 - [x] Sopprimere rendimento con flussi non allineati; identificare differenza contabile ancora non definitiva.
 - [x] Test offline e audit, nessun ordine/deploy.
 - [ ] Contabilità definitiva del profitto realizzato storico: manca base di costo iniziale immutabile e allineamento temporale broker; le istantanee persistenti non inventano i dati mancanti.
 - [ ] Riconciliazione contabile su broker esterni: gli adattatori non espongono ancora identità verificata, esecuzioni e flussi completi; il registro li segnala non riconciliati.
+- [ ] Nuovi limiti per operazione/esposizione/concentrazione/settore/numero posizioni: proposte mostrate, attendono conferma dell'utente prima di attivarli.
+- [ ] Esiti legacy delle vecchie chiusure DELETE senza client ID: attendono prova broker/manuale di correlazione; restano bloccati, nessuno sblocco o reinvio dedotto.
+- [ ] Serializzazione dello stesso conto fisico collegato da utenti diversi: richiede identità condivisa verificata; il lock corrente copre cron/manuale/riconciliazione dello stesso utente e ambiente.
