@@ -38,15 +38,18 @@ export const salvaFondi = createServerFn({ method: "POST" })
   })
   .handler(async ({ data, context }) => {
     if (data.piattaforma !== "alpaca") throw new Error("Limiti separati disponibili sui conti Alpaca; gli altri broker espongono solo liquidità.");
-    const { conLeaseConto, riconciliaAlpacaPersistente } = await import("./riconciliazione.server");
-    const result = await conLeaseConto(context.userId, data.piattaforma, data.ambiente, async () => {
-      const s = await riconciliaAlpacaPersistente(context.userId, data.ambiente === "reale");
-      if (s.liquidita == null || s.potere_acquisto == null) throw new Error("Fondi del conto non verificabili.");
-      if ((data.liquidita != null && data.liquidita > Math.max(0, Number(s.liquidita))) || (data.acquisto != null && data.acquisto > Math.max(0, Number(s.potere_acquisto)))) throw new Error("Il limite non può superare i fondi disponibili presso il broker.");
-      const { error } = await context.supabase.from("automazioni_conti").upsert({ user_id: context.userId, piattaforma: data.piattaforma, ambiente: data.ambiente, liquidita_limite: data.liquidita, acquisto_limite: data.acquisto, limiti_conto_id: s.conto_id });
+    // Salvataggio impostazioni: verifica i fondi con GET, senza contendere il lease contabile.
+    // Il motore rilegge questi tetti prima di ogni ordine.
+    const { credenzialiUtente } = await import("./alpaca.server");
+    const cred = await credenzialiUtente(context.userId, data.ambiente === "reale");
+    if (!cred) throw new Error("Conto non collegato.");
+    const api = data.ambiente === "reale" ? "https://api.alpaca.markets" : "https://paper-api.alpaca.markets";
+    const response = await fetch(`${api}/v2/account`, { headers: cred.headers, signal: AbortSignal.timeout(15000) });
+    if (!response.ok) throw new Error("Fondi del conto non verificabili.");
+    const s = await response.json() as { id?: string; cash?: string; buying_power?: string };
+    if (!s.id || s.cash == null || s.buying_power == null || ![Number(s.cash), Number(s.buying_power)].every(Number.isFinite)) throw new Error("Fondi del conto non verificabili.");
+    if ((data.liquidita != null && data.liquidita > Math.max(0, Number(s.cash))) || (data.acquisto != null && data.acquisto > Math.max(0, Number(s.buying_power)))) throw new Error("Il limite non può superare i fondi disponibili presso il broker.");
+      const { error } = await context.supabase.from("automazioni_conti").upsert({ user_id: context.userId, piattaforma: data.piattaforma, ambiente: data.ambiente, liquidita_limite: data.liquidita, acquisto_limite: data.acquisto, limiti_conto_id: `alpaca:${s.id}` });
       if (error) throw new Error("Impossibile salvare i fondi utilizzabili.");
       return { ok: true };
-    });
-    if (!result) throw new Error("Ciclo in corso: riprova al termine.");
-    return result;
   });
