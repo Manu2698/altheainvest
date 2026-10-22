@@ -1,4 +1,6 @@
 # Audit PAPER prioritario
+- [ ] Valutazione graduale: metriche delle vendite verificate per conto/titolo/strategia; confronto separato dei primi fattori trend e momentum, senza attivazione operativa.
+- [ ] Dichiarare costi e classificazioni mancanti; test delle metriche e della selezione sperimentale; verifica della pagina Report senza ordini.
 - [x] Lock atomico per utente/broker/ambiente, rinnovo/verifica proprietario, intenti atomici e client ID anche per vendite; nessun reinvio incerto.
 - [x] Stati e prezzi ponderati delle esecuzioni; replay costo medio/P&L deduplicato, risultati non verificabili esclusi da apprendimento/statistiche.
 - [x] Dimensionamento con ordini pendenti e verifica pre-invio; rischio dei limiti mostrato senza modifiche.
