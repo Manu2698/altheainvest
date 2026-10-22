@@ -16,6 +16,6 @@ describe("storico mercato offline", () => {
     expect(chiamate).toHaveLength(2);
     expect(chiamate[0]).toContain("adjustment=split");
     expect(chiamate[1]).toContain("page_token=seconda");
-    expect(date.EYPT).toBe("2026-10-21T04:00:00Z");
+    expect(date["EYPT"]).toBe("2026-10-21T04:00:00Z");
   });
 });
