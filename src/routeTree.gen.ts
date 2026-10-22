@@ -21,7 +21,6 @@ import { Route as TerminiRouteImport } from './routes/termini'
 import { Route as ApiChatRouteImport } from './routes/api/chat'
 import { Route as AssistenteIndexRouteImport } from './routes/assistente.index'
 import { Route as AssistenteThreadIdRouteImport } from './routes/assistente.$threadId'
-import { Route as ApiPublicHooksCicloIaRouteImport } from './routes/api/public/hooks/ciclo-ia'
 import { Route as ApiPublicJobsCicloIaRouteImport } from './routes/api/public/jobs/ciclo-ia'
 
 const IndexRoute = IndexRouteImport.update({
@@ -84,11 +83,6 @@ const AssistenteThreadIdRoute = AssistenteThreadIdRouteImport.update({
   path: '/assistente/$threadId',
   getParentRoute: () => rootRouteImport,
 } as any)
-const ApiPublicHooksCicloIaRoute = ApiPublicHooksCicloIaRouteImport.update({
-  id: '/api/public/hooks/ciclo-ia',
-  path: '/api/public/hooks/ciclo-ia',
-  getParentRoute: () => rootRouteImport,
-} as any)
 const ApiPublicJobsCicloIaRoute = ApiPublicJobsCicloIaRouteImport.update({
   id: '/api/public/jobs/ciclo-ia',
   path: '/api/public/jobs/ciclo-ia',
@@ -108,7 +102,6 @@ export interface FileRoutesByFullPath {
   '/api/chat': typeof ApiChatRoute
   '/assistente/$threadId': typeof AssistenteThreadIdRoute
   '/assistente/': typeof AssistenteIndexRoute
-  '/api/public/hooks/ciclo-ia': typeof ApiPublicHooksCicloIaRoute
   '/api/public/jobs/ciclo-ia': typeof ApiPublicJobsCicloIaRoute
 }
 export interface FileRoutesByTo {
@@ -124,7 +117,6 @@ export interface FileRoutesByTo {
   '/api/chat': typeof ApiChatRoute
   '/assistente/$threadId': typeof AssistenteThreadIdRoute
   '/assistente': typeof AssistenteIndexRoute
-  '/api/public/hooks/ciclo-ia': typeof ApiPublicHooksCicloIaRoute
   '/api/public/jobs/ciclo-ia': typeof ApiPublicJobsCicloIaRoute
 }
 export interface FileRoutesById {
@@ -141,7 +133,6 @@ export interface FileRoutesById {
   '/api/chat': typeof ApiChatRoute
   '/assistente/$threadId': typeof AssistenteThreadIdRoute
   '/assistente/': typeof AssistenteIndexRoute
-  '/api/public/hooks/ciclo-ia': typeof ApiPublicHooksCicloIaRoute
   '/api/public/jobs/ciclo-ia': typeof ApiPublicJobsCicloIaRoute
 }
 export interface FileRouteTypes {
@@ -159,7 +150,6 @@ export interface FileRouteTypes {
     | '/api/chat'
     | '/assistente/$threadId'
     | '/assistente/'
-    | '/api/public/hooks/ciclo-ia'
     | '/api/public/jobs/ciclo-ia'
   fileRoutesByTo: FileRoutesByTo
   to:
@@ -175,7 +165,6 @@ export interface FileRouteTypes {
     | '/api/chat'
     | '/assistente/$threadId'
     | '/assistente'
-    | '/api/public/hooks/ciclo-ia'
     | '/api/public/jobs/ciclo-ia'
   id:
     | '__root__'
@@ -191,7 +180,6 @@ export interface FileRouteTypes {
     | '/api/chat'
     | '/assistente/$threadId'
     | '/assistente/'
-    | '/api/public/hooks/ciclo-ia'
     | '/api/public/jobs/ciclo-ia'
   fileRoutesById: FileRoutesById
 }
@@ -208,7 +196,6 @@ export interface RootRouteChildren {
   ApiChatRoute: typeof ApiChatRoute
   AssistenteThreadIdRoute: typeof AssistenteThreadIdRoute
   AssistenteIndexRoute: typeof AssistenteIndexRoute
-  ApiPublicHooksCicloIaRoute: typeof ApiPublicHooksCicloIaRoute
   ApiPublicJobsCicloIaRoute: typeof ApiPublicJobsCicloIaRoute
 }
 
@@ -298,13 +285,6 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AssistenteThreadIdRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/api/public/hooks/ciclo-ia': {
-      id: '/api/public/hooks/ciclo-ia'
-      path: '/api/public/hooks/ciclo-ia'
-      fullPath: '/api/public/hooks/ciclo-ia'
-      preLoaderRoute: typeof ApiPublicHooksCicloIaRouteImport
-      parentRoute: typeof rootRouteImport
-    }
     '/api/public/jobs/ciclo-ia': {
       id: '/api/public/jobs/ciclo-ia'
       path: '/api/public/jobs/ciclo-ia'
@@ -328,7 +308,6 @@ const rootRouteChildren: RootRouteChildren = {
   ApiChatRoute: ApiChatRoute,
   AssistenteThreadIdRoute: AssistenteThreadIdRoute,
   AssistenteIndexRoute: AssistenteIndexRoute,
-  ApiPublicHooksCicloIaRoute: ApiPublicHooksCicloIaRoute,
   ApiPublicJobsCicloIaRoute: ApiPublicJobsCicloIaRoute,
 }
 export const routeTree = rootRouteImport
