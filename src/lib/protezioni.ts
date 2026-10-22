@@ -2,6 +2,10 @@
 // non cambiano i segnali di acquisto/vendita.
 
 export const MAX_GIORNI_DATI = 4;
+/** Scostamento dalla media 10g oltre il quale il prezzo è considerato anomalo (non un'occasione). */
+export const MAX_SCOSTAMENTO_SMA10 = 40;
+/** Variazione giornaliera oltre la quale la serie è sospetta (split non corretto, errore di dati). */
+export const MAX_SALTO_GIORNALIERO = 50;
 
 /** Ragione per cui in questo ciclo non si fanno nuovi acquisti (null = acquisti consentiti). */
 export function motivoBloccoAcquisti(s: {
@@ -27,6 +31,19 @@ export function problemaDati(chiusure: number[], ultimoGiorno: string | undefine
   if (!Number.isFinite(t)) return "Data dell'ultimo prezzo non valida: acquisto saltato.";
   const giorni = (ora - t) / 86_400_000;
   if (giorni > MAX_GIORNI_DATI) return `Prezzi vecchi di ${Math.floor(giorni)} giorni: acquisto saltato.`;
+  const ultime = chiusure.slice(-11);
+  for (let i = 1; i < ultime.length; i++) {
+    const salto = Math.abs(ultime[i]! / ultime[i - 1]! - 1) * 100;
+    if (salto > MAX_SALTO_GIORNALIERO)
+      return `Serie prezzi non confrontabile (salto di ${salto.toFixed(0)}% in un giorno: possibile split o errore): acquisto saltato.`;
+  }
+  const dieci = chiusure.slice(-10);
+  if (dieci.length) {
+    const sma = dieci.reduce((a, b) => a + b, 0) / dieci.length;
+    const sc = ((chiusure.at(-1)! - sma) / sma) * 100;
+    if (Math.abs(sc) > MAX_SCOSTAMENTO_SMA10)
+      return `Prezzo anomalo (${sc.toFixed(1)}% dalla media 10g): un ribasso estremo non è trattato come occasione, acquisto saltato.`;
+  }
   return null;
 }
 

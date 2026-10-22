@@ -341,6 +341,25 @@ export async function eseguiCiclo(
           scelta.azione = "attendi";
           scelta.importo = 0;
           scelta.motivo = problema;
+          logServer("trading.protezione.dati", new Error(problema), { ticker, reale });
+        }
+      }
+      if (scelta.azione === "compra") {
+        // Negoziabilità verificata presso il broker prima di ogni acquisto.
+        const sym = isCripto(ticker) ? paioCripto(ticker) : ticker;
+        const asset = await fetch(`${url}/v2/assets/${encodeURIComponent(sym)}`, { headers })
+          .then(async (r) => (r.ok ? ((await r.json()) as Record<string, unknown>) : null))
+          .catch(() => null);
+        const motivoAsset = !asset
+          ? "Negoziabilità non verificabile: acquisto saltato."
+          : asset["tradable"] !== true || asset["status"] !== "active"
+            ? "Strumento non negoziabile presso il broker: acquisto saltato."
+            : null;
+        if (motivoAsset) {
+          scelta.azione = "attendi";
+          scelta.importo = 0;
+          scelta.motivo = motivoAsset;
+          logServer("trading.protezione.asset", new Error(motivoAsset), { ticker, reale });
         }
       }
       if (scelta.azione === "compra") {

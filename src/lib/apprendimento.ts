@@ -172,6 +172,8 @@ export async function leggiLezioni(
       .order("created_at", { ascending: true })
       .limit(1000);
     if (contoId) q = q.eq("conto_id", contoId);
+    // Senza conto noto si escludono comunque gli ordini "non determinati" (vecchi conti chiusi).
+    else q = q.not("conto_id", "is", null);
     const { data } = await q;
     // Abbina ogni vendita all'ultimo acquisto dello stesso titolo per sapere quale segnale l'ha generata.
     const ultimoAcquisto = new Map<string, string | null>();

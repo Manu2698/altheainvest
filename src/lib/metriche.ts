@@ -155,6 +155,20 @@ export function calcolaMetriche(input: {
   const finale = storico.at(-1)!.valore;
   const rendimentoPct = r2((indice - 1) * 100);
 
+  // Un versamento/prelievo che non compare nella variazione del valore del conto (data diversa o
+  // già incluso nel primo valore) rende profitto e rendimento non riconciliabili: niente risultato definitivo.
+  const valoreDi = new Map(storico.map((p, i) => [p.giorno, i]));
+  const nonRiflessi = [...netto.entries()].filter(([g, f]) => {
+    const i = valoreDi.get(g);
+    if (i == null || i === 0) return true;
+    const delta = storico[i]!.valore - storico[i - 1]!.valore;
+    return Math.abs(delta - f) > Math.abs(f) * 0.5;
+  });
+  const nonDefinitivo = input.flussiCompleti === false || nonRiflessi.length > 0;
+  if (nonRiflessi.length)
+    avvisi.unshift(`Versamenti/prelievi del ${nonRiflessi.map(([g]) => g).join(", ")} non riflessi nel valore del conto: rendimento e profitto non riconciliabili, non mostrati.`);
+  else if (input.flussiCompleti === false) avvisi.unshift("Rendimento e profitto non mostrati finché l'elenco dei flussi non è completo.");
+
   const b = [...input.benchmark].sort((x, y) => x.giorno.localeCompare(y.giorno));
   const bInizio = b.filter((p) => p.giorno <= dal!).at(-1) ?? b.find((p) => p.giorno >= dal!);
   const bFine = b.filter((p) => p.giorno <= al!).at(-1);
@@ -171,12 +185,12 @@ export function calcolaMetriche(input: {
     ...vuoto,
     capitaleIniziale: iniziale,
     capitaleFinale: finale,
-    pnlNetto: r2(finale - iniziale - versamenti + prelievi),
-    rendimentoPct,
-    drawdownMassimoPct: r2(dd * 100),
+    pnlNetto: nonDefinitivo ? null : r2(finale - iniziale - versamenti + prelievi),
+    rendimentoPct: nonDefinitivo ? null : rendimentoPct,
+    drawdownMassimoPct: nonDefinitivo ? null : r2(dd * 100),
     volatilitaAnnuaPct: volatilita,
     benchmarkPct,
-    differenzaBenchmarkPct: benchmarkPct == null ? null : r2(rendimentoPct - benchmarkPct),
+    differenzaBenchmarkPct: benchmarkPct == null || nonDefinitivo ? null : r2(rendimentoPct - benchmarkPct),
   };
 }
 
