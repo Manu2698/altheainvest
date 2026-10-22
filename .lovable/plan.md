@@ -7,7 +7,8 @@
 
 ## Parte 1 — Conti attivi e archiviati
 - Ogni ordine dell'IA registrerà anche il numero del conto del broker (Alpaca lo fornisce; per le altre piattaforme un'impronta delle chiavi, mai le chiavi).
-- Nuovo elenco "conti conosciuti": ogni volta che si collegano nuove chiavi, il conto precedente dello stesso tipo viene segnato **archiviato** con data di chiusura.
+- Nuovo elenco "conti conosciuti", identificati dal numero di conto restituito dal broker (non dalle chiavi). Cambiare chiavi non archivia nulla: se il broker conferma lo stesso numero di conto, resta lo stesso conto; se è un conto diverso, si aggiunge accanto (più conti possono essere attivi insieme).
+- Un conto viene segnato **archiviato** solo se il broker conferma che è chiuso o inesistente. Se l'identità o lo stato non si possono verificare, il conto appare come "da confermare" e ti viene chiesto se archiviarlo.
 - Gli ordini vecchi senza numero di conto vengono attribuiti al conto attivo solo se successivi al suo collegamento; quelli precedenti vanno in "Storico conti archiviati".
 - «Confronto conti»: mostra solo i conti attivi; sotto, una sezione chiusa per default "Conti archiviati" con i loro risultati storici, chiaramente etichettata, esclusa dai totali.
 - La logica d'investimento non cambia: si aggiunge solo un campo in scrittura.
