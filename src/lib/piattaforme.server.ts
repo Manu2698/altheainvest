@@ -559,6 +559,8 @@ export async function eseguiCicloEsterno(
     if (eseguiti) {
       try {
         const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+        const { improntaChiave } = await import("./conti.server");
+        const contoId = await improntaChiave(cred.key_id);
         await supabaseAdmin.from("ordini_ia").insert(
           decisioni.filter((d) => d.eseguito).map((d) => ({
             user_id: userId,
@@ -570,6 +572,8 @@ export async function eseguiCicloEsterno(
             importo: d.importo,
             pnl_pct: d.azione === "vendi" ? (posizioni.get(d.ticker)?.pnlPct ?? null) : null,
             motivo: d.motivo,
+            conto_id: contoId,
+            conto_attribuzione: "motore",
           })),
         );
       } catch (e) {

@@ -222,10 +222,12 @@ export async function eseguiCiclo(
   // Modalità "conto": l'IA usa tutto il capitale del conto Alpaca.
   let liquidita = Infinity;
   let perditaOggi: number | null = null;
+  let contoId: string | null = null; // solo per registrare a quale conto appartiene l'ordine
   try {
     const acc = await fetch(`${url}/v2/account`, { headers });
     if (acc.ok) {
       const a = (await acc.json()) as Record<string, unknown>;
+      if (a["id"]) contoId = `alpaca:${String(a["id"])}`;
       liquidita = num(a["cash"]);
       if (input.modalita === "conto") capitale = num(a["portfolio_value"] ?? a["equity"]);
       // Perdita della giornata: valore a chiusura di ieri meno valore attuale.
@@ -382,6 +384,8 @@ export async function eseguiCiclo(
               importo: d.importo,
               pnl_pct: d.azione === "vendi" ? (posizioni.get(d.ticker)?.pnlPct ?? null) : null,
               motivo: d.motivo,
+              conto_id: contoId,
+              conto_attribuzione: contoId ? "motore" : null,
             })),
         );
       } catch (error) {
