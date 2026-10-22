@@ -74,8 +74,8 @@ export function StatisticheStrategie({ reale }: { reale: boolean }) {
             </ResponsiveContainer>
           </div>
           <p className="mt-2 text-[10px] text-muted-foreground">
-            Ordini dei conti attivi (ultime 8 settimane). Vincite e perdite sono stime sulle vendite,
-            calcolate prima del riempimento; non certificano posizioni chiuse né risultati netti. Storico non determinato escluso.
+            Ordini eseguiti e riconciliati dei conti attivi (ultime 8 settimane). Vincite e perdite dalle vendite
+            con esecuzioni e costo medio verificabile, al lordo delle fee non allocate. Non sono risultati netti né posizioni interamente chiuse; storico non determinato escluso.
           </p>
         </>
       )}
