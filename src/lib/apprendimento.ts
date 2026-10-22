@@ -1,5 +1,9 @@
 // Apprendimento dell'IA: dai risultati delle vendite passate (pnl_pct) ricava
 // lezioni che correggono le decisioni future. Logica pura, testabile.
+// Le riduzioni di rischio si applicano subito; ogni AUMENTO di importo richiede la validazione
+// fuori campione (validaFuoriCampione). Le lezioni si ricalcolano a ogni ciclo e non vengono
+// salvate: se la validazione smette di reggere si torna automaticamente alla configurazione base.
+import { validaFuoriCampione } from "./metriche";
 
 export type EsitoPassato = { ticker: string; pnlPct: number; segnale?: string | null };
 
@@ -25,6 +29,8 @@ export type Lezioni = {
   segnaliPerdenti: Set<string>;
   bloccati: Set<string>; // titoli che fanno perdere ripetutamente
   favoriti: Set<string>; // titoli che fanno vincere con costanza
+  /** True solo se l'aumento globale ha superato la validazione fuori campione. */
+  aumentiValidati: boolean;
   riepilogo: string;
 };
 
@@ -38,6 +44,7 @@ export function calcolaLezioni(esiti: EsitoPassato[]): Lezioni {
     ? vincite.reduce((s, e) => s + e.pnlPct, 0) / vincite.length
     : null;
 
+  const aumentiValidati = validaFuoriCampione(esiti.map((e) => e.pnlPct));
   let fattoreQuota = 1;
   let fattoreStop = 1;
   if (vendite >= MIN_CAMPIONE) {
@@ -47,7 +54,7 @@ export function calcolaLezioni(esiti: EsitoPassato[]): Lezioni {
     } else if (tassoVincite < 0.5) {
       fattoreQuota = 0.8;
       fattoreStop = 0.85;
-    } else if (tassoVincite >= 0.65) {
+    } else if (tassoVincite >= 0.65 && aumentiValidati) {
       fattoreQuota = 1.2;
     }
   }
@@ -61,7 +68,7 @@ export function calcolaLezioni(esiti: EsitoPassato[]): Lezioni {
     const vinte = r.length - perse;
     const somma = r.reduce((a, b) => a + b, 0);
     if (perse >= 2 && perse > vinte && somma < 0) bloccati.add(t);
-    else if (vinte >= 2 && perse === 0) favoriti.add(t);
+    else if (vinte >= 2 && perse === 0 && aumentiValidati) favoriti.add(t);
   }
 
   const perSegnale = new Map<string, number[]>();
@@ -72,7 +79,7 @@ export function calcolaLezioni(esiti: EsitoPassato[]): Lezioni {
     if (r.length < MIN_CAMPIONE) continue;
     const tasso = r.filter((x) => x > 0).length / r.length;
     const somma = r.reduce((a, b) => a + b, 0);
-    if (tasso >= 0.6 && somma > 0) segnaliVincenti.add(g);
+    if (tasso >= 0.6 && somma > 0 && validaFuoriCampione(r)) segnaliVincenti.add(g);
     else if (tasso < 0.4 && somma < 0) segnaliPerdenti.add(g);
   }
 
@@ -83,7 +90,8 @@ export function calcolaLezioni(esiti: EsitoPassato[]): Lezioni {
   else {
     parti.push(`${Math.round(tassoVincite * 100)}% di vendite in guadagno su ${vendite}`);
     if (fattoreStop < 1) parti.push("stop di perdita più stretti e importi ridotti");
-    if (fattoreQuota > 1) parti.push("importi aumentati perché la strategia sta funzionando");
+    if (fattoreQuota > 1) parti.push("importi aumentati: risultati confermati fuori campione");
+    else if (!aumentiValidati) parti.push("nessun aumento degli importi finché i risultati non sono validati fuori campione");
   }
   if (bloccati.size) parti.push(`evita ${[...bloccati].join(", ")} (perdite ripetute)`);
   if (favoriti.size) parti.push(`privilegia ${[...favoriti].join(", ")}`);
@@ -98,6 +106,7 @@ export function calcolaLezioni(esiti: EsitoPassato[]): Lezioni {
     segnaliPerdenti,
     bloccati,
     favoriti,
+    aumentiValidati,
     riepilogo: `Apprendimento: ${parti.join("; ")}.`,
   };
 }
