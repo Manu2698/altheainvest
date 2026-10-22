@@ -6,6 +6,7 @@ import { ArrowLeft, ExternalLink, Loader2, RefreshCw } from "lucide-react";
 import { getOrdiniBroker } from "@/lib/alpaca.functions";
 import { useSessione } from "@/hooks/useSessione";
 import { cn } from "@/lib/utils";
+import { getRegistroOrdini } from "@/lib/riconciliazione.functions";
 
 export const Route = createFileRoute("/ordini")({
   head: () => ({
@@ -49,6 +50,8 @@ function PaginaOrdini() {
   const [reale, setReale] = useState(false);
   const { autenticato } = useSessione();
   const fn = useServerFn(getOrdiniBroker);
+  const registroFn = useServerFn(getRegistroOrdini);
+  const registro = useQuery({ queryKey: ["registro-ordini", reale], enabled: autenticato, queryFn: () => registroFn({ data: { reale } }), refetchInterval: 15_000, retry: false });
 
   const ordini = useQuery({
     queryKey: ["ordini-broker", reale],
@@ -182,6 +185,17 @@ function PaginaOrdini() {
           )}
         </div>
       )}
+      {autenticato && <section className="mt-8">
+        <h2 className="text-lg font-semibold">Registro persistente delle esecuzioni</h2>
+        <p className="mt-1 text-xs text-muted-foreground">PAPER e REALE separati · gli ordini precedenti senza strategia certa restano non attribuiti. Le piattaforme esterne restano non riconciliate.</p>
+        <div className="mt-3 overflow-x-auto">
+          <table className="w-full min-w-[640px] text-left text-xs">
+            <thead><tr className="border-b border-border"><th className="py-2">Data UTC</th><th>Broker</th><th>Strumento</th><th>Lato</th><th>Quantità eseguita</th><th>Prezzo medio</th><th>Stato</th><th>Riconciliato UTC</th></tr></thead>
+            <tbody>{(registro.data ?? []).map(o => <tr key={o.id} className="border-b border-border"><td className="py-2">{dataOra(o.created_at)} {ora(o.created_at)}</td><td>{o.piattaforma}</td><td>{o.ticker}</td><td>{o.lato}</td><td className="numeric">{o.quantita_eseguita}</td><td className="numeric">{o.prezzo_medio ?? "—"}</td><td>{o.stato}</td><td>{o.riconciliato_il ? `${dataOra(o.riconciliato_il)} ${ora(o.riconciliato_il)}` : "Non confermato"}</td></tr>)}</tbody>
+          </table>
+          {!registro.data?.length && <p className="py-4 text-xs text-muted-foreground">{registro.error?.message ?? "Nessun ordine nel registro persistente."}</p>}
+        </div>
+      </section>}
     </div>
   );
 }

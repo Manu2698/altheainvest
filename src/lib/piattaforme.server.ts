@@ -512,6 +512,9 @@ export async function eseguiCicloEsterno(
     const serie = await storico(universo);
     const prezzi = Object.fromEntries(Object.entries(serie).filter(([, v]) => v.length).map(([k, v]) => [k, v[v.length - 1]!]));
     const conto = await ad.conto(prezzi);
+    const { improntaChiave } = await import("./conti.server");
+    const contoId = await improntaChiave(cred.key_id);
+    const { registraIntento, aggiornaRicevuta } = await import("./riconciliazione.server");
     const capitale = input.modalita === "conto" ? conto.valore : input.capitale;
     if (capitale <= 0) return vuoto("Imposta il capitale prima di avviare il motore.");
 
@@ -542,11 +545,21 @@ export async function eseguiCicloEsterno(
       const d: DecisioneIA = { ticker: t, azione: s.azione, importo: Math.round(s.importo * 100) / 100, motivo: s.motivo, eseguito: false };
       try {
         if (s.azione === "vendi" && pos) {
-          await ad.vendi(pos);
+          // eToro può inviare una chiusura per posizione: una registrazione per ogni invio.
+          const parti = p === "etoro" ? (pos.rif ?? []).map(r => ({ ...pos, rif: [r] })) : [pos];
+          for (const parte of parti) {
+            const intento = await registraIntento({ userId, piattaforma: p, ambiente: input.reale ? "reale" : "paper", contoId, ticker: t, lato: "sell", strategia: input.strategia, importo: d.importo });
+            await ad.vendi(parte);
+            await aggiornaRicevuta(intento.id, null, "accettato_non_riconciliato");
+          }
           d.eseguito = true;
         } else if (s.azione === "compra") {
           residuo -= d.importo;
-          await ad.compra(t, d.importo, prezzi[t]!);
+          const prezzo = prezzi[t];
+          if (prezzo == null) throw new Error("Prezzo non disponibile: nessun ordine.");
+          const intento = await registraIntento({ userId, piattaforma: p, ambiente: input.reale ? "reale" : "paper", contoId, ticker: t, lato: "buy", strategia: input.strategia, importo: d.importo });
+          await ad.compra(t, d.importo, prezzo);
+          await aggiornaRicevuta(intento.id, null, !input.reale && (p === "kraken" || p === "coinbase") ? "solo_validazione" : "accettato_non_riconciliato");
           d.eseguito = true;
         }
       } catch (e) {
@@ -559,8 +572,6 @@ export async function eseguiCicloEsterno(
     if (eseguiti) {
       try {
         const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-        const { improntaChiave } = await import("./conti.server");
-        const contoId = await improntaChiave(cred.key_id);
         await supabaseAdmin.from("ordini_ia").insert(
           decisioni.filter((d) => d.eseguito).map((d) => ({
             user_id: userId,

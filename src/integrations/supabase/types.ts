@@ -16,11 +16,14 @@ export type Database = {
     Tables: {
       automazioni_conti: {
         Row: {
+          acquisto_limite: number | null
           ambiente: string
           attivo: boolean
           bloccato_fino: string | null
           capitale: number
           created_at: string
+          limiti_conto_id: string | null
+          liquidita_limite: number | null
           modalita: string
           pausa_il: string | null
           pausa_motivo: string | null
@@ -33,11 +36,14 @@ export type Database = {
           user_id: string
         }
         Insert: {
+          acquisto_limite?: number | null
           ambiente?: string
           attivo?: boolean
           bloccato_fino?: string | null
           capitale?: number
           created_at?: string
+          limiti_conto_id?: string | null
+          liquidita_limite?: number | null
           modalita?: string
           pausa_il?: string | null
           pausa_motivo?: string | null
@@ -50,11 +56,14 @@ export type Database = {
           user_id: string
         }
         Update: {
+          acquisto_limite?: number | null
           ambiente?: string
           attivo?: boolean
           bloccato_fino?: string | null
           capitale?: number
           created_at?: string
+          limiti_conto_id?: string | null
+          liquidita_limite?: number | null
           modalita?: string
           pausa_il?: string | null
           pausa_motivo?: string | null
@@ -259,6 +268,51 @@ export type Database = {
         }
         Relationships: []
       }
+      esecuzioni_broker: {
+        Row: {
+          ambiente: string
+          broker_fill_id: string
+          broker_order_id: string
+          conto_id: string
+          eseguito_il: string
+          id: string
+          lato: string
+          piattaforma: string
+          prezzo: number
+          quantita: number
+          ticker: string
+          user_id: string
+        }
+        Insert: {
+          ambiente: string
+          broker_fill_id: string
+          broker_order_id: string
+          conto_id: string
+          eseguito_il: string
+          id?: string
+          lato: string
+          piattaforma: string
+          prezzo: number
+          quantita: number
+          ticker: string
+          user_id: string
+        }
+        Update: {
+          ambiente?: string
+          broker_fill_id?: string
+          broker_order_id?: string
+          conto_id?: string
+          eseguito_il?: string
+          id?: string
+          lato?: string
+          piattaforma?: string
+          prezzo?: number
+          quantita?: number
+          ticker?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       event_log: {
         Row: {
           ambiente: string | null
@@ -298,6 +352,93 @@ export type Database = {
           tipo?: string
           url?: string | null
           user_agent?: string | null
+        }
+        Relationships: []
+      }
+      istantanee_contabili: {
+        Row: {
+          ambiente: string
+          conto_id: string
+          created_at: string
+          equity: number | null
+          flussi: Json
+          id: string
+          liquidita: number | null
+          motivo: string
+          osservato_al: string
+          osservato_dal: string
+          piattaforma: string
+          posizioni: Json
+          potere_acquisto: number | null
+          scarto: number | null
+          stato: string
+          storico: Json
+          user_id: string
+          valuta: string
+        }
+        Insert: {
+          ambiente: string
+          conto_id: string
+          created_at?: string
+          equity?: number | null
+          flussi?: Json
+          id?: string
+          liquidita?: number | null
+          motivo: string
+          osservato_al: string
+          osservato_dal: string
+          piattaforma: string
+          posizioni?: Json
+          potere_acquisto?: number | null
+          scarto?: number | null
+          stato: string
+          storico?: Json
+          user_id: string
+          valuta: string
+        }
+        Update: {
+          ambiente?: string
+          conto_id?: string
+          created_at?: string
+          equity?: number | null
+          flussi?: Json
+          id?: string
+          liquidita?: number | null
+          motivo?: string
+          osservato_al?: string
+          osservato_dal?: string
+          piattaforma?: string
+          posizioni?: Json
+          potere_acquisto?: number | null
+          scarto?: number | null
+          stato?: string
+          storico?: Json
+          user_id?: string
+          valuta?: string
+        }
+        Relationships: []
+      }
+      lease_conti: {
+        Row: {
+          ambiente: string
+          piattaforma: string
+          proprietario: string
+          scade_il: string
+          user_id: string
+        }
+        Insert: {
+          ambiente: string
+          piattaforma: string
+          proprietario: string
+          scade_il: string
+          user_id: string
+        }
+        Update: {
+          ambiente?: string
+          piattaforma?: string
+          proprietario?: string
+          scade_il?: string
+          user_id?: string
         }
         Relationships: []
       }
@@ -529,11 +670,83 @@ export type Database = {
         }
         Relationships: []
       }
+      registro_ordini: {
+        Row: {
+          ambiente: string
+          broker_id: string | null
+          client_id: string
+          conto_id: string
+          created_at: string
+          eseguito_il: string | null
+          id: string
+          importo_richiesto: number | null
+          lato: string
+          piattaforma: string
+          prezzo_medio: number | null
+          quantita_eseguita: number
+          riconciliato_il: string | null
+          stato: string
+          strategia: string
+          ticker: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          ambiente: string
+          broker_id?: string | null
+          client_id: string
+          conto_id: string
+          created_at?: string
+          eseguito_il?: string | null
+          id?: string
+          importo_richiesto?: number | null
+          lato: string
+          piattaforma: string
+          prezzo_medio?: number | null
+          quantita_eseguita?: number
+          riconciliato_il?: string | null
+          stato?: string
+          strategia: string
+          ticker: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          ambiente?: string
+          broker_id?: string | null
+          client_id?: string
+          conto_id?: string
+          created_at?: string
+          eseguito_il?: string | null
+          id?: string
+          importo_richiesto?: number | null
+          lato?: string
+          piattaforma?: string
+          prezzo_medio?: number | null
+          quantita_eseguita?: number
+          riconciliato_il?: string | null
+          stato?: string
+          strategia?: string
+          ticker?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
     }
     Functions: {
+      prendi_lease_conto: {
+        Args: {
+          p_ambiente: string
+          p_piattaforma: string
+          p_proprietario: string
+          p_user: string
+        }
+        Returns: boolean
+      }
       registra_accesso_condivisione: {
         Args: { p_finestra_secondi: number; p_id: string; p_massimo: number }
         Returns: boolean

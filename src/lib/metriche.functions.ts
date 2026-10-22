@@ -21,7 +21,7 @@ export const getMetrichePortafoglio = createServerFn({ method: "GET" })
     giorni: [7, 30, 90].includes(Number(i?.giorni)) ? Number(i?.giorni) : 30,
   }))
   .handler(async ({ data, context }): Promise<RisultatoMetriche> => {
-    const { storicoConto, credenzialiUtente } = await import("./alpaca.server");
+    const { credenzialiUtente } = await import("./alpaca.server");
     const { calcolaMetriche } = await import("./metriche");
     const ambiente = data.reale ? "reale" : "paper";
     const base = {
@@ -40,14 +40,18 @@ export const getMetrichePortafoglio = createServerFn({ method: "GET" })
     const { identitaAlpaca } = await import("./conti.server");
     const identita = await identitaAlpaca(context.userId, data.reale);
     const contoId = identita && identita !== "assente" ? identita.contoId : "identita-non-verificabile";
+    const { conLeaseConto, riconciliaAlpacaPersistente } = await import("./riconciliazione.server");
+    try { await conLeaseConto(context.userId, "alpaca", ambiente, () => riconciliaAlpacaPersistente(context.userId, data.reale)); } catch { /* use persisted incomplete/stale state below */ }
+    const { data: snapshot } = await context.supabase.from("istantanee_contabili").select("*").eq("user_id", context.userId).eq("piattaforma", "alpaca").eq("ambiente", ambiente).eq("conto_id", contoId).order("created_at", { ascending: false }).limit(1).maybeSingle();
+    const riconciliato = snapshot?.stato === "riconciliato" && Date.now() - Date.parse(snapshot.osservato_al) < 120_000;
+    const storicoPersistito = Array.isArray(snapshot?.storico) ? snapshot.storico as unknown as { giorno: string; valore: number }[] : [];
+    const flussiPersistiti = Array.isArray(snapshot?.flussi) ? snapshot.flussi as unknown as { giorno: string; tipo: string; netto: number | null }[] : [];
 
     const dal = new Date(Date.now() - data.giorni * 86_400_000).toISOString().slice(0, 10);
     const api = data.reale ? "https://api.alpaca.markets" : "https://paper-api.alpaca.markets";
     const [storico, att, bench, ordini] = await Promise.all([
-      storicoConto(context.userId, data.reale),
-      fetch(`${api}/v2/account/activities?activity_types=CSD,CSW,FEE,JNLC,JNLS&after=${dal}&page_size=100`, { headers: cred.headers })
-        .then(async (r) => (r.ok ? ((await r.json()) as Record<string, unknown>[]) : null))
-        .catch(() => null),
+      Promise.resolve(storicoPersistito),
+      Promise.resolve(flussiPersistiti.filter(f => ["CSD", "CSW", "FEE", "JNLC", "JNLS"].includes(f.tipo)).map(f => ({ date: f.giorno, activity_type: f.tipo, net_amount: f.netto }))),
       fetch(`https://data.alpaca.markets/v2/stocks/bars?symbols=SPY&timeframe=1Day&start=${dal}&feed=iex&adjustment=raw&sort=asc&limit=1000`, { headers: cred.headers })
         .then(async (r) => (r.ok ? ((await r.json()) as { bars?: Record<string, { t: string; c: number }[]> }) : null))
         .catch(() => null),
@@ -75,7 +79,8 @@ export const getMetrichePortafoglio = createServerFn({ method: "GET" })
     const metriche = calcolaMetriche({
       storico: storico.filter((p) => p.giorno >= dal),
       flussi,
-      flussiCompleti: att != null && att.length < 100,
+      flussiCompleti: riconciliato,
+      riconciliazioneCompleta: riconciliato,
       benchmark,
       chiuse: (ordini.data ?? []).map((o) => ({
         giorno: o.created_at.slice(0, 10),
@@ -85,5 +90,6 @@ export const getMetrichePortafoglio = createServerFn({ method: "GET" })
       })),
     });
     metriche.avvisi.push("P&L realizzato e qualità delle vendite sono stime pre-esecuzione: commissioni e slippage non riconciliati per singola operazione.");
-    return { ...base, collegato: true, costiInclusi: [...base.costiInclusi], costiMancanti: [...base.costiMancanti], metriche };
+    metriche.avvisi.unshift(snapshot ? `Registro persistente: ${snapshot.stato} · ${snapshot.motivo}` : "Nessuna istantanea contabile persistente disponibile.");
+    return { ...base, aggiornatoIl: snapshot?.osservato_al ?? base.aggiornatoIl, collegato: true, costiInclusi: [...base.costiInclusi], costiMancanti: [...base.costiMancanti], metriche };
   });

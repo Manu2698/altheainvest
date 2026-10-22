@@ -14,6 +14,7 @@ import type { EsitoCiclo } from "@/lib/trading.types";
 import { STRATEGIE, type StrategyId } from "@/lib/strategies";
 import { useSessione } from "@/hooks/useSessione";
 import { cn } from "@/lib/utils";
+import { FondiConto } from "./FondiConto";
 
 const giorno = (iso: string) => (iso ? iso.slice(0, 10) : "—");
 
@@ -279,6 +280,8 @@ function CardConto({
         </div>
       )}
 
+      <FondiConto conto={conto} />
+
       {esitoMostrato?.selezione && (
         <p className="mt-2 rounded-lg border border-border bg-surface-2 px-3 py-2 text-[11px] text-muted-foreground">
           {esitoMostrato.selezione}
@@ -353,7 +356,7 @@ export function MotoreIA({ strategia, capitale }: { strategia: StrategyId; capit
   const attivi = conti.filter((c) => c.attivo).length;
 
   return (
-    <div className="panel p-6">
+    <div className="panel min-w-0 p-4 sm:p-6">
       <div className="flex flex-wrap items-center gap-2">
         <Bot className="size-4 text-primary" />
         <h3 className="text-sm font-semibold">Motore operativo</h3>

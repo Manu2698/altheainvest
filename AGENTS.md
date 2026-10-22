@@ -10,6 +10,9 @@
 <!-- LOVABLE:END -->
 
 ## Architecture rules
+- Broker mutations require a durable pre-submit intent in registro_ordini; unknown outcomes must be resolved before new orders, and all cycle/reconciliation callers share the database lease to avoid overlapping writes.
+- Alpaca reconciliation persists sanitized fills and bracketed account/position/history/flow observations; metrics consume those observations and hide return/profit on incomplete or stale reconciliation, without claiming cost-basis accounting is final.
+- User cash and buying-power caps are bound to the verified broker account and applied centrally within actual cash/buying power; they do not create funds or enable leverage.
 - The trade assistant streams through the `/api/chat` server route (Bearer-verified, thread ownership checked) and injects the user's settings, IA order log, broker orders and account summary into the model instructions — keeps answers grounded in real data without tool loops.
 - The daily loss limit is enforced inside `eseguiCiclo` (Alpaca `last_equity - equity`) and every caller pauses the automation row on `bloccoPerdita` — one check covers cron and manual cycles.
 - Non-Alpaca brokers (Trading 212, Binance, Kraken, Coinbase, eToro) live behind one adapter interface in `src/lib/piattaforme.server.ts`; `eseguiCiclo` delegates to it when the account's platform is not alpaca. Automation settings are per account (piattaforma + ambiente) in `automazioni_conti`; `automazioni_ia` is deprecated.

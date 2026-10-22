@@ -184,6 +184,25 @@ export async function leggiOrdini(
 
 export async function eseguiCiclo(
   userId: string,
+  input: Parameters<typeof eseguiCicloInterno>[1],
+): Promise<EsitoCiclo> {
+  const { conLeaseConto, riconciliaAlpacaPersistente } = await import("./riconciliazione.server");
+  const p = input.piattaforma || "alpaca";
+  const result = await conLeaseConto(userId, p, input.reale ? "reale" : "paper", async () => {
+    // Nessun invio senza registro disponibile; la riconciliazione non invia ordini.
+    if (p === "alpaca") await riconciliaAlpacaPersistente(userId, input.reale);
+    const esito = await eseguiCicloInterno(userId, input);
+    if (p === "alpaca") {
+      try { await riconciliaAlpacaPersistente(userId, input.reale); }
+      catch { esito.messaggio += " Riconciliazione incompleta: rendimento non definitivo."; }
+    }
+    return esito;
+  });
+  return result ?? { ok: false, messaggio: "Un altro ciclo o una riconciliazione è già in corso.", mercatoAperto: false, decisioni: [], eseguiti: 0 };
+}
+
+async function eseguiCicloInterno(
+  userId: string,
   input: {
     reale: boolean;
     strategia: StrategyId;
@@ -218,6 +237,9 @@ export async function eseguiCiclo(
 
   const headers = cred.headers;
   const url = base(reale);
+  const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+  const { data: fondi, error: erroreFondi } = await supabaseAdmin.from("automazioni_conti").select("liquidita_limite, acquisto_limite, limiti_conto_id").eq("user_id", userId).eq("piattaforma", "alpaca").eq("ambiente", reale ? "reale" : "paper").maybeSingle();
+  if (erroreFondi) throw new Error("Limiti utilizzabili non verificabili: ciclo non eseguito.");
 
   // L'IA sceglie da sola su cosa investire analizzando il mercato.
   const { selezionaUniverso } = await import("./selezione.server");
@@ -241,7 +263,9 @@ export async function eseguiCiclo(
         && [a["cash"], a["equity"], a["buying_power"]].every((v) => Number.isFinite(Number(v)))
         && a["trading_blocked"] !== true && a["account_blocked"] !== true;
       if (a["id"]) contoId = `alpaca:${String(a["id"])}`;
-      liquidita = Math.max(0, Math.min(num(a["cash"]), num(a["buying_power"])));
+      const { fondiUtilizzabili } = await import("./fondi");
+      liquidita = fondiUtilizzabili(num(a["cash"]), num(a["buying_power"]), fondi?.liquidita_limite == null ? null : Number(fondi.liquidita_limite), fondi?.acquisto_limite == null ? null : Number(fondi.acquisto_limite));
+      if (fondi?.limiti_conto_id && fondi.limiti_conto_id !== contoId) { contoOk = false; liquidita = 0; }
       if (input.modalita === "conto") capitale = num(a["portfolio_value"] ?? a["equity"]);
       // Perdita della giornata: valore a chiusura di ieri meno valore attuale.
       if (a["last_equity"] != null && a["equity"] != null && Number.isFinite(Number(a["last_equity"])) && Number.isFinite(Number(a["equity"]))) {
@@ -372,6 +396,10 @@ export async function eseguiCiclo(
         }
       }
       if (scelta.azione === "compra") {
+        const { data: attuali, error: errore } = await supabaseAdmin.from("automazioni_conti").select("liquidita_limite, acquisto_limite, limiti_conto_id").eq("user_id", userId).eq("piattaforma", "alpaca").eq("ambiente", reale ? "reale" : "paper").maybeSingle();
+        if (errore || (attuali?.limiti_conto_id && attuali.limiti_conto_id !== contoId)) throw new Error("Limiti del conto non verificabili: nessun nuovo acquisto.");
+        // Il residuo del ciclo scende soltanto; le riduzioni salvate durante l'analisi valgono subito.
+        residuo = Math.min(residuo, attuali?.liquidita_limite == null ? Infinity : Number(attuali.liquidita_limite), attuali?.acquisto_limite == null ? Infinity : Number(attuali.acquisto_limite));
         // Arrotonda per difetto: l'arrotondamento al centesimo non supera la liquidità residua.
         scelta.importo = Math.floor(Math.min(scelta.importo, residuo) * 100) / 100;
         if (scelta.importo < 1) {
@@ -387,6 +415,15 @@ export async function eseguiCiclo(
         eseguito: false,
       };
 
+      const { registraIntento, aggiornaRicevuta } = await import("./riconciliazione.server");
+      const invio = scelta.azione !== "attendi" && contoId
+        ? await registraIntento({ userId, piattaforma: "alpaca", ambiente: reale ? "reale" : "paper", contoId, ticker, lato: scelta.azione === "vendi" ? "sell" : "buy", strategia: input.strategia, importo: decisione.importo }) : null;
+      if (scelta.azione !== "attendi" && !invio) {
+        decisione.azione = "attendi";
+        decisione.motivo = "Identità o registro non disponibili: nessun ordine inviato.";
+        decisioni.push(decisione);
+        continue;
+      }
       if (scelta.azione === "vendi" && posizioni.has(ticker)) {
         // Chiusura integrale della posizione: funziona anche su titoli non frazionabili.
         const sym = isCripto(ticker) ? paioCripto(ticker) : ticker;
@@ -394,8 +431,12 @@ export async function eseguiCiclo(
           `${url}/v2/positions/${encodeURIComponent(sym)}?percentage=100`,
           { method: "DELETE", headers },
         );
-        if (res.ok) decisione.eseguito = true;
+        if (res.ok) {
+          decisione.eseguito = true;
+          if (invio) await aggiornaRicevuta(invio.id, await res.json(), "accettato");
+        }
         else {
+          if (invio) await aggiornaRicevuta(invio.id, null, "esito_incerto");
           const testo = await res.text();
           decisione.errore = testo.slice(0, 180);
           logServer("trading.chiusura", new Error(testo), { ticker, reale });
@@ -412,11 +453,15 @@ export async function eseguiCiclo(
             type: "market",
             time_in_force: cripto ? "gtc" : "day",
             notional: decisione.importo,
-            client_order_id: `althea-${crypto.randomUUID()}`,
+            client_order_id: invio?.clientId,
           }),
         });
-        if (res.ok) decisione.eseguito = true;
+        if (res.ok) {
+          decisione.eseguito = true;
+          if (invio) await aggiornaRicevuta(invio.id, await res.json(), "accettato");
+        }
         else {
+          if (invio) await aggiornaRicevuta(invio.id, null, "esito_incerto");
           const testo = await res.text();
           decisione.errore = testo.slice(0, 180);
           logServer("trading.ordine", new Error(testo), { ticker, reale });
