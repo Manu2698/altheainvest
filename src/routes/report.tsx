@@ -5,6 +5,8 @@ import { StatisticheStrategie, useStatistiche } from "@/components/StatisticheSt
 import { PannelloSegnali } from "@/components/PannelloSegnali";
 import { getStrategia, STRATEGIE } from "@/lib/strategies";
 import { cn } from "@/lib/utils";
+import { Button } from "@/components/ui/button";
+import { ValutazioneStrategie } from "@/components/ValutazioneStrategie";
 
 export const Route = createFileRoute("/report")({
   head: () => ({
@@ -13,12 +15,12 @@ export const Route = createFileRoute("/report")({
       {
         name: "description",
         content:
-          "Riepilogo di ordini, segnali e capitali investiti per strategia, con esportazione in PDF.",
+          "Ordini riconciliati, rendimento corretto per i flussi, rischio e valutazione graduale delle strategie Althea.",
       },
       { property: "og:title", content: "Report settimanale — Althea" },
       {
         property: "og:description",
-        content: "Ordini, segnali e capitali per strategia conservativa, media e aggressiva.",
+        content: "Metriche verificabili, campioni e confronti graduali delle strategie senza modificare il trading.",
       },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary" },
@@ -51,7 +53,9 @@ function PaginaReport() {
         <div className="flex items-center gap-2 print:hidden">
           <div className="flex items-center gap-1 rounded-full border border-border bg-surface p-1">
             {[{ v: false, l: "Paper" }, { v: true, l: "Reale" }].map((m) => (
-              <button
+              <Button
+                size="sm"
+                variant="ghost"
                 key={m.l}
                 onClick={() => setReale(m.v)}
                 className={cn(
@@ -60,19 +64,20 @@ function PaginaReport() {
                 )}
               >
                 {m.l}
-              </button>
+              </Button>
             ))}
           </div>
-          <button
+          <Button
             onClick={() => window.print()}
             className="inline-flex items-center gap-1.5 rounded-lg bg-primary px-3 py-2 text-xs font-semibold text-primary-foreground"
           >
             <FileDown className="size-3.5" /> Esporta PDF
-          </button>
+          </Button>
         </div>
       </div>
 
-      <div className="mt-6 grid gap-4">
+      <div className="mt-6 grid gap-4 [&>*]:min-w-0">
+        <ValutazioneStrategie reale={reale} />
         <StatisticheStrategie reale={reale} />
 
         <div className="panel p-6">
