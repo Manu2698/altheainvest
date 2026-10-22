@@ -1,7 +1,8 @@
 # Audit PAPER prioritario
-- [ ] Verificare moltiplicatori e isolare apprendimento al conto attribuito.
-- [ ] Riconciliare conteggi; impedire aggregazione di ordini non determinati nel conto attuale.
-- [ ] Verificare liquidità, ordini aperti e limite giornaliero senza cambiare soglie salvate.
-- [ ] Bloccare dati di mercato anomali/non confrontabili e verificare negoziabilità.
-- [ ] Rendere non definitive metriche con flussi incompleti; riconciliare componenti PAPER.
-- [ ] Eseguire test offline e produrre audit con limiti e nessun ordine/deploy.
+- [x] Verificare moltiplicatori; isolare apprendimento e statistiche al conto attribuito.
+- [x] Separare 35 ordini attivi e 3 non determinati; deduplicare ID nel report.
+- [x] Verificare liquidità e limite giornaliero; conservare 50 USD su conferma utente.
+- [x] Aggiungere controlli prezzi approvati, split e paginazione; verificare negoziabilità.
+- [x] Sopprimere rendimento con flussi non allineati; identificare differenza contabile ancora non definitiva.
+- [x] Test offline e audit, nessun ordine/deploy.
+- [ ] Riconciliazione definitiva al centesimo: richiede un'esportazione PAPER immutabile di ordini, esecuzioni, attività, equity e posizioni alla stessa data/ora; le letture live cambiano durante l'automazione già attiva.
