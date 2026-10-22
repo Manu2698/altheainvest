@@ -1,4 +1,5 @@
 # Audit PAPER prioritario
+- [ ] Audit del 22 ottobre: verificare implementazioni esistenti, stato persistito e difetti; proporre interventi minimi ordinati con file e test, senza ordini/deploy/cambio soglie.
 - [x] Valutazione graduale: metriche delle vendite verificate per conto/titolo/strategia; confronto offline separato dei primi fattori trend e momentum, senza attivazione operativa.
 - [x] Dichiarare costi e classificazioni mancanti; test delle metriche e della selezione sperimentale; verifica autenticata della pagina Report senza ordini.
 - [ ] Confronti empirici dei fattori: mancano osservazioni pre-ingresso persistite, costi allocati e curve del candidato; nessuna efficacia dichiarata né fattore attivato.
