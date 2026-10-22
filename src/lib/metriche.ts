@@ -155,18 +155,16 @@ export function calcolaMetriche(input: {
   const finale = storico.at(-1)!.valore;
   const rendimentoPct = r2((indice - 1) * 100);
 
-  // Un versamento/prelievo che non compare nella variazione del valore del conto (data diversa o
-  // già incluso nel primo valore) rende profitto e rendimento non riconciliabili: niente risultato definitivo.
+  // Un flusso senza osservazione di equity alla stessa data non può essere applicato
+  // alla formula giornaliera: non deduciamo la presenza del flusso dalla variazione di mercato.
   const valoreDi = new Map(storico.map((p, i) => [p.giorno, i]));
-  const nonRiflessi = [...netto.entries()].filter(([g, f]) => {
+  const nonRiflessi = [...netto.entries()].filter(([g]) => {
     const i = valoreDi.get(g);
-    if (i == null || i === 0) return true;
-    const delta = storico[i]!.valore - storico[i - 1]!.valore;
-    return Math.abs(delta - f) > Math.abs(f) * 0.5;
+    return i == null || i === 0;
   });
   const nonDefinitivo = input.flussiCompleti === false || nonRiflessi.length > 0;
   if (nonRiflessi.length)
-    avvisi.unshift(`Versamenti/prelievi del ${nonRiflessi.map(([g]) => g).join(", ")} non riflessi nel valore del conto: rendimento e profitto non riconciliabili, non mostrati.`);
+    avvisi.unshift(`Flussi del ${nonRiflessi.map(([g]) => g).join(", ")} senza equity alla stessa data: dati insufficienti per riconciliare rendimento e profitto.`);
   else if (input.flussiCompleti === false) avvisi.unshift("Rendimento e profitto non mostrati finché l'elenco dei flussi non è completo.");
 
   const b = [...input.benchmark].sort((x, y) => x.giorno.localeCompare(y.giorno));
@@ -188,7 +186,7 @@ export function calcolaMetriche(input: {
     pnlNetto: nonDefinitivo ? null : r2(finale - iniziale - versamenti + prelievi),
     rendimentoPct: nonDefinitivo ? null : rendimentoPct,
     drawdownMassimoPct: nonDefinitivo ? null : r2(dd * 100),
-    volatilitaAnnuaPct: volatilita,
+    volatilitaAnnuaPct: nonDefinitivo ? null : volatilita,
     benchmarkPct,
     differenzaBenchmarkPct: benchmarkPct == null || nonDefinitivo ? null : r2(rendimentoPct - benchmarkPct),
   };

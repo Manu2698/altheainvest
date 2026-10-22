@@ -96,12 +96,16 @@ export async function costruisciVista(
   for (const p of pannelli) if (p.stato === "errore") avvisi.push(`${p.nome} ${p.ambiente.toUpperCase()}: dati del conto non disponibili (${p.messaggio ?? "errore"}).`);
 
   const tutte = (righe ?? []).filter((r) => ok(r.ambiente));
+  const contiAttivi = confronto.attivi.filter((c) => c.contoId != null);
+  const correnti = tutte.filter((r) => contiAttivi.some((c) => c.contoId === r.conto_id && c.piattaforma === r.piattaforma && c.ambiente === r.ambiente));
+  avvisi.push("Vincite, perdite e P&L per ordine sono stime precedenti all'esecuzione, non risultati netti riconciliati. Ordini non determinati esclusi dalle strategie correnti.");
   if (tutte.length === 2000) avvisi.push("Storico ordini troncato agli ultimi 2.000.");
 
   const autom: VistaCondivisa["automazioni"] = [];
   for (const a of (automazioni ?? []).filter((x) => ok(x.ambiente))) {
     const esito = (a.ultimo_esito ?? null) as Record<string, unknown> | null;
-    const lez = await leggiLezioni(userId, a.piattaforma, a.ambiente === "reale" ? "reale" : "paper", a.strategia);
+    const conto = contiAttivi.find((c) => c.piattaforma === a.piattaforma && c.ambiente === a.ambiente);
+    const lez = await leggiLezioni(userId, a.piattaforma, a.ambiente === "reale" ? "reale" : "paper", a.strategia, conto?.contoId);
     const dec = Array.isArray(esito?.["decisioni"]) ? (esito!["decisioni"] as Record<string, unknown>[]) : [];
     autom.push({
       piattaforma: a.piattaforma,
@@ -140,7 +144,7 @@ export async function costruisciVista(
   for (const a of ["paper", "reale"] as const) {
     strategie[a] = ok(a)
       ? calcolaStatistiche(
-          tutte.filter((r) => r.ambiente === a).map((r) => ({ ...r, importo: Number(r.importo), pnl_pct: r.pnl_pct == null ? null : Number(r.pnl_pct) })),
+          correnti.filter((r) => r.ambiente === a).map((r) => ({ ...r, importo: Number(r.importo), pnl_pct: r.pnl_pct == null ? null : Number(r.pnl_pct) })),
         ).riepilogo.map((s) => ({ ...s, capitaleInvestito: imp(s.capitaleInvestito) }))
       : [];
   }
@@ -180,7 +184,7 @@ export async function costruisciVista(
       ambienti: o.reale ? ["paper", "reale"] : ["paper"],
       periodi: {
         confrontoConti: "Vincite, perdite, risultati realizzati e grafico settimanale: ultimi 30 giorni fino a generataIl.",
-        strategie: "Statistiche per strategia: tutto lo storico ordini_ia disponibile (massimo ultimi 2.000 ordini).",
+        strategie: "Statistiche dei soli conti attualmente collegati, massimo ultimi 2.000 ordini; esclusi storici e non determinati. Esiti per vendita stimati prima del riempimento.",
         ordiniIA: "Ultimi 300 ordini registrati dall'IA, dal più recente.",
         ordiniBroker: "Ultimi 100 ordini per conto Alpaca letti dal broker.",
         curva: "Equity giornaliera Alpaca degli ultimi 3 mesi.",
