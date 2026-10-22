@@ -3,7 +3,8 @@
 - [x] Precisazioni: fase 1 può influire sulle lezioni prima degli ordini; integrazione dopo pausa autorizzata e cicli conclusi, fase 2 separata; scarto non prova perdita.
 - [ ] Limite PAPER scelto: 50 USD nel piano, circa 100,2% dell'equity osservata; applicazione sospesa fino a conferma del rischio e verifica del conto. Nessun valore modificato.
 - [x] Audit del 22 ottobre: 102 test isolati, stato persistito e funzioni SQL verificati; difetti e piano per fasi con file/test, nessun ordine/deploy/cambio soglie.
-- [ ] Fase 1: proposta del gate e test isolati approvati; integrazione attende pausa esplicitamente autorizzata e conclusione verificata dei cicli.
+- [x] Fase 1 isolata: gate proposto non importato dall'automazione; 12 nuovi test e 9 regressioni apprendimento superati, nessun ordine né cambio operativo.
+- [ ] Integrazione fase 1: attende pausa esplicitamente autorizzata e conclusione verificata dei cicli; fase 2 non avviata.
 - [x] Valutazione graduale: metriche delle vendite verificate per conto/titolo/strategia; confronto offline separato dei primi fattori trend e momentum, senza attivazione operativa.
 - [x] Dichiarare costi e classificazioni mancanti; test delle metriche e della selezione sperimentale; verifica autenticata della pagina Report senza ordini.
 - [ ] Confronti empirici dei fattori: mancano osservazioni pre-ingresso persistite, costi allocati e curve del candidato; nessuna efficacia dichiarata né fattore attivato.
