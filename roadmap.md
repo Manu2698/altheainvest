@@ -1,4 +1,5 @@
 # Audit PAPER prioritario
+- [ ] Precisazioni pre-approvazione: sicurezza del ciclo già avviato, separazione della fase 2, scarto non interpretabile come perdita e scelta esplicita sul limite giornaliero.
 - [x] Audit del 22 ottobre: 102 test isolati, stato persistito e funzioni SQL verificati; difetti e piano per fasi con file/test, nessun ordine/deploy/cambio soglie.
 - [ ] Primo intervento proposto: gate completo delle lezioni da istantanee; attende approvazione del piano.
 - [x] Valutazione graduale: metriche delle vendite verificate per conto/titolo/strategia; confronto offline separato dei primi fattori trend e momentum, senza attivazione operativa.
