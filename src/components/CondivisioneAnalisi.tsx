@@ -23,7 +23,9 @@ export function CondivisioneAnalisi() {
   const [durata, setDurata] = useState<number>(24);
   const [opz, setOpz] = useState<OpzioniCondivisione>(OPZIONI_PREDEFINITE);
   const [creato, setCreato] = useState<string | null>(null);
+  const [creatoApi, setCreatoApi] = useState<string | null>(null);
   const [copiato, setCopiato] = useState(false);
+  const [copiatoApi, setCopiatoApi] = useState(false);
 
   const lista = useServerFn(listaLinkCondivisione);
   const crea = useServerFn(creaLinkCondivisione);
@@ -34,7 +36,11 @@ export function CondivisioneAnalisi() {
     onSuccess: (r) => {
       // Il token sta dopo "#": il browser non lo invia a nessun server né come referrer.
       setCreato(`${window.location.origin}/condivisione#t=${r.token}`);
+      // Variante per strumenti automatici (ChatGPT): il token viaggia come parametro
+      // perché quei lettori non eseguono JavaScript né vedono il frammento.
+      setCreatoApi(`${window.location.origin}/api/public/condivisione?t=${r.token}`);
       setCopiato(false);
+      setCopiatoApi(false);
       void qc.invalidateQueries({ queryKey: ["link-condivisione"] });
     },
   });
@@ -106,14 +112,25 @@ export function CondivisioneAnalisi() {
 
       {creato && (
         <div className="mt-4 rounded-lg border border-primary/40 bg-primary/8 p-3 text-xs">
-          <p className="font-semibold">Copia ora il link: per sicurezza non verrà più mostrato.</p>
-          <div className="mt-2 flex gap-2">
+          <p className="font-semibold">Copia ora i link: per sicurezza non verranno più mostrati.</p>
+          <p className="mt-1 text-muted-foreground">Per una persona (pagina leggibile):</p>
+          <div className="mt-1 flex gap-2">
             <input readOnly value={creato} className="numeric flex-1 rounded-lg border border-border bg-surface px-3 py-2 text-[11px]" onFocus={(e) => e.currentTarget.select()} />
             <button
               onClick={() => void navigator.clipboard.writeText(creato).then(() => setCopiato(true))}
               className="inline-flex items-center gap-1 rounded-lg border border-border px-3"
             >
               <Copy className="size-3.5" /> {copiato ? "Copiato" : "Copia"}
+            </button>
+          </div>
+          <p className="mt-3 text-muted-foreground">Per ChatGPT o altri strumenti automatici (dati in formato testo/JSON):</p>
+          <div className="mt-1 flex gap-2">
+            <input readOnly value={creatoApi ?? ""} className="numeric flex-1 rounded-lg border border-border bg-surface px-3 py-2 text-[11px]" onFocus={(e) => e.currentTarget.select()} />
+            <button
+              onClick={() => void navigator.clipboard.writeText(creatoApi ?? "").then(() => setCopiatoApi(true))}
+              className="inline-flex items-center gap-1 rounded-lg border border-border px-3"
+            >
+              <Copy className="size-3.5" /> {copiatoApi ? "Copiato" : "Copia"}
             </button>
           </div>
         </div>
