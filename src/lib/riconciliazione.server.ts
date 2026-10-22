@@ -1,4 +1,4 @@
-import { credenzialiUtente, storicoConto } from "./alpaca.server";
+import { credenzialiUtente } from "./alpaca.server";
 import { controllaIstantanea, type PosizioneContabile } from "./riconciliazione";
 import type { Json } from "@/integrations/supabase/types";
 
@@ -127,6 +127,8 @@ export async function riconciliaAlpacaPersistente(userId: string, reale: boolean
     const fingerprint = (rows: Record<string, unknown>[]) => [...new Map(rows.map(o => [String(o["id"]), `${o["id"]}|${o["status"]}|${o["filled_qty"]}|${o["filled_avg_price"]}`])).values()].sort().join(";");
     stabili = fingerprint(fineOrdini.filter(o => String(o["created_at"]) >= dal)) === fingerprint([...new Map(ordini.map(o => [String(o["id"]), o])).values()].sort((a,b) => String(b["created_at"]).localeCompare(String(a["created_at"]))).slice(0,500));
     dopo = await leggi("/v2/account");
+    const finaleStorico = storico.at(-1)?.valore;
+    if (finaleStorico == null || Math.round(finaleStorico * 100) !== Math.round(numero(dopo["equity"]) * 100)) completo = false;
   } catch { completo = false; }
   const posizioni: PosizioneContabile[] = pos.map(p => ({ ticker: String(p["symbol"]), quantita: numero(p["qty"]), valore: numero(p["market_value"]), costo: numero(p["cost_basis"]), pnl: numero(p["unrealized_pl"]) }));
   const flussi = attivita.filter(a => a["activity_type"] !== "FILL").map(a => ({ id: String(a["id"] ?? ""), tipo: String(a["activity_type"] ?? ""), giorno: String(a["date"] ?? a["transaction_time"] ?? "").slice(0,10), netto: Number.isFinite(numero(a["net_amount"])) ? numero(a["net_amount"]) : null }));
