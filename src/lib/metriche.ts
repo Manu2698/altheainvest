@@ -89,6 +89,7 @@ export function calcolaMetriche(input: {
   chiuse: OperazioneChiusa[];
   benchmark: PuntoPrezzo[];
   flussiCompleti?: boolean;
+  riconciliazioneCompleta?: boolean;
 }): Metriche {
   const avvisi: string[] = [];
   const storico = [...input.storico]
@@ -162,7 +163,8 @@ export function calcolaMetriche(input: {
     const i = valoreDi.get(g);
     return i == null || i === 0;
   });
-  const nonDefinitivo = input.flussiCompleti === false || nonRiflessi.length > 0;
+  const nonDefinitivo = input.riconciliazioneCompleta === false || input.flussiCompleti === false || nonRiflessi.length > 0;
+  if (input.riconciliazioneCompleta === false) avvisi.unshift("Riconciliazione persistente incompleta o non aggiornata: rendimento e profitto non definitivi non mostrati.");
   if (nonRiflessi.length)
     avvisi.unshift(`Flussi del ${nonRiflessi.map(([g]) => g).join(", ")} senza equity alla stessa data: dati insufficienti per riconciliare rendimento e profitto.`);
   else if (input.flussiCompleti === false) avvisi.unshift("Rendimento e profitto non mostrati finché l'elenco dei flussi non è completo.");
