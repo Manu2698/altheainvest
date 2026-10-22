@@ -55,6 +55,8 @@ export const getMetrichePortafoglio = createServerFn({ method: "GET" })
         .eq("ambiente", ambiente)
         .eq("piattaforma", "alpaca")
         .eq("lato", "sell")
+        // Solo ordini attribuiti con certezza a un conto: i "non determinati" restano esclusi.
+        .not("conto_id", "is", null)
         .not("pnl_pct", "is", null)
         .gte("created_at", dal)
         .limit(5000),

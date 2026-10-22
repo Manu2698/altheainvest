@@ -36,4 +36,14 @@ describe("protezioni del motore", () => {
     expect(s.has("BTCUSD")).toBe(true);
     expect(s.size).toBe(2);
   });
+  it("non tratta un ribasso estremo come occasione (EYPT −82% dalla media 10g)", () => {
+    const serie = [...Array(9).fill(2.4), 0.43];
+    expect(problemaDati(serie, "2026-10-21T04:00:00Z", ORA)).toMatch(/salto|anomalo/);
+  });
+  it("blocca serie con salto giornaliero da split non corretto", () => {
+    expect(problemaDati([10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 40, 40], "2026-10-21T04:00:00Z", ORA)).toMatch(/salto/);
+  });
+  it("consente un ribasso normale (−5%)", () => {
+    expect(problemaDati([...Array(9).fill(10), 9.5], "2026-10-21T04:00:00Z", ORA)).toBeNull();
+  });
 });

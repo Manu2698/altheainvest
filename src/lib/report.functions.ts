@@ -13,6 +13,7 @@ export const getStatisticheStrategie = createServerFn({ method: "GET" })
       .from("ordini_ia")
       .select("id, strategia, ticker, lato, importo, pnl_pct, motivo, created_at")
       .eq("ambiente", data.reale ? "reale" : "paper")
+      .not("conto_id", "is", null)
       .order("created_at", { ascending: false })
       .limit(2000);
     return calcolaStatistiche(righe ?? []);
