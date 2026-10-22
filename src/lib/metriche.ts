@@ -126,7 +126,7 @@ export function calcolaMetriche(input: {
   let picco = 1;
   let dd = 0;
   for (let i = 1; i < storico.length; i++) {
-    const r = (storico[i].valore - (netto.get(storico[i].giorno) ?? 0)) / storico[i - 1].valore - 1;
+    const r = (storico[i]!.valore - (netto.get(storico[i]!.giorno) ?? 0)) / storico[i - 1]!.valore - 1;
     rend.push(r);
     indice *= 1 + r;
     picco = Math.max(picco, indice);
@@ -139,7 +139,7 @@ export function calcolaMetriche(input: {
     volatilita = r2(Math.sqrt(v) * Math.sqrt(252) * 100);
   } else avvisi.push(`Volatilità non mostrata: servono almeno ${MIN_GIORNI_VOLATILITA} giorni di dati (presenti ${rend.length}).`);
 
-  const iniziale = storico[0].valore;
+  const iniziale = storico[0]!.valore;
   const finale = storico.at(-1)!.valore;
   const rendimentoPct = r2((indice - 1) * 100);
 
