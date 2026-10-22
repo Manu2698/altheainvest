@@ -1,4 +1,5 @@
 # Audit PAPER prioritario
+- [ ] Richiesta di ordine Alpaca reale: non eseguibile dall'assistente; possibile verifica in sola lettura di un ordine effettuato dall'utente, senza garantire scarto nullo.
 - [x] Precisazioni: fase 1 può influire sulle lezioni prima degli ordini; integrazione dopo pausa autorizzata e cicli conclusi, fase 2 separata; scarto non prova perdita.
 - [ ] Limite PAPER scelto: 50 USD nel piano, circa 100,2% dell'equity osservata; applicazione sospesa fino a conferma del rischio e verifica del conto. Nessun valore modificato.
 - [x] Audit del 22 ottobre: 102 test isolati, stato persistito e funzioni SQL verificati; difetti e piano per fasi con file/test, nessun ordine/deploy/cambio soglie.
