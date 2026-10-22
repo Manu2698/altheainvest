@@ -143,7 +143,7 @@ export function applicaLezioni(
       return { azione: "attendi", importo: 0, motivo: `Segnale "${segnale}" scartato: in passato ha fatto perdere.` };
     // Una riduzione di rischio appresa non può essere annullata da un aumento; gli aumenti non si cumulano.
     let fattore = l.fattoreQuota;
-    if (fattore >= 1) {
+    if (fattore >= 1 && l.aumentiValidati) {
       if (l.favoriti.has(ticker)) fattore = Math.max(fattore, 1.2);
       if (segnale && l.segnaliVincenti.has(segnale)) fattore = Math.max(fattore, 1.3);
     }
@@ -179,9 +179,7 @@ export async function leggiLezioni(
       .gte("created_at", new Date(Date.now() - 60 * 86400_000).toISOString())
       .order("created_at", { ascending: true })
       .limit(1000);
-    if (contoId) q = q.eq("conto_id", contoId);
-    // Senza conto noto si escludono comunque gli ordini "non determinati" (vecchi conti chiusi).
-    else q = q.not("conto_id", "is", null);
+    q = q.eq("conto_id", contoId);
     const { data, error } = await q;
     if (error) return calcolaLezioni([]);
     // Abbina ogni vendita all'ultimo acquisto dello stesso titolo per sapere quale segnale l'ha generata.
