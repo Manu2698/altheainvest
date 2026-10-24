@@ -1,4 +1,6 @@
 # Audit PAPER prioritario
+- [x] Rotazione automatica: verificato che manca; proposta minima separata con confronto netto, vendita parziale e acquisto solo dopo esecuzione riconciliata. Nessuna modifica operativa o ordine.
+- [ ] Rotazione: test isolati attendono approvazione del piano; attivazione bloccata fino a evidenza comparabile, regole confermate e verifica dei cicli conclusi.
 - [x] Rimossi dalla dashboard allocatore capitale, storico conti precedenti, condivisione, fondi e rischio; registri persistenti conservati.
 - [x] Blocco acquisti ripetuti su posizioni esistenti salvo trend medio sopra SMA20 su posizione non in perdita; storico e statistiche del solo conto attuale. 59 test isolati, nessun ordine inviato.
 - [x] Pausa PAPER salvata il 22 ottobre 20:43:50 UTC; verificata in UI e database oltre un minuto: attivo=false, ultimo_ciclo fermo 20:43:00, 46 intenti senza nuovi ordini.
