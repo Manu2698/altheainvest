@@ -10,6 +10,7 @@
 <!-- LOVABLE:END -->
 
 ## Architecture rules
+- The rotation proposal is a pure offline evaluator consuming traceable comparable forecasts and existing validation results; no runtime imports or broker calls are allowed until separately authorized integration, so synthetic tests cannot activate trades.
 - Dashboard history, execution register and strategy statistics resolve the currently connected broker identity before selecting account-scoped records; unknown identity returns no history, and previous-account records remain persisted for accounting.
 - Additional buys on an existing holding pass the pure accumulation guard after learning and again against pre-submit positions; only the existing medium SMA20 trend on a non-losing position qualifies, and sells remain unchanged.
 - The phase-one snapshot eligibility proposal is offline-only and must not be imported by runtime trading or learning until an explicitly authorized pause and verified cycle completion; isolated tests are not operational integration.
