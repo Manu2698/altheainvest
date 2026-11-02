@@ -15,6 +15,7 @@ import { RuntimeErrorBoundary } from "@/components/RuntimeErrorBoundary";
 import { BrokerConnect } from "@/components/BrokerConnect";
 import { AuthBadge } from "@/components/AuthBadge";
 import { MotoreIA } from "@/components/MotoreIA";
+import { ComitatoIA } from "@/components/ComitatoIA";
 import { PiattaformeConnect } from "@/components/PiattaformeConnect";
 import { PannelliPiattaforme } from "@/components/PannelliPiattaforme";
 import { RiepilogoConti } from "@/components/RiepilogoConti";
@@ -387,6 +388,12 @@ function Index() {
           <div className="mt-4">
             <RuntimeErrorBoundary area="metriche portafoglio">
               <MetrichePortafoglio reale={reale} />
+            </RuntimeErrorBoundary>
+          </div>
+
+          <div className="mt-4">
+            <RuntimeErrorBoundary area="comitato ia">
+              <ComitatoIA reale={reale} />
             </RuntimeErrorBoundary>
           </div>
 
