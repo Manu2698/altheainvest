@@ -71,6 +71,13 @@
       "when": 1792699798972,
       "tag": "0009_fenced_execution_recovery",
       "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1793651039097,
+      "tag": "0010_migration",
+      "breakpoints": true
     }
   ]
 }
