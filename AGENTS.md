@@ -31,3 +31,4 @@
 - Learning requires a known account identity, global validation plus subgroup validation for favored tickers/signals, and never stacks boosts or overrides risk reductions; missing identity yields no learned exposure change.
 - Stock history uses split-adjusted paginated bars; buy-side data guards and broker tradability/fractionability checks reject unreliable inputs without changing the underlying signal formulas.
 - Buy-side safety guards live in pure `src/lib/protezioni.ts` and run in `eseguiCiclo` after `decide`/`applicaLezioni`: unreadable account/positions/open orders/daily loss, stale (>4 days) or incoherent prices, or an open order on the ticker block new orders — they never change signals. The scheduled cycle runs only via `/api/public/jobs/ciclo-ia`, authenticated with `authenticateCronRequest`.
+- Subdirectories may have their own AGENTS.md; read it before changing files there.

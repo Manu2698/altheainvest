@@ -14,6 +14,63 @@ export type Database = {
   }
   public: {
     Tables: {
+      analisi_comitato: {
+        Row: {
+          agenti: Json
+          ambiente: string
+          conto_id: string | null
+          created_at: string
+          dati: Json
+          decisione: string
+          dibattito: Json
+          errore: string | null
+          esito_dibattito: string | null
+          id: string
+          motivo: string
+          proposta: string
+          strategia: string
+          ticker: string
+          user_id: string
+          veto: boolean
+        }
+        Insert: {
+          agenti?: Json
+          ambiente: string
+          conto_id?: string | null
+          created_at?: string
+          dati?: Json
+          decisione: string
+          dibattito?: Json
+          errore?: string | null
+          esito_dibattito?: string | null
+          id?: string
+          motivo: string
+          proposta: string
+          strategia: string
+          ticker: string
+          user_id: string
+          veto?: boolean
+        }
+        Update: {
+          agenti?: Json
+          ambiente?: string
+          conto_id?: string | null
+          created_at?: string
+          dati?: Json
+          decisione?: string
+          dibattito?: Json
+          errore?: string | null
+          esito_dibattito?: string | null
+          id?: string
+          motivo?: string
+          proposta?: string
+          strategia?: string
+          ticker?: string
+          user_id?: string
+          veto?: boolean
+        }
+        Relationships: []
+      }
       automazioni_conti: {
         Row: {
           acquisto_limite: number | null

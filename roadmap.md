@@ -34,3 +34,4 @@
 - [ ] Nuovi limiti per operazione/esposizione/concentrazione/settore/numero posizioni: proposte mostrate, attendono conferma dell'utente prima di attivarli.
 - [ ] Esiti legacy delle vecchie chiusure DELETE senza client ID: attendono prova broker/manuale di correlazione; restano bloccati, nessuno sblocco o reinvio dedotto.
 - [ ] Serializzazione dello stesso conto fisico collegato da utenti diversi: richiede identità condivisa verificata; il lock corrente copre cron/manuale/riconciliazione dello stesso utente e ambiente.
+- [x] Comitato multi-agente + Dual Risk Debate sugli acquisti Alpaca (PAPER e reale), tracciato in analisi_comitato

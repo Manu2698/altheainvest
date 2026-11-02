@@ -369,6 +369,8 @@ async function eseguiCicloInterno(
     const decisioni: DecisioneIA[] = [];
     const { leggiLezioni, applicaLezioni } = await import("./apprendimento");
     const lezioni = await leggiLezioni(userId, "alpaca", reale ? "reale" : "paper", input.strategia, contoId);
+    let analisiNuove = 0;
+    let comitatoStop: string | null = null;
 
     for (const ticker of universo) {
       const chiusure = storico[ticker] ?? storico[ticker.replace("/", "")] ?? [];
@@ -425,6 +427,28 @@ async function eseguiCicloInterno(
         if (scelta.importo < 1) {
           scelta.azione = "attendi";
           scelta.motivo = `Capitale impostato (${capitale} $) già interamente investito.`;
+        }
+      }
+      // Comitato multi-agente: ogni acquisto deve superare analisti, dibattito, veto del Risk Manager e Coordinatore.
+      // Le vendite (stop e uscite) restano automatiche: ridurre il rischio non dipende dalla disponibilità dell'IA.
+      if (scelta.azione === "compra") {
+        const cripto = isCripto(ticker);
+        if (comitatoStop) { scelta.azione = "attendi"; scelta.importo = 0; scelta.motivo = comitatoStop; }
+        else if (!mercatoAperto && !cripto) { scelta.azione = "attendi"; scelta.importo = 0; scelta.motivo = "Comitato: mercato chiuso, analisi rinviata all'apertura."; }
+        else {
+          const { valutaCandidato, StopComitato, MAX_ANALISI_PER_CICLO } = await import("./agenti/comitato.server");
+          try {
+            if (analisiNuove >= MAX_ANALISI_PER_CICLO) throw new Error("limite");
+            const v = await valutaCandidato({ userId, contoId, ambiente: reale ? "reale" : "paper", strategia: input.strategia, ticker, cripto, importo: scelta.importo, motivo: scelta.motivo, chiusure, posizione: posizioni.get(ticker), conto: { capitale, liquidita, investito, numeroPosizioni: posizioni.size, perditaOggi, limitePerdita: limite }, alpacaHeaders: headers });
+            if (!v.cache) analisiNuove++;
+            if (v.procedi) { scelta.importo = Math.min(scelta.importo, v.importo); scelta.motivo = `${scelta.motivo} · ${v.motivo}`; }
+            else { scelta.azione = "attendi"; scelta.importo = 0; scelta.motivo = v.motivo; }
+          } catch (e) {
+            if (e instanceof StopComitato) comitatoStop = e.message;
+            scelta.azione = "attendi"; scelta.importo = 0;
+            scelta.motivo = e instanceof Error && e.message === "limite" ? "Comitato: limite di analisi per ciclo raggiunto, titolo rinviato." : comitatoStop ?? "Comitato non disponibile: prevale HOLD.";
+            if (!(e instanceof Error && e.message === "limite")) logServer("trading.comitato", e, { ticker, reale });
+          }
         }
       }
       const decisione: DecisioneIA = {
