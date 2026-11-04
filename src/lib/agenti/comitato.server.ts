@@ -1,12 +1,10 @@
 // Comitato multi-agente operativo: 3 analisti in parallelo → Dual Risk Debate (2 turni) → Risk Manager → Coordinatore.
 // Viene chiamato da eseguiCiclo solo per i candidati all'acquisto che hanno già superato tutte le protezioni.
-import { createOpenAI } from "@ai-sdk/openai";
 import { Output, streamText } from "ai";
 import { z } from "zod";
-import { createLovableAiGatewayRunIdFetch } from "../ai/run-id.server";
+import { modelloAlthea } from "../ai/provider.server";
 import { decisioneFinale, esitoDibattito, indicatoriTecnici, type Analisi, type Coordinatore, type Rischio, type Turno } from "./comitato";
 
-const MODELLO = "openai/gpt-6-astra";
 const CACHE_ORE = 4;
 export const MAX_ANALISI_PER_CICLO = 2;
 
@@ -36,7 +34,7 @@ type Contesto = {
 async function fondamentali(ticker: string, cripto: boolean) {
   if (cripto) return { disponibile: false, motivo: "Criptovaluta: nessun bilancio aziendale." };
   const key = process.env["UDC_FINANCIAL_MODELING_PREP_API_KEY"], lov = process.env["LOVABLE_API_KEY"];
-  if (!key || !lov) return { disponibile: false, motivo: "Servizio bilanci non collegato." };
+  if (!key || !lov) return { disponibile: false, motivo: "Servizio bilanci non collegato (connettore Lovable ancora da migrare)." };
   const get = async (p: string) => {
     const r = await fetch(`https://connector-gateway.lovable.dev/udc_financial_modeling_prep${p}`, { headers: { Authorization: `Bearer ${lov}`, "X-Connection-Api-Key": key }, signal: AbortSignal.timeout(10000) });
     if (!r.ok) return null;
@@ -75,16 +73,11 @@ export async function valutaCandidato(c: Contesto): Promise<{ procedi: boolean; 
     return { procedi: prec.decisione === "BUY" && importo >= 1, importo, motivo: `Comitato (analisi recente): ${prec.motivo}`, cache: true };
   }
 
-  const apiKey = process.env["LOVABLE_API_KEY"];
-  if (!apiKey) throw new StopComitato("IA non configurata.");
-  const runId = createLovableAiGatewayRunIdFetch();
-  const provider = createOpenAI({ baseURL: "https://ai.gateway.lovable.dev/v1", apiKey, headers: { "Lovable-API-Key": apiKey, "X-Lovable-AIG-SDK": "vercel-ai-sdk" }, fetch: runId.fetch });
   const agente = async <T,>(nome: string, sistema: string, input: unknown, schema: z.ZodType<T>): Promise<T | null> => {
     try {
       const r = streamText({
-        model: provider.responses(MODELLO), instructions: `${sistema}\n${REGOLE}`, prompt: JSON.stringify(input),
+        model: modelloAlthea(), instructions: `${sistema}\n${REGOLE}`, prompt: JSON.stringify(input),
         output: Output.object({ schema }),
-        providerOptions: { openai: { forceReasoning: true, reasoningEffort: "low", store: false, include: ["reasoning.encrypted_content"] } },
       });
       return (await r.output) as T;
     } catch (e) {
