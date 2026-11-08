@@ -3,10 +3,10 @@
 import { createOpenAI } from "@ai-sdk/openai";
 import { Output, streamText } from "ai";
 import { z } from "zod";
-import { createLovableAiGatewayRunIdFetch } from "../ai/run-id.server";
 import { decisioneFinale, esitoDibattito, indicatoriTecnici, type Analisi, type Coordinatore, type Rischio, type Turno } from "./comitato";
 
-const MODELLO = "openai/gpt-6-astra";
+const MODELLO = "openai/gpt-oss-20b";
+const GATEWAY = "https://api.groq.com/openai/v1";
 const CACHE_ORE = 4;
 export const MAX_ANALISI_PER_CICLO = 2;
 
