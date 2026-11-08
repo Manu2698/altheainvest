@@ -5,4 +5,10 @@
   "compatibility_date": "2026-11-08",
   "compatibility_flags": ["nodejs_compat"],
   "observability": { "enabled": true, "traces": { "enabled": true, "head_sampling_rate": 0.01 } },
+  "previews": {
+    "vars": {
+      "SUPABASE_URL": "https://rmnmsvuahzlvljybafrb.supabase.co",
+      "SUPABASE_PUBLISHABLE_KEY": "sb_publishable_8wry_JcvZGU3dekP7TW7xQ_8rDKGzAj"
+    }
+  }
 }
