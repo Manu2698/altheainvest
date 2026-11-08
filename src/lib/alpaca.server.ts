@@ -6,18 +6,35 @@ import type {
 } from "./alpaca.types";
 
 export function logServer(origine: string, error: unknown, contesto?: Record<string, unknown>) {
-  const err = error instanceof Error ? error : new Error(String(error));
-  console.error(
-    JSON.stringify({
-      at: new Date().toISOString(),
-      livello: "error",
-      origine,
-      tipo: err.name,
-      messaggio: err.message,
-      contesto,
-    }),
-  );
-  if (err.stack) console.error(err.stack);
+  let dettagli: unknown = undefined;
+  let messaggio = "Errore sconosciuto";
+  let tipo = "Error";
+  let stack: string | undefined;
+  if (error instanceof Error) {
+    messaggio = error.message;
+    tipo = error.name;
+    stack = error.stack;
+  } else if (error && typeof error === "object") {
+    dettagli = error;
+    try {
+      messaggio = JSON.stringify(error);
+    } catch {
+      messaggio = String(error);
+    }
+    tipo = String((error as Record<string, unknown>).name ?? "DatabaseError");
+  } else {
+    messaggio = String(error);
+  }
+  console.error(JSON.stringify({
+    at: new Date().toISOString(),
+    livello: "error",
+    origine,
+    tipo,
+    messaggio,
+    dettagli,
+    contesto,
+  }));
+  if (stack) console.error(stack);
 }
 
 const num = (v: unknown) => {
