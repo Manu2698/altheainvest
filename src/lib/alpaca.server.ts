@@ -31,13 +31,23 @@ export function logServer(origine: string, error: unknown, contesto?: Record<str
     );
     if (Object.keys(extra).length) dettagli = extra;
   } else if (error && typeof error === "object") {
-    dettagli = error;
-    try {
-      messaggio = JSON.stringify(error);
-    } catch {
-      messaggio = String(error);
-    }
-    tipo = String((error as Record<string, unknown>).name ?? "DatabaseError");
+    // Some runtime/PostgREST failures are plain objects with non-enumerable
+    // diagnostic properties. Log only a strict allowlist; never serialize the
+    // whole object because it may contain request headers or credentials.
+    const e = error as Record<string, unknown>;
+    const safeKeys = ["name", "message", "code", "details", "hint", "status", "statusCode", "statusText"];
+    const extra = Object.fromEntries(
+      safeKeys
+        .filter((key) => e[key] !== undefined && e[key] !== null)
+        .map((key) => [key, e[key]]),
+    );
+    dettagli = {
+      ...extra,
+      ownPropertyNames: Object.getOwnPropertyNames(error).filter((key) => safeKeys.includes(key)),
+      constructor: (error as { constructor?: { name?: string } }).constructor?.name,
+    };
+    messaggio = String(e.message ?? "");
+    tipo = String(e.name ?? "DatabaseError");
   } else {
     messaggio = String(error);
   }
