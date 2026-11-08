@@ -2,14 +2,8 @@ import { createOpenAI } from "@ai-sdk/openai";
 import { createClient } from "@supabase/supabase-js";
 import { convertToModelMessages, streamText, type UIMessage } from "ai";
 import type { Database } from "@/integrations/supabase/types";
-import {
-  createLovableAiGatewayRunIdFetch,
-  getLovableAiGatewayRunId,
-  withLovableAiGatewayRunIdHeader,
-} from "./run-id.server";
-
-const MODELLO = "openai/gpt-6-astra";
-const GATEWAY = "https://ai.gateway.lovable.dev/v1";
+const MODELLO = "openai/gpt-oss-20b";
+const GATEWAY = "https://api.groq.com/openai/v1";
 
 const json = (status: number, messaggio: string) =>
   Response.json({ error: messaggio }, { status });
@@ -146,32 +140,17 @@ export async function gestisciChat(request: Request): Promise<Response> {
     }
   }
 
-  const apiKey = process.env["LOVABLE_API_KEY"];
-  if (!apiKey) return json(500, "Assistente non configurato.");
+  const apiKey = process.env["GROQ_API_KEY"];
+  if (!apiKey) return json(503, "Assistente non configurato: manca GROQ_API_KEY.");
 
   const dati = await contesto(db, userId);
-  const runIdFetch = createLovableAiGatewayRunIdFetch(getLovableAiGatewayRunId(request));
-  const provider = createOpenAI({
-    baseURL: GATEWAY,
-    apiKey,
-    headers: { "Lovable-API-Key": apiKey, "X-Lovable-AIG-SDK": "vercel-ai-sdk" },
-    fetch: runIdFetch.fetch,
-  });
+  const provider = createOpenAI({ baseURL: GATEWAY, apiKey });
 
   const result = streamText({
-    model: provider.responses(MODELLO),
+    model: provider.chat(MODELLO),
     instructions: `${ISTRUZIONI}\n\nDATI ATTUALI DELL'UTENTE (JSON):\n${dati}`,
     messages: await convertToModelMessages(messages),
     abortSignal: request.signal,
-    providerOptions: {
-      openai: {
-        forceReasoning: true,
-        reasoningEffort: "low",
-        reasoningSummary: "auto",
-        store: false,
-        include: ["reasoning.encrypted_content"],
-      },
-    },
   });
 
   const risposta = result.toUIMessageStreamResponse({
@@ -200,5 +179,5 @@ export async function gestisciChat(request: Request): Promise<Response> {
       return "L'assistente non è disponibile in questo momento.";
     },
   });
-  return withLovableAiGatewayRunIdHeader(risposta, runIdFetch);
+  return risposta;
 }
