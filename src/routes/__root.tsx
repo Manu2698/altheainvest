@@ -77,14 +77,14 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
     meta: [
       { charSet: "utf-8" },
       { name: "viewport", content: "width=device-width, initial-scale=1" },
-      { title: "Aletheia — IA di investimento automatico" },
+      { title: "Althea — IA di investimento automatico" },
       { name: "description", content: "IA che investe in automatico in paper trading e su conti reali." },
-      { name: "author", content: "Aletheia" },
-      { property: "og:title", content: "Aletheia" },
+      { name: "author", content: "Althea" },
+      { property: "og:title", content: "Althea" },
       { property: "og:description", content: "IA che investe in automatico in paper trading e su conti reali." },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary_large_image" },
-      { name: "twitter:site", content: "@Lovable" },
+      { name: "twitter:site", content: "@Althea" },
     ],
     links: [
       { rel: "preconnect", href: "https://fonts.googleapis.com" },
