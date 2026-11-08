@@ -10,7 +10,7 @@ function isNewSupabaseApiKey(value: string): boolean {
 }
 
 function createSupabaseFetch(supabaseKey: string): typeof fetch {
-  return (input, init) => {
+  return async (input, init) => {
     const headers = new Headers(
       typeof Request !== 'undefined' && input instanceof Request ? input.headers : undefined,
     );
@@ -25,7 +25,48 @@ function createSupabaseFetch(supabaseKey: string): typeof fetch {
     }
 
     headers.set('apikey', supabaseKey);
-    return fetch(input, { ...init, headers });
+
+    const url = input instanceof Request ? input.url : String(input);
+    const method = init?.method ?? (input instanceof Request ? input.method : 'GET');
+    let path = 'unknown';
+    try {
+      path = new URL(url).pathname;
+    } catch {
+      // Never log query strings, headers, or request bodies.
+    }
+
+    try {
+      const response = await fetch(input, { ...init, headers });
+      if (!response.ok) {
+        let diagnostic: unknown = undefined;
+        try {
+          const body = await response.clone().json() as Record<string, unknown>;
+          diagnostic = Object.fromEntries(
+            ['code', 'message', 'details', 'hint'].filter((key) => {
+              const value = body[key];
+              return typeof value === 'string' || typeof value === 'number';
+            }).map((key) => [key, body[key]]),
+          );
+        } catch {
+          diagnostic = 'non-json error response';
+        }
+        console.error('[Supabase admin fetch] HTTP response', JSON.stringify({
+          method, path, status: response.status, statusText: response.statusText, diagnostic,
+        }));
+      }
+      return response;
+    } catch (error) {
+      const e = error && typeof error === 'object' ? error as Record<string, unknown> : {};
+      const cause = e.cause && typeof e.cause === 'object' ? e.cause as Record<string, unknown> : {};
+      console.error('[Supabase admin fetch] network failure', JSON.stringify({
+        method, path,
+        name: typeof e.name === 'string' ? e.name : typeof (error as Error)?.constructor?.name === 'string' ? (error as Error).constructor.name : 'unknown',
+        message: typeof e.message === 'string' ? e.message : String(error),
+        causeName: typeof cause.name === 'string' ? cause.name : undefined,
+        causeMessage: typeof cause.message === 'string' ? cause.message : undefined,
+      }));
+      throw error;
+    }
   };
 }
 
