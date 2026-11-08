@@ -2,7 +2,6 @@ import { createFileRoute, useNavigate, Link } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { BrainCircuit, Loader2, LogIn, Mail, UserPlus } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
-import { lovable } from "@/integrations/lovable";
 import { useSessione } from "@/hooks/useSessione";
 import { cn } from "@/lib/utils";
 
@@ -81,11 +80,12 @@ function PaginaAuth() {
 
   async function google() {
     setMessaggio(null);
-    const res = await lovable.auth.signInWithOAuth("google", {
-      redirect_uri: window.location.origin,
+    const { error } = await supabase.auth.signInWithOAuth({
+      provider: "google",
+      options: { redirectTo: window.location.origin },
     });
-    if (res?.error) {
-      setMessaggio({ tipo: "ko", testo: res.error.message });
+    if (error) {
+      setMessaggio({ tipo: "ko", testo: error.message });
     }
   }
 
