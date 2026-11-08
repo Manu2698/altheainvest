@@ -35,10 +35,11 @@ type Contesto = {
 
 async function fondamentali(ticker: string, cripto: boolean) {
   if (cripto) return { disponibile: false, motivo: "Criptovaluta: nessun bilancio aziendale." };
-  const key = process.env["UDC_FINANCIAL_MODELING_PREP_API_KEY"], lov = process.env["LOVABLE_API_KEY"];
-  if (!key || !lov) return { disponibile: false, motivo: "Servizio bilanci non collegato." };
+  const key = process.env["FMP_API_KEY"];
+  if (!key) return { disponibile: false, motivo: "Servizio bilanci non collegato." };
   const get = async (p: string) => {
-    const r = await fetch(`https://connector-gateway.lovable.dev/udc_financial_modeling_prep${p}`, { headers: { Authorization: `Bearer ${lov}`, "X-Connection-Api-Key": key }, signal: AbortSignal.timeout(10000) });
+    const separator = p.includes("?") ? "&" : "?";
+    const r = await fetch(`https://financialmodelingprep.com${p}${separator}apikey=${encodeURIComponent(key)}`, { signal: AbortSignal.timeout(10000) });
     if (!r.ok) return null;
     const j = await r.json().catch(() => null);
     return Array.isArray(j) ? j : null;
@@ -75,16 +76,14 @@ export async function valutaCandidato(c: Contesto): Promise<{ procedi: boolean; 
     return { procedi: prec.decisione === "BUY" && importo >= 1, importo, motivo: `Comitato (analisi recente): ${prec.motivo}`, cache: true };
   }
 
-  const apiKey = process.env["LOVABLE_API_KEY"];
-  if (!apiKey) throw new StopComitato("IA non configurata.");
-  const runId = createLovableAiGatewayRunIdFetch();
-  const provider = createOpenAI({ baseURL: "https://ai.gateway.lovable.dev/v1", apiKey, headers: { "Lovable-API-Key": apiKey, "X-Lovable-AIG-SDK": "vercel-ai-sdk" }, fetch: runId.fetch });
+  const apiKey = process.env["GROQ_API_KEY"];
+  if (!apiKey) throw new StopComitato("IA non configurata: manca GROQ_API_KEY.");
+  const provider = createOpenAI({ baseURL: GATEWAY, apiKey });
   const agente = async <T,>(nome: string, sistema: string, input: unknown, schema: z.ZodType<T>): Promise<T | null> => {
     try {
       const r = streamText({
-        model: provider.responses(MODELLO), instructions: `${sistema}\n${REGOLE}`, prompt: JSON.stringify(input),
+        model: provider.chat(MODELLO), instructions: `${sistema}\n${REGOLE}`, prompt: JSON.stringify(input),
         output: Output.object({ schema }),
-        providerOptions: { openai: { forceReasoning: true, reasoningEffort: "low", store: false, include: ["reasoning.encrypted_content"] } },
       });
       return (await r.output) as T;
     } catch (e) {
