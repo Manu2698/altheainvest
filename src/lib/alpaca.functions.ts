@@ -131,6 +131,7 @@ export const eseguiCicloIA = createServerFn({ method: "POST" })
     },
   )
   .handler(async ({ data, context }): Promise<EsitoCiclo> => {
+    if (data.reale) throw new Error("Modalità reale temporaneamente disabilitata: Althea opera solo in PAPER durante i test.");
     const { eseguiCiclo } = await import("./trading.server");
     const { data: auto, error: autoError } = await context.supabase
       .from("automazioni_conti")
