@@ -41,10 +41,31 @@ export function logServer(origine: string, error: unknown, contesto?: Record<str
         .filter((key) => e[key] !== undefined && e[key] !== null)
         .map((key) => [key, e[key]]),
     );
+    const protoNames: string[] = [];
+    let proto = Object.getPrototypeOf(error);
+    for (let i = 0; proto && i < 4; i += 1) {
+      protoNames.push((proto as { constructor?: { name?: string } }).constructor?.name ?? "unknown");
+      proto = Object.getPrototypeOf(proto);
+    }
+    const descriptors = Object.getOwnPropertyDescriptors(error);
+    const descriptorSummary = Object.fromEntries(
+      ["name", "message", "code", "details", "hint", "status", "statusCode", "statusText", "stack"]
+        .filter((key) => descriptors[key] !== undefined)
+        .map((key) => {
+          const d = descriptors[key];
+          const value = "value" in d ? d.value : undefined;
+          return [key, value == null || ["string", "number", "boolean"].includes(typeof value)
+            ? value
+            : { type: typeof value, constructor: (value as { constructor?: { name?: string } })?.constructor?.name }];
+        }),
+    );
     dettagli = {
       ...extra,
-      ownPropertyNames: Object.getOwnPropertyNames(error).filter((key) => safeKeys.includes(key)),
+      ownPropertyNames: Object.getOwnPropertyNames(error),
       constructor: (error as { constructor?: { name?: string } }).constructor?.name,
+      prototypeChain: protoNames,
+      descriptors: descriptorSummary,
+      stringified: String(error),
     };
     messaggio = String(e.message ?? "");
     tipo = String(e.name ?? "DatabaseError");
