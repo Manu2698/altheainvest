@@ -8,20 +8,43 @@ export function useSessione() {
 
   useEffect(() => {
     let attivo = true;
-    void supabase.auth.getSession().then(({ data }) => {
+    let eventoAuthRicevuto = false;
+
+    // Subscribe first: an OAuth callback can publish a fresh session while
+    // getSession() is still resolving. Never let that older read overwrite it.
+    const { data: sub } = supabase.auth.onAuthStateChange((_evento, session) => {
       if (!attivo) return;
-      setSessione(data.session);
+      eventoAuthRicevuto = true;
+      setSessione(session);
       setCaricata(true);
     });
-    const { data: sub } = supabase.auth.onAuthStateChange((_e, s) => {
-      setSessione(s);
-      setCaricata(true);
-    });
+
+    void supabase.auth.getSession()
+      .then(({ data, error }) => {
+        if (!attivo || eventoAuthRicevuto) return;
+        if (error) {
+          console.error("[Althea auth] Impossibile leggere la sessione:", error);
+        }
+        setSessione(data.session);
+        setCaricata(true);
+      })
+      .catch((error: unknown) => {
+        if (!attivo || eventoAuthRicevuto) return;
+        console.error("[Althea auth] Errore durante il caricamento della sessione:", error);
+        setSessione(null);
+        setCaricata(true);
+      });
+
     return () => {
       attivo = false;
       sub.subscription.unsubscribe();
     };
   }, []);
 
-  return { sessione, utente: sessione?.user ?? null, autenticato: Boolean(sessione), caricata };
+  return {
+    sessione,
+    utente: sessione?.user ?? null,
+    autenticato: Boolean(sessione),
+    caricata,
+  };
 }
