@@ -14,6 +14,22 @@ export function logServer(origine: string, error: unknown, contesto?: Record<str
     messaggio = error.message;
     tipo = error.name;
     stack = error.stack;
+    // Supabase/PostgREST errors extend Error but carry the useful database
+    // diagnostics in additional own properties. Preserve only safe diagnostics,
+    // never request headers, credentials, or arbitrary object contents.
+    const e = error as Error & {
+      code?: unknown;
+      details?: unknown;
+      hint?: unknown;
+      status?: unknown;
+      statusCode?: unknown;
+    };
+    const extra = Object.fromEntries(
+      (["code", "details", "hint", "status", "statusCode"] as const)
+        .filter((key) => e[key] !== undefined && e[key] !== null)
+        .map((key) => [key, e[key]]),
+    );
+    if (Object.keys(extra).length) dettagli = extra;
   } else if (error && typeof error === "object") {
     dettagli = error;
     try {
