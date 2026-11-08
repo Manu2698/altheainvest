@@ -199,6 +199,10 @@ export async function eseguiCiclo(
   userId: string,
   input: Parameters<typeof eseguiCicloInterno>[1],
 ): Promise<EsitoCiclo> {
+  // Blocco centrale di sicurezza: nessun percorso (UI o scheduler) può inviare ordini reali durante la migrazione.
+  if (input.reale) {
+    return { ok: false, messaggio: "Modalità reale temporaneamente disabilitata: Althea opera solo in PAPER durante i test.", mercatoAperto: false, decisioni: [], eseguiti: 0 };
+  }
   const { conLeaseConto, riconciliaAlpacaPersistente } = await import("./riconciliazione.server");
   const p = input.piattaforma || "alpaca";
   const result = await conLeaseConto(userId, p, input.reale ? "reale" : "paper", async (lease) => {
