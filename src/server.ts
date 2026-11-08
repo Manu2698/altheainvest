@@ -58,4 +58,31 @@ export default {
       });
     }
   },
+
+  // Scheduler Cloudflare: esegue esclusivamente il job protetto dal segreto cron.
+  async scheduled(
+    controller: { cron: string; scheduledTime: number },
+    env: { ALTHEA_CRON_SECRET?: string },
+    ctx: unknown,
+  ) {
+    if (!env.ALTHEA_CRON_SECRET) {
+      throw new Error("ALTHEA_CRON_SECRET non configurato: ciclo automatico non avviato.");
+    }
+    const handler = await getServerEntry();
+    const request = new Request("https://althea.internal/api/public/jobs/ciclo-ia", {
+      method: "POST",
+      headers: { authorization: `Bearer ${env.ALTHEA_CRON_SECRET}` },
+    });
+    const response = await handler.fetch(request, env, ctx);
+    if (!response.ok) {
+      throw new Error(`Scheduler Althea fallito: HTTP ${response.status}`);
+    }
+    const result = await response.text();
+    console.log(JSON.stringify({
+      event: "althea_scheduled_cycle",
+      cron: controller.cron,
+      scheduledTime: controller.scheduledTime,
+      result,
+    }));
+  },
 };
