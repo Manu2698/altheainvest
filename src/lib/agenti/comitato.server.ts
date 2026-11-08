@@ -1,7 +1,7 @@
 // Comitato multi-agente operativo: 3 analisti in parallelo → Dual Risk Debate (2 turni) → Risk Manager → Coordinatore.
 // Viene chiamato da eseguiCiclo solo per i candidati all'acquisto che hanno già superato tutte le protezioni.
 import { createOpenAI } from "@ai-sdk/openai";
-import { Output, streamText } from "ai";
+import { generateText, Output } from "ai";
 import { z } from "zod";
 import { decisioneFinale, esitoDibattito, indicatoriTecnici, type Analisi, type Coordinatore, type Rischio, type Turno } from "./comitato";
 
@@ -81,11 +81,11 @@ export async function valutaCandidato(c: Contesto): Promise<{ procedi: boolean; 
   const provider = createOpenAI({ baseURL: GATEWAY, apiKey });
   const agente = async <T,>(nome: string, sistema: string, input: unknown, schema: z.ZodType<T>): Promise<T | null> => {
     try {
-      const r = streamText({
+      const r = await generateText({
         model: provider.chat(MODELLO), instructions: `${sistema}\n${REGOLE}`, prompt: JSON.stringify(input),
         output: Output.object({ schema }),
       });
-      return (await r.output) as T;
+      return r.output as T;
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e);
       if (/\b(402|403)\b|credit|not_enabled|denied/i.test(msg)) throw new StopComitato(`Comitato sospeso (${nome}): ${msg.slice(0, 120)}`);
