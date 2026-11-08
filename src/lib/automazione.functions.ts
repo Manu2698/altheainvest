@@ -117,6 +117,9 @@ export const salvaAutomazione = createServerFn({ method: "POST" })
     },
   )
   .handler(async ({ data, context }) => {
+    if (data.attivo && data.ambiente === "reale") {
+      throw new Error("Non puoi avviare il trading reale: Althea è bloccata in modalità PAPER durante i test.");
+    }
     const { error } = await context.supabase.from("automazioni_conti").upsert({
       user_id: context.userId,
       ...data,
