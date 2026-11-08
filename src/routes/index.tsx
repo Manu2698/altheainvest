@@ -216,10 +216,10 @@ function Index() {
 
           <dl className="mt-14 grid max-w-3xl grid-cols-2 gap-px overflow-hidden rounded-xl border border-border bg-border sm:grid-cols-4">
             {[
-              ["Operazioni/gg", "148"],
-              ["Latenza segnale", "240 ms"],
-              ["Mercati coperti", "12"],
-              ["Uptime motore", "99,9%"],
+              ["Analisti indipendenti", "3"],
+              ["Dibattito", "Bull / Bear"],
+              ["Controllo rischio", "Veto assoluto"],
+              ["Ambiente attivo", "PAPER"],
             ].map(([k, v]) => (
               <div key={k} className="bg-surface px-4 py-4">
                 <dt className="text-[11px] tracking-wide text-muted-foreground">{k}</dt>
