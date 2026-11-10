@@ -169,21 +169,66 @@ export async function salvaChiaviUtente(
   const check = await verificaChiavi(keyId, secret, reale);
   if (!check.ok) return { ok: false, messaggio: check.messaggio };
 
-  const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-  const { error } = await supabaseAdmin.from("broker_credenziali").upsert(
-    {
-      user_id: userId,
-      ambiente: reale ? "reale" : "paper",
-      key_id: keyId,
-      api_secret: secret,
-      updated_at: new Date().toISOString(),
-    },
-    { onConflict: "user_id,ambiente" },
-  );
-  if (error) {
-    logServer("alpaca.salvaChiaviUtente", error, { reale });
-    return { ok: false, messaggio: "Non sono riuscito a salvare le chiavi." };
+  // Use the REST endpoint directly for this privileged write. This avoids
+  // relying on a custom supabase-js fetch adapter in the Workers runtime.
+  const supabaseUrl = process.env["SUPABASE_URL"];
+  const serviceKey = process.env["SUPABASE_SERVICE_ROLE_KEY"];
+  if (!supabaseUrl || !serviceKey) {
+    logServer("alpaca.salvaChiaviUtente.config", new Error("Missing Supabase admin configuration"), {
+      urlPresent: Boolean(supabaseUrl),
+      serviceKeyPresent: Boolean(serviceKey),
+    });
+    return { ok: false, messaggio: "Configurazione Supabase incompleta sul server." };
   }
+
+  const headers = new Headers({
+    apikey: serviceKey,
+    "Content-Type": "application/json",
+    Prefer: "resolution=merge-duplicates,return=minimal",
+  });
+  // Legacy service_role keys are JWTs and are also sent as bearer tokens.
+  // New sb_secret_ keys are opaque and must only be sent as apikey.
+  if (!serviceKey.startsWith("sb_secret_") && !serviceKey.startsWith("sb_publishable_")) {
+    headers.set("Authorization", `Bearer ${serviceKey}`);
+  }
+
+  const endpoint = `${supabaseUrl.replace(/\\/+$/, "")}/rest/v1/broker_credenziali?on_conflict=user_id%2Cambiente`;
+  try {
+    const response = await fetch(endpoint, {
+      method: "POST",
+      headers,
+      body: JSON.stringify({
+        user_id: userId,
+        ambiente: reale ? "reale" : "paper",
+        key_id: keyId,
+        api_secret: secret,
+        updated_at: new Date().toISOString(),
+      }),
+    });
+
+    if (!response.ok) {
+      let diagnostic: Record<string, unknown> = {};
+      try {
+        const body = await response.json() as Record<string, unknown>;
+        for (const field of ["code", "message", "details", "hint"]) {
+          const value = body[field];
+          if (typeof value === "string" || typeof value === "number") diagnostic[field] = value;
+        }
+      } catch {
+        diagnostic = { body: "non-json response" };
+      }
+      const error = Object.assign(
+        new Error(`Supabase REST HTTP ${response.status}`),
+        { status: response.status, statusText: response.statusText, ...diagnostic },
+      );
+      logServer("alpaca.salvaChiaviUtente.rest", error, { reale });
+      return { ok: false, messaggio: "Non sono riuscito a salvare le chiavi." };
+    }
+  } catch (error) {
+    logServer("alpaca.salvaChiaviUtente.rest", error, { reale, fase: "request" });
+    return { ok: false, messaggio: "Non sono riuscito a raggiungere Supabase per salvare le chiavi." };
+  }
+
   return { ok: true, messaggio: `Conto ${check.numeroConto} collegato correttamente.` };
 }
 
