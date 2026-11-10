@@ -192,7 +192,8 @@ export async function salvaChiaviUtente(
     headers.set("Authorization", `Bearer ${serviceKey}`);
   }
 
-  const endpoint = `${supabaseUrl.replace(/\\/+$/, "")}/rest/v1/broker_credenziali?on_conflict=user_id%2Cambiente`;
+  const baseUrlSupabase = supabaseUrl.endsWith("/") ? supabaseUrl.slice(0, -1) : supabaseUrl;
+  const endpoint = `${baseUrlSupabase}/rest/v1/broker_credenziali?on_conflict=user_id%2Cambiente`;
   try {
     const response = await fetch(endpoint, {
       method: "POST",
