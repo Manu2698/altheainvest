@@ -234,10 +234,13 @@ export async function salvaChiaviUtente(
           status: response.status,
           code: pick("code"),
           hint: pick("hint"),
-          details: {
+          // Keep diagnostics as a bounded string: the Workers telemetry
+          // serializer was dropping nested objects inside Error.details.
+          details: JSON.stringify({
             responseBody: safeResponseText || "(empty response)",
             contentType: response.headers.get("content-type"),
-          },
+            statusText: response.statusText,
+          }),
         },
       );
       logServer("alpaca.salvaChiaviUtente.rest", error, { reale });
