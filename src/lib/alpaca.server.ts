@@ -208,19 +208,37 @@ export async function salvaChiaviUtente(
     });
 
     if (!response.ok) {
-      let diagnostic: Record<string, unknown> = {};
+      // Capture the actual PostgREST response. Never log the request body or
+      // credentials; redact the Alpaca values defensively from the response.
+      const responseText = await response.text();
+      const safeResponseText = responseText
+        .replaceAll(keyId, "[REDACTED]")
+        .replaceAll(secret, "[REDACTED]")
+        .slice(0, 1000);
+      let body: Record<string, unknown> = {};
       try {
-        const body = await response.json() as Record<string, unknown>;
-        for (const field of ["code", "message", "details", "hint"]) {
-          const value = body[field];
-          if (typeof value === "string" || typeof value === "number") diagnostic[field] = value;
-        }
+        body = JSON.parse(responseText) as Record<string, unknown>;
       } catch {
-        diagnostic = { body: "non-json response" };
+        // Keep the bounded, redacted response text below for diagnosis.
       }
+      const nested = Array.isArray(body.errors) && body.errors[0] && typeof body.errors[0] === "object"
+        ? body.errors[0] as Record<string, unknown>
+        : {};
+      const pick = (field: string) => {
+        const value = body[field] ?? nested[field];
+        return typeof value === "string" || typeof value === "number" ? value : undefined;
+      };
       const error = Object.assign(
         new Error(`Supabase REST HTTP ${response.status}`),
-        { status: response.status, statusText: response.statusText, ...diagnostic },
+        {
+          status: response.status,
+          code: pick("code"),
+          hint: pick("hint"),
+          details: {
+            responseBody: safeResponseText || "(empty response)",
+            contentType: response.headers.get("content-type"),
+          },
+        },
       );
       logServer("alpaca.salvaChiaviUtente.rest", error, { reale });
       return { ok: false, messaggio: "Non sono riuscito a salvare le chiavi." };
