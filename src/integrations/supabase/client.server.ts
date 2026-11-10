@@ -3,6 +3,7 @@
 // Use this for admin operations in server functions and server routes only.
 // For user-authenticated queries (with RLS), use the auth middleware instead.
 import { createClient } from '@supabase/supabase-js';
+import { env as cloudflareEnv } from 'cloudflare:workers';
 import type { Database } from './types';
 
 function isNewSupabaseApiKey(value: string): boolean {
@@ -84,8 +85,11 @@ function createSupabaseFetch(supabaseKey: string): typeof fetch {
 }
 
 function createSupabaseAdminClient() {
-  const SUPABASE_URL = process.env['SUPABASE_URL'];
-  const SUPABASE_SERVICE_ROLE_KEY = process.env['SUPABASE_SERVICE_ROLE_KEY'];
+  // Read the active Worker Preview bindings directly. process.env remains a fallback
+  // for local Node-based tests, but must not override the Preview's isolated secrets.
+  const runtimeEnv = cloudflareEnv as unknown as Record<string, string | undefined>;
+  const SUPABASE_URL = runtimeEnv['SUPABASE_URL'] ?? process.env['SUPABASE_URL'];
+  const SUPABASE_SERVICE_ROLE_KEY = runtimeEnv['SUPABASE_SERVICE_ROLE_KEY'] ?? process.env['SUPABASE_SERVICE_ROLE_KEY'];
 
   if (!SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY) {
     const missing = [
