@@ -50,8 +50,21 @@ function createSupabaseFetch(supabaseKey: string): typeof fetch {
         } catch {
           diagnostic = 'non-json error response';
         }
+        const responseHeaders = Object.fromEntries(
+          ['content-type', 'content-length', 'server', 'cf-ray', 'cf-cache-status', 'via',
+            'x-supabase-api-version', 'sb-gateway-version', 'x-kong-proxy-latency',
+            'x-kong-upstream-latency'].flatMap((name) => {
+              const value = response.headers.get(name);
+              return value ? [[name, value]] : [];
+            }),
+        );
+        const authHeader = headers.get('Authorization');
         console.error('[Supabase admin fetch] HTTP response', JSON.stringify({
           method, path, status: response.status, statusText: response.statusText, diagnostic,
+          responseHeaders,
+          requestAuth: !authHeader ? 'absent' : authHeader.startsWith('Bearer ') ? 'bearer' : 'other',
+          apiKeyType: supabaseKey.startsWith('sb_secret_') ? 'sb_secret' :
+            supabaseKey.startsWith('sb_publishable_') ? 'sb_publishable' : 'legacy',
         }));
       }
       return response;
