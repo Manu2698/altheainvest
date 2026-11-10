@@ -1,3 +1,5 @@
+import { env as cloudflareEnv } from 'cloudflare:workers';
+
 import type {
   AssetInvestibile,
   AssetTipo,
@@ -171,8 +173,11 @@ export async function salvaChiaviUtente(
 
   // Use the REST endpoint directly for this privileged write. This avoids
   // relying on a custom supabase-js fetch adapter in the Workers runtime.
-  const supabaseUrl = process.env["SUPABASE_URL"];
-  const serviceKey = process.env["SUPABASE_SERVICE_ROLE_KEY"];
+  // In Cloudflare Workers, use the active Preview bindings first.
+  // process.env is retained only as a fallback for local Node-based tests.
+  const runtimeEnv = cloudflareEnv as unknown as Record<string, string | undefined>;
+  const supabaseUrl = runtimeEnv["SUPABASE_URL"] ?? process.env["SUPABASE_URL"];
+  const serviceKey = runtimeEnv["SUPABASE_SERVICE_ROLE_KEY"] ?? process.env["SUPABASE_SERVICE_ROLE_KEY"];
   if (!supabaseUrl || !serviceKey) {
     logServer("alpaca.salvaChiaviUtente.config", new Error("Missing Supabase admin configuration"), {
       urlPresent: Boolean(supabaseUrl),
