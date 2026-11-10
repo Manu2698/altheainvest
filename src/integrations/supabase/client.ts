@@ -50,6 +50,8 @@ function createSupabaseClient() {
     },
     auth: {
       storage: brokeredPreviewStorage(),
+      flowType: 'pkce',
+      detectSessionInUrl: true,
       persistSession: true,
       autoRefreshToken: true,
     }
