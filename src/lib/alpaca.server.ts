@@ -323,7 +323,7 @@ export async function statoCollegamento(userId: string): Promise<StatoCollegamen
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const { data } = await supabaseAdmin
       .from("broker_credenziali")
-      .select("ambiente, key_id, updated_at")
+      .select("ambiente, key_id, api_secret, updated_at")
       .eq("user_id", userId);
     const righe = data ?? [];
     const trova = (a: string) => righe.find((r) => r.ambiente === a);
