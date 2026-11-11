@@ -11,6 +11,7 @@
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as AuthRouteImport } from './routes/auth'
+import { Route as AuthCallbackRouteImport } from './routes/auth.callback'
 import { Route as CondivisioneRouteImport } from './routes/condivisione'
 import { Route as CookieRouteImport } from './routes/cookie'
 import { Route as OrdiniRouteImport } from './routes/ordini'
@@ -32,6 +33,11 @@ const IndexRoute = IndexRouteImport.update({
 const AuthRoute = AuthRouteImport.update({
   id: '/auth',
   path: '/auth',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AuthCallbackRoute = AuthCallbackRouteImport.update({
+  id: '/auth/callback',
+  path: '/auth/callback',
   getParentRoute: () => rootRouteImport,
 } as any)
 const CondivisioneRoute = CondivisioneRouteImport.update({
@@ -98,6 +104,7 @@ const ApiPublicJobsCicloIaRoute = ApiPublicJobsCicloIaRouteImport.update({
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/auth': typeof AuthRoute
+  '/auth/callback': typeof AuthCallbackRoute
   '/condivisione': typeof CondivisioneRoute
   '/cookie': typeof CookieRoute
   '/ordini': typeof OrdiniRoute
@@ -149,6 +156,7 @@ export interface FileRouteTypes {
   fullPaths:
     | '/'
     | '/auth'
+    | '/auth/callback'
     | '/condivisione'
     | '/cookie'
     | '/ordini'
@@ -198,6 +206,7 @@ export interface FileRouteTypes {
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   AuthRoute: typeof AuthRoute
+  AuthCallbackRoute: typeof AuthCallbackRoute
   CondivisioneRoute: typeof CondivisioneRoute
   CookieRoute: typeof CookieRoute
   OrdiniRoute: typeof OrdiniRoute
@@ -226,6 +235,13 @@ declare module '@tanstack/react-router' {
       path: '/auth'
       fullPath: '/auth'
       preLoaderRoute: typeof AuthRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/auth/callback': {
+      id: '/auth/callback'
+      path: '/auth/callback'
+      fullPath: '/auth/callback'
+      preLoaderRoute: typeof AuthCallbackRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/condivisione': {
@@ -318,6 +334,7 @@ declare module '@tanstack/react-router' {
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   AuthRoute: AuthRoute,
+  AuthCallbackRoute: AuthCallbackRoute,
   CondivisioneRoute: CondivisioneRoute,
   CookieRoute: CookieRoute,
   OrdiniRoute: OrdiniRoute,
