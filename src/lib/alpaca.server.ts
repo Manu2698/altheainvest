@@ -329,19 +329,30 @@ export async function statoCollegamento(userId: string): Promise<StatoCollegamen
     const trova = (a: string) => righe.find((r) => r.ambiente === a);
     const mask = (k: string | undefined) =>
       k ? `${k.slice(0, 4)}••••${k.slice(-4)}` : null;
+    const chiaveMascherata = async (ambiente: "paper" | "reale") => {
+      const riga = trova(ambiente);
+      if (!riga?.key_id) return null;
+      const keyId = await decryptCredential(riga.key_id);
+      const apiSecret = await decryptCredential(
+        (riga as typeof riga & { api_secret?: string }).api_secret ?? "",
+      );
+      if (!riga.key_id.startsWith("v1.") || !((riga as typeof riga & { api_secret?: string }).api_secret ?? "").startsWith("v1.")) {
+        const { error } = await supabaseAdmin
+          .from("broker_credenziali")
+          .update({
+            key_id: await encryptCredential(keyId),
+            api_secret: await encryptCredential(apiSecret),
+            updated_at: new Date().toISOString(),
+          })
+          .eq("user_id", userId)
+          .eq("ambiente", ambiente);
+        if (error) throw error;
+      }
+      return mask(keyId);
+    };
     return {
-      paper: {
-        collegato: Boolean(trova("paper")),
-        chiave: trova("paper")?.key_id
-          ? mask(await decryptCredential(trova("paper")!.key_id))
-          : null,
-      },
-      reale: {
-        collegato: Boolean(trova("reale")),
-        chiave: trova("reale")?.key_id
-          ? mask(await decryptCredential(trova("reale")!.key_id))
-          : null,
-      },
+      paper: { collegato: Boolean(trova("paper")), chiave: await chiaveMascherata("paper") },
+      reale: { collegato: Boolean(trova("reale")), chiave: await chiaveMascherata("reale") },
       piattaforma: Boolean(credenzialiAmbiente()),
     };
   } catch (error) {
