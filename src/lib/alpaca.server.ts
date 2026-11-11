@@ -176,8 +176,12 @@ export async function salvaChiaviUtente(
   // In Cloudflare Workers, use the active Preview bindings first.
   // process.env is retained only as a fallback for local Node-based tests.
   const runtimeEnv = cloudflareEnv as unknown as Record<string, string | undefined>;
+  const supabaseUrlSource = runtimeEnv["SUPABASE_URL"] ? "cloudflare" : process.env["SUPABASE_URL"] ? "process" : "missing";
+  const serviceKeySource = runtimeEnv["SUPABASE_SERVICE_ROLE_KEY"] ? "cloudflare" : process.env["SUPABASE_SERVICE_ROLE_KEY"] ? "process" : "missing";
   const supabaseUrl = runtimeEnv["SUPABASE_URL"] ?? process.env["SUPABASE_URL"];
   const serviceKey = runtimeEnv["SUPABASE_SERVICE_ROLE_KEY"] ?? process.env["SUPABASE_SERVICE_ROLE_KEY"];
+  let endpointHost = "invalid-or-missing";
+  try { if (supabaseUrl) endpointHost = new URL(supabaseUrl).host; } catch { /* safe diagnostic only */ }
   if (!supabaseUrl || !serviceKey) {
     logServer("alpaca.salvaChiaviUtente.config", new Error("Missing Supabase admin configuration"), {
       urlPresent: Boolean(supabaseUrl),
@@ -248,7 +252,22 @@ export async function salvaChiaviUtente(
           }),
         },
       );
-      logServer("alpaca.salvaChiaviUtente.rest", error, { reale });
+      logServer("alpaca.salvaChiaviUtente.rest", error, {
+        reale,
+        endpointHost,
+        supabaseUrlSource,
+        serviceKeySource,
+        serviceKeyType: serviceKey.startsWith("sb_secret_") ? "sb_secret" : serviceKey.startsWith("sb_publishable_") ? "sb_publishable" : "legacy",
+        serviceKeyLength: serviceKey.length,
+        responseUrlHost: (() => { try { return response.url ? new URL(response.url).host : null; } catch { return null; } })(),
+        responseHeaders: {
+          contentType: response.headers.get("content-type"),
+          contentLength: response.headers.get("content-length"),
+          server: response.headers.get("server"),
+          cfRay: response.headers.get("cf-ray"),
+          sbGatewayVersion: response.headers.get("sb-gateway-version"),
+        },
+      });
       return { ok: false, messaggio: "Non sono riuscito a salvare le chiavi." };
     }
   } catch (error) {
