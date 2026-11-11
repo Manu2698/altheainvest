@@ -1,4 +1,5 @@
 import { env as cloudflareEnv } from 'cloudflare:workers';
+import { decryptCredential, encryptCredential } from './credentiali-crypto.server';
 
 import type {
   AssetInvestibile,
@@ -123,7 +124,24 @@ export async function credenzialiUtente(
         .eq("ambiente", reale ? "reale" : "paper")
         .maybeSingle();
       if (data?.key_id && data?.api_secret) {
-        return { headers: headersDa(data.key_id, data.api_secret), proprie: true };
+        const keyId = await decryptCredential(data.key_id);
+        const secret = await decryptCredential(data.api_secret);
+
+        // Migrazione trasparente delle vecchie righe in chiaro: appena vengono
+        // lette con la chiave di cifratura configurata, vengono riscritte cifrate.
+        if (!data.key_id.startsWith("v1.") || !data.api_secret.startsWith("v1.")) {
+          const { error: migrationError } = await supabaseAdmin
+            .from("broker_credenziali")
+            .update({
+              key_id: await encryptCredential(keyId),
+              api_secret: await encryptCredential(secret),
+              updated_at: new Date().toISOString(),
+            })
+            .eq("user_id", userId)
+            .eq("ambiente", reale ? "reale" : "paper");
+          if (migrationError) throw migrationError;
+        }
+        return { headers: headersDa(keyId, secret), proprie: true };
       }
     } catch (error) {
       logServer("alpaca.credenzialiUtente", error, { reale });
@@ -171,10 +189,22 @@ export async function salvaChiaviUtente(
   const check = await verificaChiavi(keyId, secret, reale);
   if (!check.ok) return { ok: false, messaggio: check.messaggio };
 
-  // Use the REST endpoint directly for this privileged write. This avoids
-  // relying on a custom supabase-js fetch adapter in the Workers runtime.
+  // AES-256-GCM: le credenziali vengono cifrate prima di lasciare il Worker.
+  // Se il segreto non è configurato o non è valido, il salvataggio fallisce.
+  let encryptedKeyId: string;
+  let encryptedSecret: string;
+  try {
+    [encryptedKeyId, encryptedSecret] = await Promise.all([
+      encryptCredential(keyId),
+      encryptCredential(secret),
+    ]);
+  } catch (error) {
+    logServer("alpaca.salvaChiaviUtente.encryption", error, { reale });
+    return { ok: false, messaggio: "Cifratura non configurata sul server: nessuna credenziale è stata salvata." };
+  }
+
+  // Use the REST endpoint directly for this privileged write.
   // In Cloudflare Workers, use the active Preview bindings first.
-  // process.env is retained only as a fallback for local Node-based tests.
   const runtimeEnv = cloudflareEnv as unknown as Record<string, string | undefined>;
   const supabaseUrlSource = runtimeEnv["SUPABASE_URL"] ? "cloudflare" : process.env["SUPABASE_URL"] ? "process" : "missing";
   const serviceKeySource = runtimeEnv["SUPABASE_SERVICE_ROLE_KEY"] ? "cloudflare" : process.env["SUPABASE_SERVICE_ROLE_KEY"] ? "process" : "missing";
@@ -210,8 +240,8 @@ export async function salvaChiaviUtente(
       body: JSON.stringify({
         user_id: userId,
         ambiente: reale ? "reale" : "paper",
-        key_id: keyId,
-        api_secret: secret,
+        key_id: encryptedKeyId,
+        api_secret: encryptedSecret,
         updated_at: new Date().toISOString(),
       }),
     });
@@ -300,8 +330,18 @@ export async function statoCollegamento(userId: string): Promise<StatoCollegamen
     const mask = (k: string | undefined) =>
       k ? `${k.slice(0, 4)}••••${k.slice(-4)}` : null;
     return {
-      paper: { collegato: Boolean(trova("paper")), chiave: mask(trova("paper")?.key_id) },
-      reale: { collegato: Boolean(trova("reale")), chiave: mask(trova("reale")?.key_id) },
+      paper: {
+        collegato: Boolean(trova("paper")),
+        chiave: trova("paper")?.key_id
+          ? mask(await decryptCredential(trova("paper")!.key_id))
+          : null,
+      },
+      reale: {
+        collegato: Boolean(trova("reale")),
+        chiave: trova("reale")?.key_id
+          ? mask(await decryptCredential(trova("reale")!.key_id))
+          : null,
+      },
       piattaforma: Boolean(credenzialiAmbiente()),
     };
   } catch (error) {
