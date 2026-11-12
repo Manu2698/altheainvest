@@ -26,6 +26,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { getContoBroker, getAndamentoConto } from "@/lib/alpaca.functions";
 import { useSessione } from "@/hooks/useSessione";
+import { supabase } from "@/integrations/supabase/client";
 
 
 import { EquityChart } from "@/components/EquityChart";
@@ -100,6 +101,30 @@ function Index() {
   );
 
   const { autenticato } = useSessione();
+
+  // Some Supabase configurations fall back to the Site URL ("/") when a
+  // preview callback URL is not on the redirect allow-list. Handle that
+  // PKCE return here as well as in /auth/callback.
+  useEffect(() => {
+    const url = new URL(window.location.href);
+    const code = url.searchParams.get("code");
+    if (!code) return;
+
+    let attivo = true;
+    void supabase.auth.exchangeCodeForSession(code).then(({ error }) => {
+      if (!attivo) return;
+      if (error) {
+        console.error("[Althea auth] Scambio OAuth dalla home non riuscito:", error);
+        return;
+      }
+      url.searchParams.delete("code");
+      window.history.replaceState({}, document.title, url.pathname + url.search + url.hash);
+    }).catch((error: unknown) => {
+      if (attivo) console.error("[Althea auth] Errore callback OAuth dalla home:", error);
+    });
+
+    return () => { attivo = false; };
+  }, []);
   const contoFn = useServerFn(getContoBroker);
   const conto = useQuery({
     queryKey: ["conto-broker", reale],
