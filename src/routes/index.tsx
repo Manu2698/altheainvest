@@ -172,6 +172,7 @@ function Index() {
           >
             Report
           </Link>
+          <Button asChild variant="outline" size="sm"><Link to="/test-storici">Test storici</Link></Button>
           <Link
             to="/assistente"
             className="rounded-lg border border-border px-3 py-1.5 text-xs text-muted-foreground transition-colors hover:text-foreground"

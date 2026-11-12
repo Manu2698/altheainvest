@@ -1,0 +1,3 @@
+- Backtests are isolated, user-triggered simulations using the shared pure signal function; they never import execution, reconciliation, learning, live committee cache or order submission modules.
+- Historical committee decisions consume only source-labelled observations available before the simulated close; each explicit user action evaluates at most one candidate, with no background queue or automatic AI retries.
+- Simulation results and arguments are exportable, not written to live trading records; missing historical coverage blocks certification rather than inventing prices or fundamentals.

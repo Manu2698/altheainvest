@@ -1,4 +1,5 @@
 # Audit PAPER prioritario
+- [ ] Test storici selezionabili: regole e comitato, periodi settimane/mesi/anni, costi, metriche, storico importabile e nessun ordine operativo.
 - [x] Rotazione automatica: verificato che manca; proposta minima separata con confronto netto, vendita parziale e acquisto solo dopo esecuzione riconciliata. Nessuna modifica operativa o ordine.
 - [x] Rotazione fase iniziale approvata: valutatore puro offline, 24 test nuovi e 37 regressioni superati; nessun import dal runtime, ordine o pubblicazione.
 - [ ] Attivazione rotazione: attende stime/evidenze nette comparabili, regole quantitative confermate e verifica dei cicli conclusi; il valutatore isolato non attiva vendite.

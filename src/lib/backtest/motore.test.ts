@@ -1,0 +1,19 @@
+import { describe, it, expect } from "vitest";
+import { simula, leggiCSV, evidenzeAllaData, periodoPrecedente, validaConfig, type Barra, type ConfigTest } from "./motore";
+const barre:Barra[]=Array.from({length:80},(_,i)=>({data:new Date(Date.UTC(2000,0,1+i)).toISOString().slice(0,10),apertura:100+i,chiusura:100+i,volume:10000}));
+const c:ConfigTest={dal:"2000-01-21",al:"2000-03-20",strategia:"conservativo",ticker:"AAPL",capitale:1000,quotaPct:10,commissione:1,spreadBps:10,slippageBps:5,perditaGiornaliera:null,modalita:"regole"};
+describe("test storico isolato",()=>{
+  it("esegue solo dopo la chiusura del segnale",()=>{const r=simula(c,barre);expect(r.operazioni[0]?.segnale).toBe("2000-01-21");expect(r.operazioni[0]?.esecuzione).toBe("2000-01-22");expect(r.operazioni[0]?.prezzo).toBeCloseTo(121*1.001);});
+  it("non inventa vincite su una posizione ancora aperta",()=>{const r=simula(c,barre);expect(r.vendite).toBe(0);expect(r.vincentiPct).toBeNull();expect(r.profitFactor).toBeNull();expect(r.equity).toBeCloseTo(r.liquidita+r.aperto);expect(r.pnlAperto).toBeGreaterThan(0);});
+  it("include commissioni spread e slippage una sola volta",()=>{const r=simula(c,barre);const o=r.operazioni[0];expect(o?.costo).toBeCloseTo(1+(99/(121*1.001))*121*.001);expect(r.liquidita).toBeCloseTo(900);});
+  it("non ricompra una posizione conservativa già detenuta",()=>{const r=simula(c,barre);expect(r.operazioni.filter(o=>o.lato==="BUY")).toHaveLength(1);});
+  it("misura perdite e drawdown su equity, inclusa la posizione aperta",()=>{const b=barre.map((x,i)=>i>25?{...x,apertura:90,chiusura:90}:x);const r=simula(c,b);expect(r.drawdownPct).toBeGreaterThan(0);expect(r.operazioni.some(o=>o.lato==="SELL"&&(o.pnl??0)<0)).toBe(true);expect(r.vincentiPct).toBe(0);expect(r.profitFactor).toBe(0);});
+  it("si ferma al candidato senza fingere analisi IA",()=>{const r=simula({...c,modalita:"comitato"},barre);expect(r.stato).toBe("analisi_richiesta");expect(r.operazioni).toHaveLength(0);expect(r.candidato?.data).toBe("2000-01-21");});
+  it("un veto impedisce l’acquisto e un fattore non può aumentarlo",()=>{const cc={...c,modalita:"comitato" as const};const r=simula(cc,barre,{"2000-01-21":{procedi:false,importo:100,motivo:"veto",dettagli:null}});expect(r.operazioni).toHaveLength(0);expect(r.decisioni[0]?.motivo).toBe("veto");const ok=simula(cc,barre,{"2000-01-21":{procedi:true,importo:99999,motivo:"ok",dettagli:null}});expect(ok.liquidita).toBeGreaterThanOrEqual(900);});
+  it("esclude documenti successivi alla data simulata",()=>{expect(evidenzeAllaData([{disponibileIl:"2000-01-22T00:00:00Z",fonte:"fonte",contenuto:"futuro",tipo:"news"}],"2000-01-21")).toHaveLength(0);});
+  it("rifiuta periodi senza warmup e barre duplicate",()=>{expect(()=>simula({...c,dal:"2000-01-01"},barre)).toThrow("Copertura");expect(()=>simula(c,[...barre,barre[79] as Barra])).toThrow("duplicate");});
+  it("consente decenni storici senza limitare agli ultimi anni",()=>{expect(()=>validaConfig({...c,dal:"1970-01-01",al:"2000-01-01"})).not.toThrow();expect(periodoPrecedente("2025-12-31",25,"anni")).toBe("2000-12-31");});
+  it("gestisce settimane, mesi e anni anche bisestili",()=>{expect(periodoPrecedente("2024-03-31",1,"mesi")).toBe("2024-02-29");expect(periodoPrecedente("2024-02-29",1,"anni")).toBe("2023-02-28");expect(periodoPrecedente("2024-03-14",2,"settimane")).toBe("2024-02-29");});
+  it("rifiuta file sintetici malformati e formati senza aperture",()=>{expect(()=>leggiCSV("date,close\n2000-01-01,10")).toThrow("colonne");});
+  it("non usa prezzi futuri per una decisione precedente",()=>{const a=simula({...c,modalita:"comitato"},barre);const b=simula({...c,modalita:"comitato"},barre.map((x,i)=>i>20?{...x,apertura:999,chiusura:999}:x));expect(a.candidato).toEqual(b.candidato);});
+});

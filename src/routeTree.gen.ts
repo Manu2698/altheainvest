@@ -18,6 +18,7 @@ import { Route as PrivacyRouteImport } from './routes/privacy'
 import { Route as ReportRouteImport } from './routes/report'
 import { Route as RischiRouteImport } from './routes/rischi'
 import { Route as TerminiRouteImport } from './routes/termini'
+import { Route as TestStoriciRouteImport } from './routes/test-storici'
 import { Route as ApiChatRouteImport } from './routes/api/chat'
 import { Route as AssistenteIndexRouteImport } from './routes/assistente.index'
 import { Route as AssistenteThreadIdRouteImport } from './routes/assistente.$threadId'
@@ -69,6 +70,11 @@ const TerminiRoute = TerminiRouteImport.update({
   path: '/termini',
   getParentRoute: () => rootRouteImport,
 } as any)
+const TestStoriciRoute = TestStoriciRouteImport.update({
+  id: '/test-storici',
+  path: '/test-storici',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiChatRoute = ApiChatRouteImport.update({
   id: '/api/chat',
   path: '/api/chat',
@@ -105,6 +111,7 @@ export interface FileRoutesByFullPath {
   '/report': typeof ReportRoute
   '/rischi': typeof RischiRoute
   '/termini': typeof TerminiRoute
+  '/test-storici': typeof TestStoriciRoute
   '/api/chat': typeof ApiChatRoute
   '/assistente/$threadId': typeof AssistenteThreadIdRoute
   '/assistente/': typeof AssistenteIndexRoute
@@ -121,6 +128,7 @@ export interface FileRoutesByTo {
   '/report': typeof ReportRoute
   '/rischi': typeof RischiRoute
   '/termini': typeof TerminiRoute
+  '/test-storici': typeof TestStoriciRoute
   '/api/chat': typeof ApiChatRoute
   '/assistente/$threadId': typeof AssistenteThreadIdRoute
   '/assistente': typeof AssistenteIndexRoute
@@ -138,6 +146,7 @@ export interface FileRoutesById {
   '/report': typeof ReportRoute
   '/rischi': typeof RischiRoute
   '/termini': typeof TerminiRoute
+  '/test-storici': typeof TestStoriciRoute
   '/api/chat': typeof ApiChatRoute
   '/assistente/$threadId': typeof AssistenteThreadIdRoute
   '/assistente/': typeof AssistenteIndexRoute
@@ -156,6 +165,7 @@ export interface FileRouteTypes {
     | '/report'
     | '/rischi'
     | '/termini'
+    | '/test-storici'
     | '/api/chat'
     | '/assistente/$threadId'
     | '/assistente/'
@@ -172,6 +182,7 @@ export interface FileRouteTypes {
     | '/report'
     | '/rischi'
     | '/termini'
+    | '/test-storici'
     | '/api/chat'
     | '/assistente/$threadId'
     | '/assistente'
@@ -188,6 +199,7 @@ export interface FileRouteTypes {
     | '/report'
     | '/rischi'
     | '/termini'
+    | '/test-storici'
     | '/api/chat'
     | '/assistente/$threadId'
     | '/assistente/'
@@ -205,6 +217,7 @@ export interface RootRouteChildren {
   ReportRoute: typeof ReportRoute
   RischiRoute: typeof RischiRoute
   TerminiRoute: typeof TerminiRoute
+  TestStoriciRoute: typeof TestStoriciRoute
   ApiChatRoute: typeof ApiChatRoute
   AssistenteThreadIdRoute: typeof AssistenteThreadIdRoute
   AssistenteIndexRoute: typeof AssistenteIndexRoute
@@ -277,6 +290,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof TerminiRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/test-storici': {
+      id: '/test-storici'
+      path: '/test-storici'
+      fullPath: '/test-storici'
+      preLoaderRoute: typeof TestStoriciRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/chat': {
       id: '/api/chat'
       path: '/api/chat'
@@ -325,6 +345,7 @@ const rootRouteChildren: RootRouteChildren = {
   ReportRoute: ReportRoute,
   RischiRoute: RischiRoute,
   TerminiRoute: TerminiRoute,
+  TestStoriciRoute: TestStoriciRoute,
   ApiChatRoute: ApiChatRoute,
   AssistenteThreadIdRoute: AssistenteThreadIdRoute,
   AssistenteIndexRoute: AssistenteIndexRoute,
