@@ -3,6 +3,7 @@
 // Use this for admin operations in server functions and server routes only.
 // For user-authenticated queries (with RLS), use the auth middleware instead.
 import { createClient } from '@supabase/supabase-js';
+import { getRequest } from '@tanstack/react-start/server';
 import { env as cloudflareEnv } from 'cloudflare:workers';
 import type { Database } from './types';
 
@@ -113,15 +114,49 @@ function createSupabaseAdminClient() {
   });
 }
 
-let _supabaseAdmin: ReturnType<typeof createSupabaseAdminClient> | undefined;
+type SupabaseClientInstance = ReturnType<typeof createSupabaseAdminClient>;
+let _supabaseAdmin: SupabaseClientInstance | undefined;
+const _requestClients = new WeakMap<Request, SupabaseClientInstance>();
 
-// Server-side Supabase client with service role - bypasses RLS
-// SECURITY: Only use this for trusted server-side operations, never expose to client code
-// Load inside server handlers: const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-// Top-level import is safe only in other .server.ts modules - route files and *.functions.ts ship to the client bundle.
-export const supabaseAdmin = new Proxy({} as ReturnType<typeof createSupabaseAdminClient>, {
-  get(_, prop, receiver) {
-    if (!_supabaseAdmin) _supabaseAdmin = createSupabaseAdminClient();
-    return Reflect.get(_supabaseAdmin, prop, receiver);
+function createSupabaseUserClient(token: string): SupabaseClientInstance {
+  const runtimeEnv = cloudflareEnv as unknown as Record<string, string | undefined>;
+  const url = runtimeEnv['SUPABASE_URL'] ?? process.env['SUPABASE_URL'];
+  const publishableKey = runtimeEnv['SUPABASE_PUBLISHABLE_KEY'] ?? process.env['SUPABASE_PUBLISHABLE_KEY'];
+  if (!url || !publishableKey) {
+    throw new Error('Missing Supabase user client configuration.');
+  }
+  return createClient<Database>(url, publishableKey, {
+    global: {
+      fetch: createSupabaseFetch(publishableKey),
+      headers: { Authorization: `Bearer ${token}` },
+    },
+    auth: { storage: undefined, persistSession: false, autoRefreshToken: false },
+  });
+}
+
+function clientForCurrentRequest(): SupabaseClientInstance {
+  let request: Request | undefined;
+  try { request = getRequest(); } catch { request = undefined; }
+  const authorization = request?.headers.get('authorization') ?? '';
+  const match = /^Bearer ([^.\s]+\.[^.\s]+\.[^.\s]+)$/.exec(authorization);
+  if (request && match) {
+    const cached = _requestClients.get(request);
+    if (cached) return cached;
+    const client = createSupabaseUserClient(match[1]);
+    _requestClients.set(request, client);
+    return client;
+  }
+  if (!_supabaseAdmin) _supabaseAdmin = createSupabaseAdminClient();
+  return _supabaseAdmin;
+}
+
+// In authenticated requests, preserve the caller's JWT so Supabase RLS applies.
+// Only trusted non-user routes (the verified scheduler and public share resolver)
+// fall back to the service-role client. Never cache a user client across requests.
+export const supabaseAdmin = new Proxy({} as SupabaseClientInstance, {
+  get(_, prop) {
+    const client = clientForCurrentRequest();
+    const value = Reflect.get(client, prop, client);
+    return typeof value === 'function' ? value.bind(client) : value;
   },
 });
