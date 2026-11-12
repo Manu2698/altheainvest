@@ -35,7 +35,7 @@ export const getStatoBroker = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }): Promise<StatoCollegamento> => {
     const { statoCollegamento } = await import("./alpaca.server");
-    return statoCollegamento(context.userId);
+    return statoCollegamento(context.supabase, context.userId);
   });
 
 export const collegaBroker = createServerFn({ method: "POST" })
@@ -50,7 +50,7 @@ export const collegaBroker = createServerFn({ method: "POST" })
   })
   .handler(async ({ data, context }): Promise<{ ok: boolean; messaggio: string }> => {
     const { salvaChiaviUtente } = await import("./alpaca.server");
-    return salvaChiaviUtente(context.userId, data.reale, data.keyId, data.secret);
+    return salvaChiaviUtente(context.supabase, context.userId, data.reale, data.keyId, data.secret);
   });
 
 export const scollegaBroker = createServerFn({ method: "POST" })
@@ -60,7 +60,7 @@ export const scollegaBroker = createServerFn({ method: "POST" })
   }))
   .handler(async ({ data, context }): Promise<{ ok: boolean }> => {
     const { scollegaChiaviUtente } = await import("./alpaca.server");
-    return scollegaChiaviUtente(context.userId, data.reale);
+    return scollegaChiaviUtente(context.supabase, context.userId, data.reale);
   });
 
 export const cercaAsset = createServerFn({ method: "GET" })
