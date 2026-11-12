@@ -1,5 +1,8 @@
-import { env as cloudflareEnv } from 'cloudflare:workers';
 import { decryptCredential, encryptCredential } from './credentiali-crypto.server';
+import type { SupabaseClient } from '@supabase/supabase-js';
+import type { Database } from '@/integrations/supabase/types';
+
+type UserSupabase = SupabaseClient<Database>;
 
 import type {
   AssetInvestibile,
@@ -181,6 +184,7 @@ export async function verificaChiavi(
 }
 
 export async function salvaChiaviUtente(
+  supabase: UserSupabase,
   userId: string,
   reale: boolean,
   keyId: string,
@@ -203,125 +207,34 @@ export async function salvaChiaviUtente(
     return { ok: false, messaggio: "Cifratura non configurata sul server: nessuna credenziale è stata salvata." };
   }
 
-  // Use the REST endpoint directly for this privileged write.
-  // In Cloudflare Workers, use the active Preview bindings first.
-  const runtimeEnv = cloudflareEnv as unknown as Record<string, string | undefined>;
-  const supabaseUrlSource = runtimeEnv["SUPABASE_URL"] ? "cloudflare" : process.env["SUPABASE_URL"] ? "process" : "missing";
-  const serviceKeySource = runtimeEnv["SUPABASE_SERVICE_ROLE_KEY"] ? "cloudflare" : process.env["SUPABASE_SERVICE_ROLE_KEY"] ? "process" : "missing";
-  const supabaseUrl = runtimeEnv["SUPABASE_URL"] ?? process.env["SUPABASE_URL"];
-  const serviceKey = runtimeEnv["SUPABASE_SERVICE_ROLE_KEY"] ?? process.env["SUPABASE_SERVICE_ROLE_KEY"];
-  let endpointHost = "invalid-or-missing";
-  try { if (supabaseUrl) endpointHost = new URL(supabaseUrl).host; } catch { /* safe diagnostic only */ }
-  if (!supabaseUrl || !serviceKey) {
-    logServer("alpaca.salvaChiaviUtente.config", new Error("Missing Supabase admin configuration"), {
-      urlPresent: Boolean(supabaseUrl),
-      serviceKeyPresent: Boolean(serviceKey),
-    });
-    return { ok: false, messaggio: "Configurazione Supabase incompleta sul server." };
-  }
-
-  const headers = new Headers({
-    apikey: serviceKey,
-    "Content-Type": "application/json",
-    Prefer: "resolution=merge-duplicates,return=minimal",
-  });
-  // Legacy service_role keys are JWTs and are also sent as bearer tokens.
-  // New sb_secret_ keys are opaque and must only be sent as apikey.
-  if (!serviceKey.startsWith("sb_secret_") && !serviceKey.startsWith("sb_publishable_")) {
-    headers.set("Authorization", `Bearer ${serviceKey}`);
-  }
-
-  const baseUrlSupabase = supabaseUrl.endsWith("/") ? supabaseUrl.slice(0, -1) : supabaseUrl;
-  const endpoint = `${baseUrlSupabase}/rest/v1/broker_credenziali?on_conflict=user_id%2Cambiente`;
-  try {
-    const response = await fetch(endpoint, {
-      method: "POST",
-      headers,
-      body: JSON.stringify({
-        user_id: userId,
-        ambiente: reale ? "reale" : "paper",
-        key_id: encryptedKeyId,
-        api_secret: encryptedSecret,
-        updated_at: new Date().toISOString(),
-      }),
-    });
-
-    if (!response.ok) {
-      // Capture the actual PostgREST response. Never log the request body or
-      // credentials; redact the Alpaca values defensively from the response.
-      const responseText = await response.text();
-      const safeResponseText = responseText
-        .replaceAll(keyId, "[REDACTED]")
-        .replaceAll(secret, "[REDACTED]")
-        .slice(0, 1000);
-      let body: Record<string, unknown> = {};
-      try {
-        body = JSON.parse(responseText) as Record<string, unknown>;
-      } catch {
-        // Keep the bounded, redacted response text below for diagnosis.
-      }
-      const nested = Array.isArray(body.errors) && body.errors[0] && typeof body.errors[0] === "object"
-        ? body.errors[0] as Record<string, unknown>
-        : {};
-      const pick = (field: string) => {
-        const value = body[field] ?? nested[field];
-        return typeof value === "string" || typeof value === "number" ? value : undefined;
-      };
-      const error = Object.assign(
-        new Error(`Supabase REST HTTP ${response.status}`),
-        {
-          status: response.status,
-          code: pick("code"),
-          hint: pick("hint"),
-          // Keep diagnostics as a bounded string: the Workers telemetry
-          // serializer was dropping nested objects inside Error.details.
-          details: JSON.stringify({
-            responseBody: safeResponseText || "(empty response)",
-            contentType: response.headers.get("content-type"),
-            statusText: response.statusText,
-          }),
-        },
-      );
-      logServer("alpaca.salvaChiaviUtente.rest", error, {
-        reale,
-        endpointHost,
-        supabaseUrlSource,
-        serviceKeySource,
-        serviceKeyType: serviceKey.startsWith("sb_secret_") ? "sb_secret" : serviceKey.startsWith("sb_publishable_") ? "sb_publishable" : "legacy",
-        serviceKeyLength: serviceKey.length,
-        responseUrlHost: (() => { try { return response.url ? new URL(response.url).host : null; } catch { return null; } })(),
-        responseHeaders: {
-          contentType: response.headers.get("content-type"),
-          contentLength: response.headers.get("content-length"),
-          server: response.headers.get("server"),
-          cfRay: response.headers.get("cf-ray"),
-          sbGatewayVersion: response.headers.get("sb-gateway-version"),
-        },
-      });
-      return { ok: false, messaggio: "Non sono riuscito a salvare le chiavi." };
-    }
-  } catch (error) {
-    logServer("alpaca.salvaChiaviUtente.rest", error, { reale, fase: "request" });
-    return { ok: false, messaggio: "Non sono riuscito a raggiungere Supabase per salvare le chiavi." };
+  const { error } = await supabase.from("broker_credenziali").upsert({
+    user_id: userId,
+    ambiente: reale ? "reale" : "paper",
+    key_id: encryptedKeyId,
+    api_secret: encryptedSecret,
+    updated_at: new Date().toISOString(),
+  }, { onConflict: "user_id,ambiente" });
+  if (error) {
+    logServer("alpaca.salvaChiaviUtente.database", error, { reale, userId });
+    return { ok: false, messaggio: "Non sono riuscito a salvare le chiavi nel tuo profilo." };
   }
 
   return { ok: true, messaggio: `Conto ${check.numeroConto} collegato correttamente.` };
 }
 
-export async function scollegaChiaviUtente(userId: string, reale: boolean) {
-  const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-  await supabaseAdmin
+export async function scollegaChiaviUtente(supabase: UserSupabase, userId: string, reale: boolean) {
+  const { error } = await supabase
     .from("broker_credenziali")
     .delete()
     .eq("user_id", userId)
     .eq("ambiente", reale ? "reale" : "paper");
+  if (error) throw new Error("Non sono riuscito a scollegare il conto.");
   return { ok: true };
 }
 
-export async function statoCollegamento(userId: string): Promise<StatoCollegamento> {
+export async function statoCollegamento(supabase: UserSupabase, userId: string): Promise<StatoCollegamento> {
   try {
-    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-    const { data } = await supabaseAdmin
+    const { data } = await supabase
       .from("broker_credenziali")
       .select("ambiente, key_id, api_secret, updated_at")
       .eq("user_id", userId);
@@ -337,7 +250,7 @@ export async function statoCollegamento(userId: string): Promise<StatoCollegamen
         (riga as typeof riga & { api_secret?: string }).api_secret ?? "",
       );
       if (!riga.key_id.startsWith("v1.") || !((riga as typeof riga & { api_secret?: string }).api_secret ?? "").startsWith("v1.")) {
-        const { error } = await supabaseAdmin
+        const { error } = await supabase
           .from("broker_credenziali")
           .update({
             key_id: await encryptCredential(keyId),
