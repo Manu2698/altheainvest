@@ -23,8 +23,8 @@ async function encryptionKey(): Promise<CryptoKey> {
   // Derive a fixed 256-bit AES key from those strings without exposing or storing the key.
   if (!raw) {
     const encodedSecret = new TextEncoder().encode(secret);
-    if (encodedSecret.byteLength < 32) {
-      throw new Error("ALPACA_CREDENTIALS_ENCRYPTION_KEY deve contenere almeno 32 byte oppure essere una chiave Base64 da 32 byte.");
+    if (encodedSecret.byteLength < 16) {
+      throw new Error("ALPACA_CREDENTIALS_ENCRYPTION_KEY deve contenere almeno 16 byte oppure essere una chiave Base64 da 32 byte.");
     }
     raw = new Uint8Array(await crypto.subtle.digest("SHA-256", encodedSecret));
   }
