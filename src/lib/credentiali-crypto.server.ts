@@ -2,18 +2,33 @@ import { env as cloudflareEnv } from "cloudflare:workers";
 
 const PREFIX = "v1.";
 
-function encryptionKey(): Promise<CryptoKey> {
+async function encryptionKey(): Promise<CryptoKey> {
   const runtimeEnv = cloudflareEnv as unknown as Record<string, string | undefined>;
-  const encoded = runtimeEnv["ALPACA_CREDENTIALS_ENCRYPTION_KEY"] ?? process.env["ALPACA_CREDENTIALS_ENCRYPTION_KEY"];
-  if (!encoded) throw new Error("ALPACA_CREDENTIALS_ENCRYPTION_KEY non configurata.");
-  let raw: Uint8Array;
+  const configured = runtimeEnv["ALPACA_CREDENTIALS_ENCRYPTION_KEY"] ?? process.env["ALPACA_CREDENTIALS_ENCRYPTION_KEY"];
+  if (!configured?.trim()) throw new Error("ALPACA_CREDENTIALS_ENCRYPTION_KEY non configurata.");
+
+  const secret = configured.trim();
+  let raw: Uint8Array | undefined;
+
+  // Accept a canonical Base64-encoded 32-byte key when supplied.
   try {
-    const binary = atob(encoded.trim());
-    raw = Uint8Array.from(binary, (char) => char.charCodeAt(0));
+    const binary = atob(secret);
+    const decoded = Uint8Array.from(binary, (char) => char.charCodeAt(0));
+    if (decoded.byteLength === 32 && btoa(binary) === secret) raw = decoded;
   } catch {
-    throw new Error("ALPACA_CREDENTIALS_ENCRYPTION_KEY deve essere Base64 valida.");
+    // A high-entropy secret string is also supported below.
   }
-  if (raw.byteLength !== 32) throw new Error("La chiave di cifratura deve contenere esattamente 32 byte.");
+
+  // Cloudflare dashboard secrets are often entered as opaque strings rather than Base64.
+  // Derive a fixed 256-bit AES key from those strings without exposing or storing the key.
+  if (!raw) {
+    const encodedSecret = new TextEncoder().encode(secret);
+    if (encodedSecret.byteLength < 32) {
+      throw new Error("ALPACA_CREDENTIALS_ENCRYPTION_KEY deve contenere almeno 32 byte oppure essere una chiave Base64 da 32 byte.");
+    }
+    raw = new Uint8Array(await crypto.subtle.digest("SHA-256", encodedSecret));
+  }
+
   return crypto.subtle.importKey("raw", raw, { name: "AES-GCM" }, false, ["encrypt", "decrypt"]);
 }
 
