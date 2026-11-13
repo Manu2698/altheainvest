@@ -4,15 +4,18 @@ const PREFIX = "v1.";
 
 async function encryptionKey(): Promise<CryptoKey> {
   const runtimeEnv = cloudflareEnv as unknown as Record<string, string | undefined>;
-  // The Preview build does not preserve ad-hoc Worker secrets across version uploads.
-  // Derive a dedicated AES-256 key from the already-bound high-entropy cron secret,
-  // using HKDF domain separation so it cannot be reused as the cron authentication key.
-  const configured = runtimeEnv["ALTHEA_CRON_SECRET"] ?? process.env["ALTHEA_CRON_SECRET"];
-  if (!configured?.trim()) throw new Error("Segreto server ALTHEA_CRON_SECRET non configurato.");
+  // A dedicated, stable secret is required: never derive the encryption key from
+  // a cron/authentication secret, which may be rotated independently.
+  const configured =
+    runtimeEnv["ALPACA_CREDENTIALS_ENCRYPTION_KEY"] ??
+    process.env["ALPACA_CREDENTIALS_ENCRYPTION_KEY"];
+  if (!configured?.trim()) {
+    throw new Error("Segreto server ALPACA_CREDENTIALS_ENCRYPTION_KEY non configurato.");
+  }
 
   const secret = new TextEncoder().encode(configured.trim());
   if (secret.byteLength < 32) {
-    throw new Error("ALTHEA_CRON_SECRET deve contenere almeno 32 byte per derivare la chiave di cifratura.");
+    throw new Error("ALPACA_CREDENTIALS_ENCRYPTION_KEY deve contenere almeno 32 byte.");
   }
 
   const material = await crypto.subtle.importKey("raw", secret, "HKDF", false, ["deriveKey"]);
@@ -44,7 +47,11 @@ function fromBase64(value: string): Uint8Array {
 export async function encryptCredential(value: string): Promise<string> {
   const key = await encryptionKey();
   const iv = crypto.getRandomValues(new Uint8Array(12));
-  const ciphertext = await crypto.subtle.encrypt({ name: "AES-GCM", iv }, key, new TextEncoder().encode(value));
+  const ciphertext = await crypto.subtle.encrypt(
+    { name: "AES-GCM", iv },
+    key,
+    new TextEncoder().encode(value),
+  );
   return PREFIX + toBase64(iv) + "." + toBase64(new Uint8Array(ciphertext));
 }
 
