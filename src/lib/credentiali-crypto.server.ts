@@ -4,32 +4,30 @@ const PREFIX = "v1.";
 
 async function encryptionKey(): Promise<CryptoKey> {
   const runtimeEnv = cloudflareEnv as unknown as Record<string, string | undefined>;
-  const configured = runtimeEnv["ALPACA_CREDENTIALS_ENCRYPTION_KEY"] ?? process.env["ALPACA_CREDENTIALS_ENCRYPTION_KEY"];
-  if (!configured?.trim()) throw new Error("ALPACA_CREDENTIALS_ENCRYPTION_KEY non configurata.");
+  // The Preview build does not preserve ad-hoc Worker secrets across version uploads.
+  // Derive a dedicated AES-256 key from the already-bound high-entropy cron secret,
+  // using HKDF domain separation so it cannot be reused as the cron authentication key.
+  const configured = runtimeEnv["ALTHEA_CRON_SECRET"] ?? process.env["ALTHEA_CRON_SECRET"];
+  if (!configured?.trim()) throw new Error("Segreto server ALTHEA_CRON_SECRET non configurato.");
 
-  const secret = configured.trim();
-  let raw: Uint8Array | undefined;
-
-  // Accept a canonical Base64-encoded 32-byte key when supplied.
-  try {
-    const binary = atob(secret);
-    const decoded = Uint8Array.from(binary, (char) => char.charCodeAt(0));
-    if (decoded.byteLength === 32 && btoa(binary) === secret) raw = decoded;
-  } catch {
-    // A high-entropy secret string is also supported below.
+  const secret = new TextEncoder().encode(configured.trim());
+  if (secret.byteLength < 32) {
+    throw new Error("ALTHEA_CRON_SECRET deve contenere almeno 32 byte per derivare la chiave di cifratura.");
   }
 
-  // Cloudflare dashboard secrets are often entered as opaque strings rather than Base64.
-  // Derive a fixed 256-bit AES key from those strings without exposing or storing the key.
-  if (!raw) {
-    const encodedSecret = new TextEncoder().encode(secret);
-    if (encodedSecret.byteLength < 16) {
-      throw new Error("ALPACA_CREDENTIALS_ENCRYPTION_KEY deve contenere almeno 16 byte oppure essere una chiave Base64 da 32 byte.");
-    }
-    raw = new Uint8Array(await crypto.subtle.digest("SHA-256", encodedSecret));
-  }
-
-  return crypto.subtle.importKey("raw", raw, { name: "AES-GCM" }, false, ["encrypt", "decrypt"]);
+  const material = await crypto.subtle.importKey("raw", secret, "HKDF", false, ["deriveKey"]);
+  return crypto.subtle.deriveKey(
+    {
+      name: "HKDF",
+      hash: "SHA-256",
+      salt: new TextEncoder().encode("althea-credential-encryption-v1"),
+      info: new TextEncoder().encode("AES-256-GCM"),
+    },
+    material,
+    { name: "AES-GCM", length: 256 },
+    false,
+    ["encrypt", "decrypt"],
+  );
 }
 
 function toBase64(bytes: Uint8Array): string {
