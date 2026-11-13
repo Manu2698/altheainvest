@@ -353,7 +353,7 @@ export async function leggiConto(
 
 type RawAsset = Record<string, unknown>;
 
-const cacheAssets = new Map<string, { at: number; items: AssetInvestibile[] }>();
+const cacheAssets = new Map<string, { at: number; items: AssetInvestibile[]; avviso?: string }>();
 const TTL = 1000 * 60 * 60 * 6;
 
 
@@ -378,9 +378,9 @@ async function caricaAssets(
   headers: Headers,
   chiave: string,
   reale: boolean,
-): Promise<AssetInvestibile[]> {
+): Promise<{ items: AssetInvestibile[]; avviso?: string }> {
   const cached = cacheAssets.get(chiave);
-  if (cached && Date.now() - cached.at < TTL) return cached.items;
+  if (cached && Date.now() - cached.at < TTL) return { items: cached.items, avviso: cached.avviso };
 
   const base = `${baseUrl(reale)}/v2/assets?status=active`;
   const [eq, cr] = await Promise.all([
@@ -388,15 +388,29 @@ async function caricaAssets(
     fetch(`${base}&asset_class=crypto`, { headers }),
   ]);
 
+  const errori: string[] = [];
   const raw: RawAsset[] = [];
   if (eq.ok) raw.push(...((await eq.json()) as RawAsset[]));
-  else logServer("alpaca.caricaAssets.equity", new Error(`HTTP ${eq.status}`));
+  else {
+    errori.push(`azioni: HTTP ${eq.status}`);
+    logServer("alpaca.caricaAssets.equity", new Error(`HTTP ${eq.status}`));
+  }
   if (cr.ok) raw.push(...((await cr.json()) as RawAsset[]));
-  else logServer("alpaca.caricaAssets.crypto", new Error(`HTTP ${cr.status}`));
+  else {
+    errori.push(`cripto: HTTP ${cr.status}`);
+    logServer("alpaca.caricaAssets.crypto", new Error(`HTTP ${cr.status}`));
+  }
+
+  if (!eq.ok && !cr.ok) {
+    throw new Error(`Catalogo Alpaca non disponibile (${errori.join("; ")}). Le chiavi risultano presenti, ma il broker non ha restituito il catalogo.`);
+  }
 
   const items = raw.map(mappa).filter((a) => a.ticker && a.operabile);
-  if (items.length) cacheAssets.set(chiave, { at: Date.now(), items });
-  return items;
+  const avviso = errori.length ? `Catalogo parziale: ${errori.join("; ")}.` : undefined;
+  // Non memorizzare risposte vuote o parziali: un errore temporaneo non deve
+  // trasformarsi in un universo vuoto per le successive sei ore.
+  if (items.length && !avviso) cacheAssets.set(chiave, { at: Date.now(), items });
+  return { items, avviso };
 }
 
 export async function cercaAssets(
@@ -410,18 +424,22 @@ export async function cercaAssets(
   totale: number;
   totaleFiltrato: number;
   conteggi: Record<AssetTipo, number>;
+  collegato: boolean;
+  avviso?: string;
 }> {
   const vuoto = {
     risultati: [],
     totale: 0,
     totaleFiltrato: 0,
     conteggi: { azione: 0, etf: 0, cripto: 0 },
+    collegato: false,
   };
   try {
     const cred = await credenzialiUtente(userId, reale);
     if (!cred) return vuoto;
     const chiave = `${cred.headers["APCA-API-KEY-ID"]}:${reale ? "reale" : "paper"}`;
-    const tutti = await caricaAssets(cred.headers, chiave, reale);
+    const catalogo = await caricaAssets(cred.headers, chiave, reale);
+    const tutti = catalogo.items;
     const pool = tipo === "tutti" ? tutti : tutti.filter((a) => a.tipo === tipo);
     const query = q.toUpperCase();
 
@@ -445,10 +463,12 @@ export async function cercaAssets(
       totale: tutti.length,
       totaleFiltrato: ordinati.length,
       conteggi,
+      collegato: true,
+      ...(catalogo.avviso ? { avviso: catalogo.avviso } : {}),
     };
   } catch (error) {
     logServer("alpaca.cercaAssets", error, { q, tipo });
-    return vuoto;
+    throw new Error(error instanceof Error ? error.message : "Errore nel caricamento del catalogo Alpaca.");
   }
 }
 

@@ -153,13 +153,23 @@ export function AssetPicker({
       </div>
 
       <div className="mt-4 max-h-96 space-y-1 overflow-y-auto pr-1">
+        {data?.avviso && (
+          <p role="status" className="mb-2 rounded-lg border border-border px-3 py-2 text-xs text-muted-foreground">
+            {data.avviso}
+          </p>
+        )}
+
         {risultati.length === 0 && (
           <p className="py-6 text-center text-xs text-muted-foreground">
             {autenticato === false
-              ? "Accedi e collega le tue chiavi del broker per vedere l'intero universo negoziabile."
-              : isFetching
-                ? "Cerco…"
-                : "Nessuno strumento trovato: collega le tue chiavi del broker."}
+              ? "Accedi per consultare l'universo negoziabile."
+              : q.isError
+                ? `Catalogo broker non disponibile: ${q.error instanceof Error ? q.error.message : "errore di comunicazione"}`
+                : isFetching
+                  ? "Cerco…"
+                  : data?.collegato === false
+                    ? "Credenziali del broker non disponibili per questo ambiente."
+                    : "Nessuno strumento negoziabile corrisponde ai filtri selezionati."}
           </p>
         )}
 
