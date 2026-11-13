@@ -58,7 +58,7 @@ export async function costruisciVista(
   const pannelli = (await panoramicaPiattaforme(userId)).filter((p) => ok(p.ambiente));
   const [confronto, alpaca, { data: creds }, { data: automazioni }, { data: righe }] = await Promise.all([
     confrontoConti(userId, { riconcilia: false, pannelli }),
-    statoCollegamento(userId),
+    statoCollegamento(db, userId),
     db.from("piattaforme_credenziali").select("piattaforma, ambiente").eq("user_id", userId),
     db.from("automazioni_conti").select("*").eq("user_id", userId),
     db
