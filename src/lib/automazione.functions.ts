@@ -63,7 +63,7 @@ export const getAutomazioni = createServerFn({ method: "GET" })
 
     // Le chiavi Alpaca di piattaforma (se presenti) rendono operativo il conto paper.
     const { statoCollegamento } = await import("./alpaca.server");
-    const statoAlpaca = await statoCollegamento(context.userId);
+    const statoAlpaca = await statoCollegamento(context.supabase, context.userId);
     if (statoAlpaca.piattaforma) {
       chiavi.add("alpaca:paper");
       collegate.add("alpaca:paper");
