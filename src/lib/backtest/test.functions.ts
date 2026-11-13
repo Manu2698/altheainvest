@@ -18,5 +18,5 @@ export const analizzaCandidatoTest=createServerFn({method:"POST"}).middleware([r
     if(!replay.candidato) throw new Error("Nessun candidato da analizzare.");
     const {analizzaStorico}=await import("./comitato.server");
     const verdetto=await analizzaStorico(data.config.ticker,data.config.strategia,replay.candidato,data.evidenze);
-    return {data:replay.candidato.data,verdetto};
+    return {data:replay.candidato.data,verdettoJson:JSON.stringify(verdetto)};
   });

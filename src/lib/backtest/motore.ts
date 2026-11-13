@@ -34,7 +34,9 @@ export function leggiCSV(testo: string): Barra[] {
   validaBarre(barre); return barre;
 }
 export function evidenzeAllaData(e: Evidenza[], data: string) {
-  const chiusura = Date.parse(`${data}T21:00:00Z`);
+  // Conservative cutoff: only documents already available at the start of the
+  // simulated UTC day; avoids exchange DST/close-time look-ahead.
+  const chiusura = Date.parse(`${data}T00:00:00Z`);
   return e.filter(x => Number.isFinite(Date.parse(x.disponibileIl)) && Date.parse(x.disponibileIl) <= chiusura && x.fonte.trim() && x.contenuto.trim());
 }
 export function periodoPrecedente(al: string, quantita: number, unita: "settimane" | "mesi" | "anni") {
@@ -49,8 +51,12 @@ function drawdown(curva: { equity: number }[], iniziale: number) { let picco = i
 /** Replay deterministico; segnali a chiusura, esecuzione soltanto alla successiva apertura. */
 export function simula(c: ConfigTest, barre: Barra[], verdetti: Record<string, Verdetto> = {}): RisultatoTest {
   validaConfig(c); validaBarre(barre);
-  const start = barre.findIndex(b => b.data >= c.dal), end = barre.findLastIndex(b => b.data <= c.al);
-  if (start < 20 || end <= start || !barre[start] || !barre[end] || Date.parse(barre[start].data) - Date.parse(c.dal) > 7*86400000 || Date.parse(c.al)-Date.parse(barre[end].data)>7*86400000) throw new Error("Copertura insufficiente: servono almeno 20 barre prima dell’inizio e prezzi fino alla fine del periodo.");
+  const start = barre.findIndex(b => b.data >= c.dal);
+  let end = -1;
+  for (let i = barre.length - 1; i >= 0; i--) { const b = barre[i]; if (b && b.data <= c.al) { end = i; break; } }
+  const primoPeriodo = barre[start], ultimoPeriodo = barre[end];
+  if (start < 20 || end <= start || !primoPeriodo || !ultimoPeriodo || Date.parse(primoPeriodo.data) - Date.parse(c.dal) > 7*86400000 || Date.parse(c.al)-Date.parse(ultimoPeriodo.data)>7*86400000) throw new Error("Copertura insufficiente: servono almeno 20 barre prima dell’inizio e prezzi fino alla fine del periodo.");
+  for (let i = start; i <= end; i++) { const attuale=barre[i], precedente=barre[i-1]; if(attuale&&precedente&&Date.parse(attuale.data)-Date.parse(precedente.data)>7*86400000) throw new Error("Storico con intervalli mancanti superiori a 7 giorni: risultati non calcolabili."); }
   let cash = c.capitale, qty = 0, costoBase = 0, costi = 0, candidato: Candidato | null = null;
   const operazioni: OperazioneTest[] = [], decisioni: RisultatoTest["decisioni"] = [], curva: RisultatoTest["curva"] = [];
   let pending: { lato: "BUY" | "SELL"; importo: number; segnale: string; motivo: string } | null = null;

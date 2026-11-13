@@ -20,7 +20,7 @@ export function TestStorico(){
   const csv=useRef<HTMLInputElement>(null),docs=useRef<HTMLInputElement>(null);
   const cambia=(patch:Partial<ConfigTest>)=>{setConfig(c=>({...c,...patch}));setRisultato(null);setVerdetti({});setErrore("");};
   async function avvia(){setBusy(true);setErrore("");setRisultato(null);setVerdetti({});try{let b=barre;if(!b.length){const r=await carica({data:config});b=r.barre;setBarre(b);setFonte(r.fonte);}setRisultato(simula(config,b));}catch(e){setErrore(e instanceof Error?e.message:"Test non disponibile.");}finally{setBusy(false);}}
-  async function continua(){if(!risultato?.candidato)return;setBusy(true);setErrore("");try{const r=await analizza({data:{config,barre,verdetti,evidenze}});const v={...verdetti,[r.data]:r.verdetto};setVerdetti(v);setRisultato(simula(config,barre,v));}catch(e){setErrore(e instanceof Error?e.message:"Analisi interrotta.");}finally{setBusy(false);}}
+  async function continua(){if(!risultato?.candidato)return;setBusy(true);setErrore("");try{const r=await analizza({data:{config,barre,verdetti,evidenze}});const v={...verdetti,[r.data]:JSON.parse(r.verdettoJson) as Verdetto};setVerdetti(v);setRisultato(simula(config,barre,v));}catch(e){setErrore(e instanceof Error?e.message:"Analisi interrotta.");}finally{setBusy(false);}}
   const candidato=risultato?.candidato,disponibili=candidato?evidenzeAllaData(evidenze,candidato.data):[];
   const pronto=disponibili.some(e=>e.tipo==="fondamentali")&&disponibili.some(e=>e.tipo==="news"&&Date.parse(e.disponibileIl)>=Date.parse(candidato?.data??"")-7*86400000);
   return <section className="space-y-6">

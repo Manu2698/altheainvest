@@ -11,6 +11,7 @@ import {
   Zap,
 } from "lucide-react";
 import { AssetPicker } from "@/components/AssetPicker";
+import { Button } from "@/components/ui/button";
 import { RuntimeErrorBoundary } from "@/components/RuntimeErrorBoundary";
 import { BrokerConnect } from "@/components/BrokerConnect";
 import { AuthBadge } from "@/components/AuthBadge";
