@@ -28,7 +28,7 @@ export const getContoBroker = createServerFn({ method: "GET" })
   }))
   .handler(async ({ data, context }): Promise<ContoBroker> => {
     const { leggiConto } = await import("./alpaca.server");
-    return leggiConto(data.reale, context.userId);
+    return leggiConto(data.reale, context.userId, context.supabase);
   });
 
 export const getStatoBroker = createServerFn({ method: "GET" })
