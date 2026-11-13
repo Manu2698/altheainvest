@@ -654,7 +654,7 @@ export async function panoramicaPiattaforme(userId: string): Promise<PannelloPia
 
   const { leggiConto, statoCollegamento } = await import("./alpaca.server");
   const { identitaAlpaca } = await import("./conti.server");
-  const statoAlpaca = await statoCollegamento(userId);
+  const statoAlpaca = await statoCollegamento(supabaseAdmin, userId);
   for (const amb of ["paper", "reale"] as const) {
     const conto = await leggiConto(amb === "reale", userId);
     if (conto.stato === "non_configurato") continue;
