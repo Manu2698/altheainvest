@@ -38,8 +38,40 @@ function PaginaAuth() {
     null,
   );
 
+  // Fallback OAuth: alcuni provider/proxy possono restituire il code su /auth
+  // invece che su /auth/callback. Completiamo comunque il PKCE sulla stessa origine.
   useEffect(() => {
-    if (caricata && autenticato) void navigate({ to: "/", replace: true });
+    const url = new URL(window.location.href);
+    const code = url.searchParams.get("code");
+    const oauthError =
+      url.searchParams.get("error_description") ?? url.searchParams.get("error");
+    if (oauthError) {
+      setMessaggio({ tipo: "ko", testo: oauthError });
+      return;
+    }
+    if (!code) {
+      if (caricata && autenticato) void navigate({ to: "/", replace: true });
+      return;
+    }
+
+    let attivo = true;
+    setInCorso(true);
+    void supabase.auth.exchangeCodeForSession(code).then(({ error }) => {
+      if (!attivo) return;
+      if (error) throw error;
+      url.searchParams.delete("code");
+      window.history.replaceState({}, document.title, url.pathname + url.search + url.hash);
+      void navigate({ to: "/", replace: true });
+    }).catch((error: unknown) => {
+      if (!attivo) return;
+      setMessaggio({
+        tipo: "ko",
+        testo: error instanceof Error ? error.message : "Accesso Google non riuscito.",
+      });
+      setInCorso(false);
+    });
+
+    return () => { attivo = false; };
   }, [caricata, autenticato, navigate]);
 
   async function invia(e: React.FormEvent) {
