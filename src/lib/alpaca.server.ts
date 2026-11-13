@@ -116,10 +116,13 @@ function credenzialiAmbiente(): Headers | null {
 export async function credenzialiUtente(
   userId: string | null,
   reale: boolean,
+  userSupabase?: UserSupabase,
 ): Promise<{ headers: Headers; proprie: boolean } | null> {
   if (userId) {
     try {
-      const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+      const { supabaseAdmin } = userSupabase
+        ? { supabaseAdmin: userSupabase }
+        : await import("@/integrations/supabase/client.server");
       const { data } = await supabaseAdmin
         .from("broker_credenziali")
         .select("key_id, api_secret")
@@ -278,8 +281,12 @@ export async function statoCollegamento(supabase: UserSupabase, userId: string):
   }
 }
 
-export async function leggiConto(reale: boolean, userId: string | null): Promise<ContoBroker> {
-  const cred = await credenzialiUtente(userId, reale);
+export async function leggiConto(
+  reale: boolean,
+  userId: string | null,
+  userSupabase?: UserSupabase,
+): Promise<ContoBroker> {
+  const cred = await credenzialiUtente(userId, reale, userSupabase);
   if (!cred) {
     return {
       stato: "non_configurato",
