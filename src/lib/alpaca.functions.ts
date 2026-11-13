@@ -86,6 +86,8 @@ export const cercaAsset = createServerFn({ method: "GET" })
       totale: number;
       totaleFiltrato: number;
       conteggi: Record<AssetTipo, number>;
+      collegato: boolean;
+      avviso?: string;
     }> => {
       const { cercaAssets } = await import("./alpaca.server");
       return cercaAssets(context.userId, data.reale, data.q, data.tipo, data.limite);
