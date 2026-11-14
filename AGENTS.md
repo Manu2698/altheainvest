@@ -10,7 +10,7 @@
 <!-- LOVABLE:END -->
 
 ## Architecture rules
-- Historical tests reuse `src/lib/decisione.ts` without broker execution imports; the browser runs CSV replay and authenticated server functions read market data or evaluate one historical committee candidate per user action, so tests cannot submit orders or modify automation.
+- Historical tests reuse `src/lib/decisione.ts` without broker execution imports; the browser runs independent per-symbol replays with equal initial capital and authenticated server functions read dated archives or evaluate one historical committee candidate per user action, so tests cannot submit orders or modify automation.
 - The rotation proposal is a pure offline evaluator consuming traceable comparable forecasts and existing validation results; no runtime imports or broker calls are allowed until separately authorized integration, so synthetic tests cannot activate trades.
 - Dashboard history, execution register and strategy statistics resolve the currently connected broker identity before selecting account-scoped records; unknown identity returns no history, and previous-account records remain persisted for accounting.
 - Additional buys on an existing holding pass the pure accumulation guard after learning and again against pre-submit positions; only the existing medium SMA20 trend on a non-losing position qualifies, and sells remain unchanged.
