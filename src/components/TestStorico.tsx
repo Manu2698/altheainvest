@@ -17,17 +17,31 @@ const iniziale:ConfigPortafoglio={dal:'2020-01-01',al:'2025-12-31',strategia:'me
 const n=(v:number|null,s='')=>v===null?'—':v.toFixed(2)+s;
 function scarica(nome:string,v:unknown){const url=URL.createObjectURL(new Blob([JSON.stringify(v,null,2)],{type:'application/json'}));const a=document.createElement('a');a.href=url;a.download=nome;a.click();URL.revokeObjectURL(url);}
 export function TestStorico(){
- const {autenticato}=useSessione(),carica=useServerFn(getStoricoTest),analizza=useServerFn(analizzaPortafoglioTest);
+ const {autenticato,utente,caricata}=useSessione(),carica=useServerFn(getStoricoTest),analizza=useServerFn(analizzaPortafoglioTest);
  const [config,setConfig]=useState(iniziale),[titoli,setTitoli]=useState('AAPL'),[serie,setSerie]=useState<Record<string,Barra[]>>({}),[fonti,setFonti]=useState<Record<string,string>>({}),[errore,setErrore]=useState(''),[busy,setBusy]=useState(false),[stato,setStato]=useState(''),[sessioni,setSessioni]=useState<SessioneTest[]>([]),[attiva,setAttiva]=useState<SessioneTest|null>(null),[automatiche,setAutomatiche]=useState(true),[evidenze,setEvidenze]=useState<Evidenza[]>([]),[durata,setDurata]=useState(5),[unita,setUnita]=useState<'settimane'|'mesi'|'anni'>('anni');
  const stop=useRef(false),csv=useRef<HTMLInputElement>(null),docs=useRef<HTMLInputElement>(null),checkpoint=useRef<HTMLInputElement>(null);
- useEffect(()=>{try{const s=JSON.parse(localStorage.getItem('althea-simulazioni-v2')??'[]');if(Array.isArray(s))setSessioni(s);}catch{setErrore('Salvataggi locali non leggibili.');}},[]);
- function salva(s:SessioneTest){setAttiva(s);setSessioni(prev=>{const next=[s,...prev.filter(x=>x.id!==s.id)].slice(0,8);try{localStorage.setItem('althea-simulazioni-v2',JSON.stringify(next));}catch{setErrore('Spazio locale esaurito: esporta il test per conservarlo.');}return next;});}
+ const storageKey=`althea-simulazioni-v2-${utente?.id??'locale'}`;
+ useEffect(()=>{if(!caricata)return;setAttiva(null);setSessioni([]);try{const s=JSON.parse(localStorage.getItem(storageKey)??'[]');if(Array.isArray(s))setSessioni(s);}catch{setErrore('Salvataggi locali non leggibili.');}},[storageKey,caricata]);
+ function salva(s:SessioneTest){setAttiva(s);setSessioni(prev=>{const next=[s,...prev.filter(x=>x.id!==s.id)].slice(0,8);try{localStorage.setItem(storageKey,JSON.stringify(next));}catch{setErrore('Spazio locale esaurito: esporta il test per conservarlo.');}return next;});}
  const cambia=(patch:Partial<ConfigPortafoglio>)=>setConfig(c=>({...c,...patch}));
  async function esegui(s:SessioneTest){
   let corrente=s;salva(corrente);
+  if(s.config.modalita==='regole'){
+   const date=[...new Set(Object.values(s.serie).flatMap(b=>b.filter(x=>x.data>=s.config.dal&&x.data<=s.config.al).map(x=>x.data)))].sort();
+   const precedente=s.risultato.curva.at(-1)?.data??s.config.dal;
+   let i=Math.max(0,date.indexOf(precedente));
+   while(!stop.current){i=Math.min(date.length-1,i+100);const fine=i<date.length-1?date[i]:undefined;corrente={...corrente,risultato:simulaPortafoglio(s.config,s.serie,s.verdetti,fine)};salva(corrente);setStato(`Simulazione · ${date[i]??''}`);await new Promise(r=>setTimeout(r,0));if(i>=date.length-1)break;}
+   return;
+  }
   while(!stop.current&&corrente.risultato.stato==='analisi_richiesta'){
    if(!autenticato){setErrore('Accedi per le valutazioni del comitato.');break;}
    setStato(`${corrente.risultato.candidato?.ticker} · ${corrente.risultato.candidato?.data} · ${corrente.risultato.chiamate}/${corrente.config.maxChiamate} chiamate`);
+   const key=corrente.risultato.chiave;
+   if(!key)break;
+   // Save an uncertain request BEFORE dispatch; a reload/timeout must never resend it.
+   const incerto:VerdettoPortafoglio={procedi:false,importo:0,azione:'HOLD',errore:true,chiamate:9,motivo:'Richiesta IA senza risposta confermata: nessun reinvio automatico. Budget prudenzialmente prenotato.',dettagli:null};
+   const checkpointVerdetti={...corrente.verdetti,[key]:incerto};
+   salva({...corrente,verdetti:checkpointVerdetti,risultato:simulaPortafoglio(corrente.config,corrente.serie,checkpointVerdetti)});
    const v=await analizza({data:{config:corrente.config,serie:corrente.serie,verdetti:corrente.verdetti,evidenze:corrente.evidenze,automatiche:corrente.automatiche}});
    const verdetti={...corrente.verdetti,[v.chiave]:JSON.parse(v.verdettoJson) as VerdettoPortafoglio};
    corrente={...corrente,verdetti,risultato:simulaPortafoglio(corrente.config,corrente.serie,verdetti)};salva(corrente);
@@ -42,15 +56,16 @@ export function TestStorico(){
   for(const t of simboli){if(stop.current)return;setStato(`Caricamento ${t}`);if(serie[t]){dati[t]=serie[t];f[t]=fonti[t]??'CSV';}else{if(!autenticato)throw new Error(`Importa prezzi CSV per ${t} oppure accedi ad Alpaca.`);const r=await carica({data:{...c,ticker:t}});dati[t]=r.barre;f[t]=r.fonte;}}
   setSerie(dati);setFonti(f);
   for(const strategia of confronta?STRATEGIE.map(s=>s.id):[c.strategia]){
-   const cc={...c,strategia,modalita:confronta?'regole' as const:c.modalita},risultato=simulaPortafoglio(cc,dati);
+   if(stop.current)break;
+   const cc={...c,strategia,modalita:confronta?'regole' as const:c.modalita},risultato=simulaPortafoglio(cc,dati,{},cc.modalita==='regole'?cc.dal:undefined);
    const s:SessioneTest={id:crypto.randomUUID(),nome:`${strategia} · ${simboli.join(', ')} · ${cc.modalita}`,config:cc,serie:dati,fonti:f,verdetti:{},risultato,automatiche,evidenze};
    await esegui(s);
   }
  }catch(e){setErrore(e instanceof Error?e.message:'Test interrotto.');}finally{setBusy(false);setStato('');}}
- async function riprendi(){if(!attiva)return;setBusy(true);stop.current=false;setErrore('');try{const c={...attiva.config,maxChiamate:config.maxChiamate};const s={...attiva,config:c,risultato:simulaPortafoglio(c,attiva.serie,attiva.verdetti)};await esegui(s);}catch(e){setErrore(e instanceof Error?e.message:'Ripresa interrotta.');}finally{setBusy(false);}}
+ async function riprendi(){if(!attiva)return;setBusy(true);stop.current=false;setErrore('');try{const c={...attiva.config,maxChiamate:config.maxChiamate};const s={...attiva,config:c,risultato:c.modalita==='regole'?attiva.risultato:simulaPortafoglio(c,attiva.serie,attiva.verdetti)};await esegui(s);}catch(e){setErrore(e instanceof Error?e.message:'Ripresa interrotta.');}finally{setBusy(false);}}
  const r=attiva?.risultato;
  const caricaSessione=(s:SessioneTest)=>{setAttiva(s);setConfig(s.config);setTitoli(s.config.titoli.join(', '));setSerie(s.serie);setFonti(s.fonti);setAutomatiche(s.automatiche);setEvidenze(s.evidenze);};
- return <section className="space-y-6">
+ return <section className="min-w-0 max-w-full overflow-x-clip space-y-6">
  <header className="border-b border-border pb-5"><h1 className="text-2xl font-semibold">Test storici dell’IA</h1><p className="mt-2 text-xs text-warn">PORTAFOGLIO SIMULATO · NESSUN ORDINE AL BROKER</p></header>
  <fieldset disabled={busy} className="min-w-0 space-y-5"><div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
  <label className="space-y-2 text-xs">Strategia<Select value={config.strategia} onValueChange={v=>cambia({strategia:v as ConfigPortafoglio['strategia']})}><SelectTrigger aria-label="Strategia"><SelectValue/></SelectTrigger><SelectContent>{STRATEGIE.map(s=><SelectItem key={s.id} value={s.id}>{s.nome}</SelectItem>)}</SelectContent></Select></label>

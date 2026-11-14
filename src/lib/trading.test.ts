@@ -4,6 +4,7 @@ import { problemaAccumulo } from "./protezioni";
 
 afterEach(() => vi.unstubAllGlobals());
 describe("protezione accumulo dopo il segnale reale", () => {
+  it('lo stop medio operativo precede l’accumulo anche sopra SMA20',()=>{const s=decide('medio','TEST',[...Array(19).fill(80),100],{ticker:'TEST',valore:100,pnlPct:-8},300);expect(s.azione).toBe('vendi');expect(s.importo).toBe(100);expect(problemaAccumulo('medio',{valore:100,pnlPct:-8},[...Array(19).fill(80),100])).not.toBeNull();});
   it("vieta di ricomprare sul ribasso una posizione già detenuta", () => {
     const posizione = { ticker: "TEST", valore: 1, pnlPct: -2 };
     const serie = [...Array(19).fill(10), 9];

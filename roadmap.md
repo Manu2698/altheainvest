@@ -1,8 +1,9 @@
 # Audit PAPER prioritario
-- [ ] Portafoglio storico condiviso: calendario, contabilità, prenotazioni, vendite parziali e metriche; test isolati.
-- [ ] Comitato storico BUY/SELL/HOLD con contesto multi-asset, cache esatta, budget e ripresa senza retry.
-- [ ] Interfaccia esistente: import multi-CSV, salvataggi locali, confronto strategie, risultati e verifica desktop/mobile.
-- [ ] Correzione priorità stop medio e descrizioni; paginazione news; nessun ordine o pubblicazione.
+- [x] Portafoglio storico condiviso: calendario dalle barre, contabilità, prenotazioni, vendite parziali e metriche; 77 test isolati/regressioni passati.
+- [x] Comitato storico BUY/SELL/HOLD con contesto multi-asset, cache esatta, budget e checkpoint incerto senza retry; modelli simulati verificati.
+- [x] Interfaccia esistente: multi-CSV, salvataggi locali per utente, confronto strategie, risultati; AAPL/MSFT FMP importati e verificati da utente autenticato, desktop/mobile 360px senza overflow.
+- [x] Correzione priorità stop medio nel motore condiviso e descrizioni; paginazione news deduplicata; nessun ordine o pubblicazione.
+- [ ] Verifica finale fonti automatiche/comitato reale: Lovable Cloud ora raggiungibile, ma storico Alpaca risponde HTTP 401 con le credenziali collegate; nessuna credenziale modificata. Comitato completo verificato offline, non certificato su un ciclo IA reale.
 - [x] Test su 1–20 titoli con esperimenti indipendenti e confronto/esportazione; JSON facoltativo, fonti automatiche per un candidato esplicito con cutoff e HOLD sui dati mancanti. Test isolati e CSV/confronto/browser desktop-mobile verificati senza ordini.
 - [ ] Verifica autenticata dei test multipli e recupero automatico Alpaca News/comitato: Lovable Cloud in pausa, non riattivato; endpoint dei tre bilanci FMP rispondono 200, ma copertura storica completa e comitato reale non verificabili.
 - [x] Test storici selezionabili: periodi settimane/mesi/anni dal 1970, tre strategie, CSV/Alpaca, costi e metriche, replay isolato ed esportazione; flusso CSV storico AAPL verificato su desktop/mobile senza ordini.

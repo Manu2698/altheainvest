@@ -5,7 +5,7 @@ import { validaConfig, validaBarre, type Barra, type ConfigTest, type Candidato,
 export const VERSIONE_PORTAFOGLIO = 'portfolio-next-open-v2';
 export type ConfigPortafoglio = ConfigTest & { titoli: string[]; liquiditaMinPct: number; maxChiamate: number };
 export type PosizioneVirtuale = { quantita: number; base: number; prezzo: number; data: string };
-export type CandidatoPortafoglio = Candidato & { ticker: string; azione: 'BUY'|'SELL'; portafoglio: Record<string, PosizioneVirtuale>; alternative: { ticker:string; azione:string; chiusure:number[]; volume:number; motivo:string }[]; vincoli: {quotaPct:number;liquiditaMinPct:number} };
+export type CandidatoPortafoglio = Candidato & { ticker: string; azione: 'BUY'|'SELL'; massimoAcquisto:number;massimoVendita:number;portafoglio: Record<string, PosizioneVirtuale>; alternative: { ticker:string; azione:string; chiusure:number[]; volume:number; motivo:string }[]; vincoli: {quotaPct:number;liquiditaMinPct:number} };
 export type VerdettoPortafoglio = Verdetto & { azione?: 'BUY'|'SELL'|'HOLD'|undefined; chiamate?:number|undefined; errore?:boolean|undefined };
 export type OrdineVirtuale = {ticker:string;lato:'BUY'|'SELL';budget:number;quantita:number;segnale:string;motivo:string};
 export type RisultatoPortafoglio = ReturnType<typeof simulaPortafoglio>;
@@ -52,21 +52,29 @@ export function simulaPortafoglio(c:ConfigPortafoglio, serie:Record<string,Barra
       if(c.perditaGiornaliera&&perditaOggi>=c.perditaGiornaliera){hold('Limite giornaliero simulato raggiunto.');continue;}
       // In committee mode open holdings are reviewed every seven calendar days, locally gated.
       const rivaluta=c.modalita==='comitato'&&p&&(!ultimaAnalisi[t]||Date.parse(data)-Date.parse(ultimaAnalisi[t])>=7*86400000);
-      if(azione==='HOLD'&&!rivaluta){hold(motivo);continue;}
+      const prima=a.chiusure.at(-2)??0,ultimo=a.chiusure.at(-1)??0;
+      const nuovoTrend=c.modalita==='comitato'&&!p&&prima<=media(a.chiusure.slice(-21,-1))&&ultimo>media(a.chiusure.slice(-20));
+      if(azione==='HOLD'&&!rivaluta&&!nuovoTrend){hold(motivo);continue;}
+      if(azione==='HOLD'&&nuovoTrend){azione='BUY';motivo='Nuovo attraversamento SMA20: opportunità sottoposta al comitato, non acquisto automatico.';}
       if(azione==='HOLD'&&rivaluta){azione='SELL';motivo='Rivalutazione periodica della posizione: vendita parziale/totale o HOLD.';}
       const riservato=pending.filter(o=>o.lato==='BUY').reduce((s,o)=>s+o.budget,0);
-      let importo=azione==='SELL'?(p?.quantita??0)*(p?.prezzo??0):Math.floor(Math.min(a.importo,cash-riservato-equity*c.liquiditaMinPct/100,Math.max(0,equity*c.quotaPct/100-(composizione[t]??0)))*100)/100;
+      const bloccoAcquisto=problemaDati(a.chiusure,data,Date.parse(data))??problemaAccumulo(c.strategia,a.pv,a.chiusure);
+      const massimoAcquisto=bloccoAcquisto?0:Math.max(0,Math.floor(Math.min(cash-riservato-equity*c.liquiditaMinPct/100,Math.max(0,equity*c.quotaPct/100-(composizione[t]??0)))*100)/100);
+      const massimoVendita=(p?.quantita??0)*(p?.prezzo??0);
+      let importo=azione==='SELL'?massimoVendita:Math.min(nuovoTrend?massimoAcquisto:a.importo,massimoAcquisto);
       if(azione==='BUY'){const blocco=problemaDati(a.chiusure,data,Date.parse(data))??problemaAccumulo(c.strategia,a.pv,a.chiusure);if(blocco){hold(blocco);continue;}}
       if(importo<1||importo<=c.commissione){hold('Liquidità, esposizione o importo insufficiente.');continue;}
       // Stops from decide bypass AI; discretionary SELL is subject to independent veto.
       if(c.modalita==='comitato'&&a.azione!=='vendi'){
         if(azione==='HOLD')continue;
-        const ctx:CandidatoPortafoglio={ticker:t,azione,data,chiusure:a.chiusure,importo,motivo,posizione:a.pv??null,conto:{capitale:equity,liquidita:cash-riservato,investito,numeroPosizioni:Object.keys(pos).length,perditaOggi,limitePerdita:c.perditaGiornaliera},portafoglio:JSON.parse(JSON.stringify(pos)),alternative:alternative.map(x=>({ticker:x.ticker,azione:x.azione,chiusure:x.chiusure,volume:x.volume,motivo:x.motivo})),vincoli:{quotaPct:c.quotaPct,liquiditaMinPct:c.liquiditaMinPct}};
+        const ctx:CandidatoPortafoglio={ticker:t,azione,massimoAcquisto,massimoVendita,data,chiusure:a.chiusure,importo,motivo,posizione:a.pv??null,conto:{capitale:equity,liquidita:cash-riservato,investito,numeroPosizioni:Object.keys(pos).length,perditaOggi,limitePerdita:c.perditaGiornaliera},portafoglio:JSON.parse(JSON.stringify(pos)),alternative:alternative.map(x=>({ticker:x.ticker,azione:x.azione,chiusure:x.chiusure,volume:x.volume,motivo:x.motivo})),vincoli:{quotaPct:c.quotaPct,liquiditaMinPct:c.liquiditaMinPct}};
         const key=chiaveCandidato(c,ctx),v=verdetti[key];if(!v){candidato=ctx;chiave=key;stato=Object.values(verdetti).reduce((s,v)=>s+(v.chiamate??0),0)+9>c.maxChiamate?'budget_esaurito':'analisi_richiesta';break;}
-        ultimaAnalisi[t]=data;decisioni.push({data,ticker:t,azione:v.procedi?azione:'HOLD',motivo:v.motivo,dettagli:v.dettagli});
+        ultimaAnalisi[t]=data;decisioni.push({data,ticker:t,azione:v.procedi?(v.azione??azione):'HOLD',motivo:v.motivo,dettagli:v.dettagli});
         if(v.errore){candidato=ctx;chiave=key;stato='interrotto';break;}
         if(!v.procedi||v.azione==='HOLD'||!Number.isFinite(v.importo)||v.importo<=0)continue;
-        if(v.azione&&v.azione!==azione)continue;importo=Math.min(importo,v.importo);motivo=v.motivo;
+        if(v.azione==='BUY'||v.azione==='SELL')azione=v.azione;
+        importo=Math.min(azione==='BUY'?massimoAcquisto:massimoVendita,v.importo);motivo=v.motivo;
+        if(importo<1||importo<=c.commissione)continue;
       }else decisioni.push({data,ticker:t,azione,motivo,dettagli:null});
       pending.push({ticker:t,lato:azione==='BUY'?'BUY':'SELL',budget:azione==='BUY'?importo:0,quantita:azione==='SELL'?Math.min(p?.quantita??0,importo/(p?.prezzo??1)):0,segnale:data,motivo});
     }
