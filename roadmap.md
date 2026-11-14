@@ -1,4 +1,7 @@
 # Audit PAPER prioritario
+- [x] Prototipo rules-only con 50 EUR, replay riutilizzato senza limite di 20 simboli, prezzi FMP segmentati/cambi osservati, alternative Alpaca/CSV, risultati mensili e salvataggi locali.
+- [x] Verifica isolata e UI autenticata delle tre strategie AAPL/MSFT, recupero dopo reload e zero richieste IA/ordini; rapporto di copertura e limiti.
+- [ ] Universo automatico completo: catalogo azionario FMP HTTP 402, catalogo crypto 2001 simboli senza valuta verificata; esaustività, split e calendario point-in-time non certificati. Nessun servizio aggiuntivo attivato.
 - [x] Portafoglio storico condiviso: calendario dalle barre, contabilità, prenotazioni, vendite parziali e metriche; 77 test isolati/regressioni passati.
 - [x] Comitato storico BUY/SELL/HOLD con contesto multi-asset, cache esatta, budget e checkpoint incerto senza retry; modelli simulati verificati.
 - [x] Interfaccia esistente: multi-CSV, salvataggi locali per utente, confronto strategie, risultati; AAPL/MSFT FMP importati e verificati da utente autenticato, desktop/mobile 360px senza overflow.

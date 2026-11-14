@@ -1,3 +1,4 @@
 - Backtests are isolated, user-triggered simulations using the shared pure signal function; they never import execution, reconciliation, learning, live committee cache or order submission modules.
 - Historical committee decisions consume only source-labelled observations available before the simulated UTC day; user-started batches evaluate sequential portfolio candidates within a declared call budget, cache identical contexts and never automatically retry failures.
 - Simulation results and arguments are exportable, not written to live trading records; missing historical coverage blocks certification rather than inventing prices or fundamentals.
+- The autonomous rules-only path uses fixed EUR simulation cash and observed quote-specific FX, source-discovered universes and the shared portfolio replay; its separate data functions cannot import AI or order modules, so zero model budget is structural.

@@ -3,7 +3,7 @@ import { problemaAccumulo, problemaDati } from '../protezioni';
 import { validaConfig, validaBarre, type Barra, type ConfigTest, type Candidato, type Verdetto, type OperazioneTest } from './motore';
 
 export const VERSIONE_PORTAFOGLIO = 'portfolio-next-open-v2';
-export type ConfigPortafoglio = ConfigTest & { titoli: string[]; liquiditaMinPct: number; maxChiamate: number };
+export type ConfigPortafoglio = ConfigTest & { titoli: string[]; liquiditaMinPct: number; maxChiamate: number; giornaliero?:boolean };
 export type PosizioneVirtuale = { quantita: number; base: number; prezzo: number; data: string };
 export type CandidatoPortafoglio = Candidato & { ticker: string; azione: 'BUY'|'SELL'; massimoAcquisto:number;massimoVendita:number;portafoglio: Record<string, PosizioneVirtuale>; alternative: { ticker:string; azione:string; chiusure:number[]; volume:number; motivo:string }[]; vincoli: {quotaPct:number;liquiditaMinPct:number} };
 export type VerdettoPortafoglio = Verdetto & { azione?: 'BUY'|'SELL'|'HOLD'|undefined; chiamate?:number|undefined; errore?:boolean|undefined };
@@ -11,7 +11,7 @@ export type OrdineVirtuale = {ticker:string;lato:'BUY'|'SELL';budget:number;quan
 export type RisultatoPortafoglio = ReturnType<typeof simulaPortafoglio>;
 export function validaPortafoglio(c:ConfigPortafoglio) {
   validaConfig(c);
-  if(!Array.isArray(c.titoli)||c.titoli.length<1||c.titoli.length>20||new Set(c.titoli).size!==c.titoli.length||c.titoli.some(t=>! /^[A-Z0-9./-]{1,15}$/.test(t)))throw new Error('Universo non valido (1–20 simboli unici).');
+  if(!Array.isArray(c.titoli)||c.titoli.length<1||new Set(c.titoli).size!==c.titoli.length||c.titoli.some(t=>! /^[A-Z0-9./-]{1,15}$/.test(t)))throw new Error('Universo non valido: servono simboli unici.');
   if(!Number.isFinite(c.liquiditaMinPct)||c.liquiditaMinPct<0||c.liquiditaMinPct>100||!Number.isInteger(c.maxChiamate)||c.maxChiamate<0||c.maxChiamate>10000)throw new Error('Riserva o budget IA non valido.');
 }
 export function chiaveCandidato(c:ConfigPortafoglio, candidato:CandidatoPortafoglio) { return JSON.stringify({versione:VERSIONE_PORTAFOGLIO,config:{...c,maxChiamate:undefined},candidato}); }
@@ -21,7 +21,7 @@ export function simulaPortafoglio(c:ConfigPortafoglio, serie:Record<string,Barra
   validaPortafoglio(c);
   const calendari:Record<string,Map<string,Barra>>={};
   for(const t of c.titoli){const b=serie[t];if(!b)throw new Error(`Storico mancante: ${t}. Nessun titolo escluso silenziosamente.`);validaBarre(b);const start=b.findIndex(x=>x.data>=c.dal);const fine=b.filter(x=>x.data<=c.al).at(-1);if(start<20||!fine||Date.parse(b[start]?.data??'')-Date.parse(c.dal)>7*86400000||Date.parse(c.al)-Date.parse(fine.data)>7*86400000)throw new Error(`Copertura insufficiente: ${t}.`);for(let i=start;i<b.length;i++){const x=b[i],p=b[i-1];if(x&&p&&x.data<=c.al&&Date.parse(x.data)-Date.parse(p.data)>7*86400000)throw new Error(`Intervallo storico mancante: ${t}.`);}calendari[t]=new Map(b.map(x=>[x.data,x]));}
-  const date=[...new Set(c.titoli.flatMap(t=>(serie[t]??[]).filter(b=>b.data>=c.dal&&b.data<=c.al).map(b=>b.data)))].sort();
+  const date=c.giornaliero?Array.from({length:Math.floor((Date.parse(c.al)-Date.parse(c.dal))/86400000)+1},(_,i)=>new Date(Date.parse(c.dal)+i*86400000).toISOString().slice(0,10)):[...new Set(c.titoli.flatMap(t=>(serie[t]??[]).filter(b=>b.data>=c.dal&&b.data<=c.al).map(b=>b.data)))].sort();
   let cash=c.capitale, precedente=c.capitale, costi=0, commissioni=0, slippage=0, spread=0;
   const pos:Record<string,PosizioneVirtuale>={},pending:OrdineVirtuale[]=[],operazioni:(OperazioneTest&{ticker:string})[]=[],decisioni:{data:string;ticker:string;azione:string;motivo:string;dettagli:unknown}[]=[],curva:{data:string;equity:number;benchmark:number;liquidita:number;esposizione:number;composizione:Record<string,number>}[]=[];
   const ultimaAnalisi:Record<string,string>={},bench:Record<string,number>={},prezzi:Record<string,number>={};
@@ -29,7 +29,7 @@ export function simulaPortafoglio(c:ConfigPortafoglio, serie:Record<string,Barra
   const attrito=(c.spreadBps/2+c.slippageBps)/10000;
   for(const data of date){
     // Pending cash remains in cash, but is reserved and cannot fund another intent.
-    for(let j=pending.length-1;j>=0;j--){const o=pending[j];if(!o)continue;const b=calendari[o.ticker]?.get(data);if(!b||data<=o.segnale)continue;pending.splice(j,1);if(b.volume<=0){decisioni.push({data,ticker:o.ticker,azione:'HOLD',motivo:'Ordine annullato: volume assente.',dettagli:null});continue;}
+    for(const o of pending.slice()){const b=calendari[o.ticker]?.get(data);if(!b||data<=o.segnale)continue;pending.splice(pending.indexOf(o),1);if(b.volume<=0){decisioni.push({data,ticker:o.ticker,azione:'HOLD',motivo:'Ordine annullato: volume assente.',dettagli:null});continue;}
       const prezzo=b.apertura*(o.lato==='BUY'?1+attrito:1-attrito),p=pos[o.ticker];
       let q=0,pnl:number|null=null;
       if(o.lato==='BUY'){const budget=Math.min(cash,o.budget);q=Math.max(0,(budget-c.commissione)/prezzo);if(q<=0)continue;cash-=budget;pos[o.ticker]={quantita:(p?.quantita??0)+q,base:(p?.base??0)+budget,prezzo:b.apertura,data};}
@@ -61,7 +61,7 @@ export function simulaPortafoglio(c:ConfigPortafoglio, serie:Record<string,Barra
       const bloccoAcquisto=problemaDati(a.chiusure,data,Date.parse(data))??problemaAccumulo(c.strategia,a.pv,a.chiusure);
       const massimoAcquisto=bloccoAcquisto?0:Math.max(0,Math.floor(Math.min(cash-riservato-equity*c.liquiditaMinPct/100,Math.max(0,equity*c.quotaPct/100-(composizione[t]??0)))*100)/100);
       const massimoVendita=(p?.quantita??0)*(p?.prezzo??0);
-      let importo=azione==='SELL'?massimoVendita:Math.min(nuovoTrend?massimoAcquisto:a.importo,massimoAcquisto);
+      let importo=azione==='SELL'?Math.min(a.importo||massimoVendita,massimoVendita):Math.min(nuovoTrend?massimoAcquisto:a.importo,massimoAcquisto);
       if(azione==='BUY'){const blocco=problemaDati(a.chiusure,data,Date.parse(data))??problemaAccumulo(c.strategia,a.pv,a.chiusure);if(blocco){hold(blocco);continue;}}
       if(importo<1||importo<=c.commissione){hold('Liquidità, esposizione o importo insufficiente.');continue;}
       // Stops from decide bypass AI; discretionary SELL is subject to independent veto.
