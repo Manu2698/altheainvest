@@ -25,14 +25,19 @@ export async function caricaEvidenzeStoriche(userId: string, ticker: string, dat
     else {
       const cutoff=Date.parse(`${data}T00:00:00Z`), url=new URL("https://data.alpaca.markets/v1beta1/news");
       url.searchParams.set("symbols",ticker);url.searchParams.set("start",new Date(cutoff-7*86400000).toISOString());url.searchParams.set("end",new Date(cutoff).toISOString());url.searchParams.set("sort","desc");url.searchParams.set("limit","50");
-      const r=await fetch(url,{headers:cred.headers,signal:AbortSignal.timeout(10000)});
-      if(!r.ok) avvisi.push(`Alpaca News: archivio non disponibile (HTTP ${r.status}).`);
-      else {
+      const righe:Record<string,unknown>[]=[],tokens=new Set<string>();let completo=false;
+      for(let pagina=0;pagina<10;pagina++){
+        const r=await fetch(url,{headers:cred.headers,signal:AbortSignal.timeout(10000)});
+        if(!r.ok){avvisi.push(`Alpaca News: archivio non disponibile (HTTP ${r.status}).`);break;}
         const j=await r.json() as {news?:Record<string,unknown>[];next_page_token?:string|null};
-        if(!Array.isArray(j.news)) avvisi.push("Archivio notizie non leggibile.");
-        else if(j.next_page_token) avvisi.push("Copertura notizie troncata: nessuna notizia usata per evitare un campione incompleto.");
-        else evidenze.push(...notizieStoriche(j.news,ticker,data));
+        if(!Array.isArray(j.news)){avvisi.push("Archivio notizie non leggibile.");break;}
+        righe.push(...j.news);
+        if(!j.next_page_token){completo=true;break;}
+        if(tokens.has(j.next_page_token))break;
+        tokens.add(j.next_page_token);url.searchParams.set('page_token',j.next_page_token);
       }
+      if(completo)evidenze.push(...notizieStoriche([...new Map(righe.map(x=>[String(x['id']??JSON.stringify(x)),x])).values()],ticker,data));
+      else avvisi.push("Copertura notizie troncata: nessuna notizia usata per evitare un campione incompleto.");
     }
   }catch{avvisi.push("Archivio notizie non raggiungibile.");}
   if(!evidenze.some(e=>e.tipo==="fondamentali")) avvisi.push("Nessun bilancio pubblicato prima del candidato: HOLD.");

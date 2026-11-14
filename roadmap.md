@@ -1,4 +1,8 @@
 # Audit PAPER prioritario
+- [ ] Portafoglio storico condiviso: calendario, contabilità, prenotazioni, vendite parziali e metriche; test isolati.
+- [ ] Comitato storico BUY/SELL/HOLD con contesto multi-asset, cache esatta, budget e ripresa senza retry.
+- [ ] Interfaccia esistente: import multi-CSV, salvataggi locali, confronto strategie, risultati e verifica desktop/mobile.
+- [ ] Correzione priorità stop medio e descrizioni; paginazione news; nessun ordine o pubblicazione.
 - [x] Test su 1–20 titoli con esperimenti indipendenti e confronto/esportazione; JSON facoltativo, fonti automatiche per un candidato esplicito con cutoff e HOLD sui dati mancanti. Test isolati e CSV/confronto/browser desktop-mobile verificati senza ordini.
 - [ ] Verifica autenticata dei test multipli e recupero automatico Alpaca News/comitato: Lovable Cloud in pausa, non riattivato; endpoint dei tre bilanci FMP rispondono 200, ma copertura storica completa e comitato reale non verificabili.
 - [x] Test storici selezionabili: periodi settimane/mesi/anni dal 1970, tre strategie, CSV/Alpaca, costi e metriche, replay isolato ed esportazione; flusso CSV storico AAPL verificato su desktop/mobile senza ordini.

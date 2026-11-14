@@ -3,7 +3,7 @@ import type { StrategyId } from "./strategies";
 const media = (v: number[]) => (v.length ? v.reduce((a, b) => a + b, 0) / v.length : 0);
 type Posizione = { ticker: string; valore: number; pnlPct: number };
 
-/** Segnale condiviso, invariato: nessuna chiamata al broker o apprendimento. */
+/** Segnale condiviso: le uscite precedono sempre gli ingressi; nessuna chiamata al broker. */
 export function decide(
   strategia: StrategyId,
   ticker: string,
@@ -35,20 +35,16 @@ export function decide(
   }
 
   if (strategia === "medio") {
+    if (pnl <= -8 && posseduto > 0)
+      return { azione: "vendi", importo: posseduto, motivo: `Stop di rischio a ${pnl.toFixed(1)}%.` };
+    if (ultimo < sma20 * 0.97 && posseduto > 0)
+      return { azione: "vendi", importo: posseduto, motivo: "Rottura al ribasso della media a 20 giorni." };
     if (ultimo > sma20 && mancante > quotaTarget * 0.2)
       return {
         azione: "compra",
         importo: mancante,
         motivo: "Trend positivo: prezzo sopra la media a 20 giorni.",
       };
-    if (ultimo < sma20 * 0.97 && posseduto > 0)
-      return {
-        azione: "vendi",
-        importo: posseduto,
-        motivo: "Rottura al ribasso della media a 20 giorni.",
-      };
-    if (pnl <= -8 && posseduto > 0)
-      return { azione: "vendi", importo: posseduto, motivo: `Stop di rischio a ${pnl.toFixed(1)}%.` };
     return { azione: "attendi", importo: 0, motivo: "Nessun segnale netto sul trend." };
   }
 

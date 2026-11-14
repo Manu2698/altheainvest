@@ -2,6 +2,7 @@ import { createServerFn } from "@tanstack/react-start";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { z } from "zod";
 import { simula, validaConfig, type ConfigTest, type Evidenza, type Barra, type Verdetto } from "./motore";
+import { simulaPortafoglio, validaPortafoglio, type ConfigPortafoglio, type VerdettoPortafoglio } from './portafoglio';
 
 export const getStoricoTest=createServerFn({method:"POST"}).middleware([requireSupabaseAuth])
   .inputValidator((i:ConfigTest)=>{validaConfig(i);return i;})
@@ -11,6 +12,19 @@ export const getStoricoTest=createServerFn({method:"POST"}).middleware([requireS
   });
 
 const schema=z.object({config:z.custom<ConfigTest>(),barre:z.array(z.object({data:z.string(),apertura:z.number(),chiusura:z.number(),volume:z.number()})).max(25000),verdetti:z.record(z.string(),z.object({procedi:z.boolean(),importo:z.number(),motivo:z.string(),dettagli:z.unknown()})),evidenze:z.array(z.object({disponibileIl:z.string(),fonte:z.string().max(200),contenuto:z.string().max(4000),tipo:z.enum(["fondamentali","news"])})).max(1000),automatiche:z.boolean().default(true)});
+const schemaPortafoglio=z.object({config:z.custom<ConfigPortafoglio>(),serie:z.record(z.string(),schema.shape.barre),verdetti:z.record(z.string(),z.object({procedi:z.boolean(),importo:z.number(),motivo:z.string(),dettagli:z.unknown(),azione:z.enum(['BUY','SELL','HOLD']).optional(),chiamate:z.number().int().min(0).max(9).optional(),errore:z.boolean().optional()})).refine(v=>Object.keys(v).length<=2000),evidenze:schema.shape.evidenze,automatiche:z.boolean()});
+export const analizzaPortafoglioTest=createServerFn({method:'POST'}).middleware([requireSupabaseAuth])
+ .inputValidator((i:{config:ConfigPortafoglio;serie:Record<string,Barra[]>;verdetti:Record<string,VerdettoPortafoglio>;evidenze:Evidenza[];automatiche:boolean})=>{const v=schemaPortafoglio.parse(i);validaPortafoglio(v.config);if(v.config.modalita!=='comitato'||Object.keys(v.serie).length>20)throw new Error('Simulazione non valida.');return v;})
+ .handler(async({data,context})=>{
+   const replay=simulaPortafoglio(data.config,data.serie,data.verdetti);
+   if(replay.stato!=='analisi_richiesta'||!replay.candidato||!replay.chiave)throw new Error('Nessuna valutazione disponibile entro il budget.');
+   const c=replay.candidato;
+   const archivio=data.automatiche?await(await import('./evidenze.server')).caricaEvidenzeStoriche(context.userId,c.ticker,c.data):{evidenze:data.evidenze,avvisi:['Documenti personali, provenienza non certificata.']};
+   const v=await(await import('./comitato.server')).analizzaStorico(c.ticker,data.config.strategia,c,archivio.evidenze);
+   return {chiave:replay.chiave,verdettoJson:JSON.stringify({...v,dettagli:{analisi:v.dettagli,evidenze:archivio.evidenze,avvisi:archivio.avvisi}})};
+ });
+
+
 export const analizzaCandidatoTest=createServerFn({method:"POST"}).middleware([requireSupabaseAuth])
   .inputValidator((i:{config:ConfigTest;barre:Barra[];verdetti:Record<string,Verdetto>;evidenze:Evidenza[];automatiche?:boolean})=>{const v=schema.parse(i);validaConfig(v.config);if(v.config.modalita!=="comitato")throw new Error("Modalità non valida.");return v;})
   .handler(async({data,context})=>{
