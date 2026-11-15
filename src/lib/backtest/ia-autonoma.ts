@@ -42,6 +42,14 @@ export function sezioniDiagnostica(s: StatoIA, k = 3): SezioneDiagnostica[] {
     return { ticker, comitato, diagnosi, origine: comitato?.diagnostica?.length ? 'comitato' : diagnosi ? 'verifica' : 'mancante' };
   });
 }
+/** Status panel state derived only from real screening data; never invents candidates or results. */
+export type StatoPannelloDiagnostica = 'nessun_eleggibile' | 'non_avviato' | 'parziale' | 'senza_buy' | 'con_candidati';
+export function pannelloStatoDiagnostica(eleggibili: number, screenati: number, candidatiBuy: number): StatoPannelloDiagnostica {
+  if (eleggibili <= 0) return 'nessun_eleggibile';
+  if (screenati <= 0) return 'non_avviato';
+  if (screenati < eleggibili) return 'parziale';
+  return candidatiBuy > 0 ? 'con_candidati' : 'senza_buy';
+}
 /** Stores a read-only diagnostic beside (never over) committee results. */
 export function conDiagnosi(s: StatoIA, d: DiagnosiCandidato): StatoIA {
   return { ...s, diagnosi: { ...(s.diagnosi ?? {}), [d.ticker]: d } };
