@@ -11,7 +11,7 @@ import { preparaAutonomo, simulaAutonomo, type EsitoAutonomo, type DatiAutonomi,
 import { blocchi, verificaSerie, type AssetAutonomo, type UniversoAutonomo } from '@/lib/backtest/universo-autonomo';
 import { checkpointAutonomo } from '@/lib/backtest/checkpoint-autonomo';
 import { acquisisciBlocchiAlpaca, type StatoAcquisizione } from '@/lib/backtest/acquisizione-ibrida';
-import { eleggibiliScreening, candidatiComitato, statoIA, type StatoIA, type EsitoComitatoUI } from '@/lib/backtest/ia-autonoma';
+import { eleggibiliScreening, candidatiComitato, comitatoDaRitentare, statoIA, type StatoIA, type EsitoComitatoUI } from '@/lib/backtest/ia-autonoma';
 
 type Fonte = 'nasdaq' | 'alpaca' | 'ibrida';
 type Universo = UniversoAutonomo & { esclusiPerMotivo?: Record<string, number> };
@@ -141,7 +141,7 @@ export function BacktestAutonomo() {
       }
       const cand = candidatiComitato(s.screening, 3);
       for (const t of cand) {
-        if (stop.current || s.comitati[t]) continue;
+        if (stop.current || !comitatoDaRitentare(s.comitati[t])) continue;
         const input = inputs.find(i => i.ticker === t); if (!input) continue;
         setStato(`Comitato IA · ${t}`);
         const r = await fn.comitato({ data: { runId, strategia: p.strategia, input } }); setRun(r.run);

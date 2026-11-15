@@ -17,6 +17,10 @@ export function eleggibiliScreening(assets: AssetAutonomo[], serie: Record<strin
 export function candidatiComitato(screening: Record<string, VerdettoUI>, k: number): string[] {
   return Object.values(screening).filter(v => v.verdetto === 'BUY').sort((a, b) => b.priorita - a.priorita || a.ticker.localeCompare(b.ticker)).slice(0, k).map(v => v.ticker);
 }
+/** A candidate is (re)evaluated unless its committee already ran ('eseguito') or the run was denied ('negata'); 'non_eseguibile' is retried on every new AI run so fresh evidence can unblock it. */
+export function comitatoDaRitentare(c: EsitoComitatoUI | undefined): boolean {
+  return !c || c.stato === 'non_eseguibile';
+}
 /** COMPLETE only when every eligible was screened and every selected candidate got a real committee verdict. */
 export function statoIA(eleggibili: string[], s: StatoIA, k: number) {
   const motivi: string[] = [];

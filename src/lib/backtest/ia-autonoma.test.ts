@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { eleggibiliScreening, candidatiComitato, statoIA, type StatoIA } from './ia-autonoma';
+import { eleggibiliScreening, candidatiComitato, comitatoDaRitentare, statoIA, type StatoIA } from './ia-autonoma';
 import { rifiltraInput } from './screening-autonomo';
 import { blocchi, type AssetAutonomo } from './universo-autonomo';
 const barre = Array.from({ length: 60 }, (_, i) => ({ data: new Date(Date.UTC(2025, 0, 1) + i * 86400000).toISOString().slice(0, 10), apertura: 10 + i, chiusura: 10 + i, volume: 100 }));
@@ -32,5 +32,11 @@ describe('screening IA autonomo', () => {
     expect(statoIA(tick, s, 3).completo).toBe(false);
     s.comitati['T02'] = { stato: 'eseguito', approvato: false, azione: 'HOLD', motivo: 'attendi', chiamate: 9 };
     const st = statoIA(tick, s, 3); expect(st.completo).toBe(true); expect(st.approvati).toEqual(['T04']);
+  });
+  it('ritenta solo i comitati non_eseguibile: eseguito e negata non vengono mai ripetuti', () => {
+    expect(comitatoDaRitentare(undefined)).toBe(true);
+    expect(comitatoDaRitentare({ stato: 'non_eseguibile', motivo: 'notizie assenti' })).toBe(true);
+    expect(comitatoDaRitentare({ stato: 'eseguito', approvato: true, azione: 'BUY', motivo: 'ok', chiamate: 9 })).toBe(false);
+    expect(comitatoDaRitentare({ stato: 'negata', motivo: 'budget' })).toBe(false);
   });
 });
