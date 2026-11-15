@@ -45,7 +45,7 @@ export async function prezziFMP(s:StrumentoStorico,dal:string,al:string){
   const inizio=new Date(Date.parse(dal)-180*86400000).toISOString().slice(0,10),righe:Barra[]=[];
   for(const i of intervalliStorici(inizio,al)){const j=await leggiFMP('historical-price-eod/full',{symbol:s.ticker,from:i.dal,to:i.al});const b=normalizzaPrezzi(j);if(b.length>=5000)throw new Error('Serie potenzialmente troncata.');righe.push(...b.filter(x=>x.data>=i.dal&&x.data<=i.al));}
   const barre=normalizzaPrezzi(righe.map(b=>({date:b.data,open:b.apertura,close:b.chiusura,volume:b.volume})));validaBarre(barre);
-  return {barre,valuta,fonte:'FMP prezzi EOD · non bilanci; aggiustamento split da verificare'};
+  return {barre,valuta,fonte:'FMP prezzi EOD split-adjusted (verificato su NVDA 10:1), dividendi esclusi'};
 }
 export async function cambiFMP(valuta:string,dal:string,al:string){
   // FMP EURUSD means USD per EUR; inversion gives EUR per USD.

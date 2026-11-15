@@ -412,6 +412,92 @@ export type Database = {
         }
         Relationships: []
       }
+      ia_backtest_chiamate: {
+        Row: {
+          chiave: string
+          created_at: string
+          effettive: number | null
+          errore: string | null
+          id: string
+          riservate: number
+          risultato: Json | null
+          run_id: string
+          stato: string
+          tipo: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          chiave: string
+          created_at?: string
+          effettive?: number | null
+          errore?: string | null
+          id?: string
+          riservate: number
+          risultato?: Json | null
+          run_id: string
+          stato?: string
+          tipo: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          chiave?: string
+          created_at?: string
+          effettive?: number | null
+          errore?: string | null
+          id?: string
+          riservate?: number
+          risultato?: Json | null
+          run_id?: string
+          stato?: string
+          tipo?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ia_backtest_chiamate_run_id_fkey"
+            columns: ["run_id"]
+            isOneToOne: false
+            referencedRelation: "ia_backtest_run"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      ia_backtest_run: {
+        Row: {
+          created_at: string
+          id: string
+          max_chiamate: number
+          motivo: string | null
+          riservate: number
+          stato: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          max_chiamate: number
+          motivo?: string | null
+          riservate?: number
+          stato?: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          max_chiamate?: number
+          motivo?: string | null
+          riservate?: number
+          stato?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       istantanee_contabili: {
         Row: {
           ambiente: string
@@ -810,6 +896,33 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      ia_backtest_apri_run: {
+        Args: { p_max: number; p_user: string }
+        Returns: string
+      }
+      ia_backtest_chiudi: {
+        Args: {
+          p_chiave: string
+          p_effettive: number
+          p_errore: string
+          p_risultato: Json
+          p_run: string
+          p_stato: string
+          p_stato_run: string
+          p_user: string
+        }
+        Returns: boolean
+      }
+      ia_backtest_riserva: {
+        Args: {
+          p_chiave: string
+          p_n: number
+          p_run: string
+          p_tipo: string
+          p_user: string
+        }
+        Returns: Json
+      }
       prendi_lease_conto: {
         Args: {
           p_ambiente: string

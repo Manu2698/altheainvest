@@ -10,15 +10,19 @@ export function inputScreening(s:AssetAutonomo,serie:Barra[],data:string,evidenz
   const cutoff=Date.parse(`${data}T00:00:00Z`);
   return {ticker:s.ticker,classe:s.classe,data,barre:serie.filter(b=>Date.parse(`${b.data}T00:00:00Z`)<cutoff).slice(-120),evidenze:evidenze.filter(e=>e.ticker===s.ticker && e.fonte.trim() && e.contenuto.trim() && Number.isFinite(Date.parse(e.disponibileIl)) && Date.parse(e.disponibileIl)<=cutoff && Number.isFinite(Date.parse(e.efficaceIl)) && Date.parse(e.efficaceIl)<=cutoff)};
 }
+/** Screening is a price-based point-in-time filter: evidence is used when present but not required; class must be verified. */
 export function motivoNonValutabile(i:InputScreening) {
   if(i.barre.length<20)return 'Prezzi point-in-time insufficienti.';
   if(i.classe==='us_equity_non_classificata')return 'Sottotipo azione/ETF non verificato.';
-  const tipo=i.classe==='azione'?'fondamentali':i.classe;
-  if(!i.evidenze.some(e=>e.tipo===tipo))return `Evidenze storiche ${tipo} con date verificabili assenti.`;
-  if(i.classe==='azione'&&!i.evidenze.some(e=>e.tipo==='news'))return 'News point-in-time assenti.';
   return null;
 }
-/** Dependency-injected protocol. Production model dispatch stays disabled until a server-owned ledger exists. */
+/** Server-side re-application of the point-in-time cutoff: client-supplied inputs are never trusted. */
+export function rifiltraInput(i:InputScreening):InputScreening {
+  if(!/^\d{4}-\d{2}-\d{2}$/.test(i.data))throw new Error('Data screening non valida.');
+  const cutoff=Date.parse(`${i.data}T00:00:00Z`);
+  return {ticker:i.ticker,classe:i.classe,data:i.data,barre:i.barre.filter(b=>Date.parse(`${b.data}T00:00:00Z`)<cutoff).slice(-120).map(b=>({data:b.data,apertura:b.apertura,chiusura:b.chiusura,volume:b.volume})),evidenze:i.evidenze.filter(e=>e.ticker===i.ticker&&Date.parse(e.disponibileIl)<=cutoff&&Date.parse(e.efficaceIl)<=cutoff)};
+}
+/** Dependency-injected protocol (offline checkpoint semantics); production dispatch goes through the server ledger. */
 export async function screeningPerBlocchi(inputs:InputScreening[],maxChiamate:number,checkpoint:CheckpointScreening,chiama:(b:InputScreening[])=>Promise<EsitoScreening[]>,persisti:(c:CheckpointScreening)=>Promise<void>,dimensione=10) {
   if(!Number.isInteger(maxChiamate)||maxChiamate<0)throw new Error('Budget non valido.');
   const contesto=JSON.stringify(inputs);if(checkpoint.contesto!==contesto)throw new Error('Checkpoint di un contesto differente.');

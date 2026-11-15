@@ -2,7 +2,7 @@ import { normalizzaUniverso, unisciBarre, type AssetAutonomo } from './universo-
 import type { Barra } from './motore';
 
 // No trading module imports: only authenticated credential SELECT, GET assets and market data.
-async function credenziali(userId: string) {
+export async function credenzialiPaperAutonome(userId: string) {
   const { supabaseAdmin } = await import('@/integrations/supabase/client.server');
   const { data, error } = await supabaseAdmin.from('broker_credenziali').select('key_id,api_secret,ambiente').eq('user_id',userId).eq('ambiente','paper');
   if(error) throw new Error('Credenziali Alpaca non leggibili.');
@@ -11,7 +11,7 @@ async function credenziali(userId: string) {
   return {headers:{'APCA-API-KEY-ID':row.key_id,'APCA-API-SECRET-KEY':row.api_secret},base:'https://paper-api.alpaca.markets'};
 }
 export async function catalogoAlpacaAutonomo(userId:string) {
-  const cred=await credenziali(userId),righe:unknown[]=[];
+  const cred=await credenzialiPaperAutonome(userId),righe:unknown[]=[];
   for(const classe of ['us_equity','crypto']) {
     const r=await fetch(`${cred.base}/v2/assets?status=active&asset_class=${classe}`,{headers:cred.headers});
     if(!r.ok) throw new Error(`Catalogo Alpaca ${classe} HTTP ${r.status}: acquisizione incompleta, nessun fallback nascosto.`);
@@ -21,7 +21,7 @@ export async function catalogoAlpacaAutonomo(userId:string) {
 }
 export async function prezziAlpacaBlocco(userId:string, strumenti:AssetAutonomo[],dal:string,al:string) {
   if(!strumenti.length || strumenti.length>25 || new Set(strumenti.map(s=>s.ticker)).size!==strumenti.length)throw new Error('Blocco storico non valido.');
-  const cred=await credenziali(userId),serie:Record<string,Barra[]>={},errori:Record<string,string>={};
+  const cred=await credenzialiPaperAutonome(userId),serie:Record<string,Barra[]>={},errori:Record<string,string>={};
   for(const mercato of ['azioni','crypto'] as const){
     const subset=strumenti.filter(s=>s.mercato===mercato);if(!subset.length)continue;
     if(subset.some(s=>mercato==='crypto'&&!/^[A-Z0-9]+\/[A-Z]{3}$/.test(s.ticker)))throw new Error('Formato crypto non supportato.');
@@ -41,4 +41,24 @@ export async function prezziAlpacaBlocco(userId:string, strumenti:AssetAutonomo[
     for(const s of subset)if(!serie[s.ticker]?.length)errori[s.ticker]='Serie storica assente presso Alpaca.';
   }
   return {serie,errori};
+}
+/** Non-sensitive diagnostic: never returns key material, only format checks and HTTP statuses of read-only GETs. */
+export async function diagnosticaAlpacaPaper(userId:string){
+  const { supabaseAdmin } = await import('@/integrations/supabase/client.server');
+  const { data, error } = await supabaseAdmin.from('broker_credenziali').select('key_id,api_secret,updated_at').eq('user_id',userId).eq('ambiente','paper').maybeSingle();
+  if(error)return {presenti:false,conclusione:'Archivio credenziali non leggibile.',rimedio:'Riprova più tardi.',controlli:[] as {nome:string;ok:boolean;dettaglio:string}[]};
+  if(!data?.key_id||!data.api_secret)return {presenti:false,conclusione:'Nessuna chiave Alpaca PAPER collegata a questo utente.',rimedio:'Dashboard → collegamento Alpaca Paper: incolla Key ID e Secret generati in Alpaca (sezione Paper Trading → API Keys).',controlli:[]};
+  const k=data.key_id,sec=data.api_secret,h={'APCA-API-KEY-ID':k,'APCA-API-SECRET-KEY':sec,accept:'application/json'};
+  const stato=async(url:string)=>{try{const r=await fetch(url,{headers:h,signal:AbortSignal.timeout(10000)});return r.status;}catch{return 0;}};
+  const [conto,dati]=await Promise.all([stato('https://paper-api.alpaca.markets/v2/account'),stato('https://data.alpaca.markets/v2/stocks/bars?symbols=SPY&timeframe=1Day&limit=1&feed=iex')]);
+  const controlli=[
+    {nome:'Formato Key ID paper (prefisso PK)',ok:k.startsWith('PK'),dettaglio:k.startsWith('PK')?'Prefisso compatibile con chiavi Paper.':k.startsWith('AK')?'Prefisso da chiave LIVE: non valida per Paper.':'Prefisso non riconosciuto.'},
+    {nome:'Lunghezze plausibili',ok:k.length>=20&&k.length<=32&&sec.length>=40&&sec.length<=48,dettaglio:`Key ID ${k.length} caratteri, secret ${sec.length} caratteri.`},
+    {nome:'Spazi o a capo',ok:k===k.trim()&&sec===sec.trim(),dettaglio:k===k.trim()&&sec===sec.trim()?'Nessuno.':'Presenti: chiave incollata male.'},
+    {nome:'Endpoint conto paper-api.alpaca.markets/v2/account',ok:conto===200,dettaglio:`HTTP ${conto||'irraggiungibile'}`},
+    {nome:'Endpoint dati data.alpaca.markets (feed IEX)',ok:dati===200,dettaglio:`HTTP ${dati||'irraggiungibile'}`},
+  ];
+  const formatoOk=controlli.slice(0,3).every(c=>c.ok);
+  const conclusione=conto===200&&dati===200?'Accesso Alpaca PAPER funzionante.':formatoOk&&(conto===401||conto===403)?`Alpaca rifiuta la coppia di chiavi PAPER (HTTP ${conto}) pur con formato, endpoint e header corretti: chiavi revocate o rigenerate su Alpaca (ad esempio dopo un reset del conto Paper) dopo il collegamento del ${String(data.updated_at).slice(0,10)}.`:formatoOk?'Errore del servizio Alpaca o di rete: nessun problema di formato rilevato.':'Chiavi salvate con formato non valido per Paper.';
+  return {presenti:true,conclusione,rimedio:'Genera nuove chiavi in Alpaca → Paper Trading → API Keys, poi in Dashboard scollega e ricollega Alpaca Paper. Nessuna credenziale REAL viene usata.',controlli};
 }

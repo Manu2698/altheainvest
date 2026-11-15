@@ -78,6 +78,20 @@
       "when": 1793651039097,
       "tag": "0010_migration",
       "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "7",
+      "when": 1794737346591,
+      "tag": "0011_ledger_budget_ia_backtest",
+      "breakpoints": true
+    },
+    {
+      "idx": 12,
+      "version": "7",
+      "when": 1794737419147,
+      "tag": "0012_ledger_ia_riuso_tra_run",
+      "breakpoints": true
     }
   ]
 }
