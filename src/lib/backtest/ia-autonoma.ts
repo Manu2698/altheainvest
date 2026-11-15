@@ -35,7 +35,7 @@ export function statoIA(eleggibili: string[], s: StatoIA, k: number) {
   return { completo: eleggibili.length > 0 && !mancanti.length && !nonEseguiti.length, approvati, candidati: cand, motivi };
 }
 /** One diagnostic section per top-k BUY candidate, even with empty/old committee checkpoints; never invents results. */
-export type SezioneDiagnostica = { ticker: string; comitato?: EsitoComitatoUI; diagnosi?: DiagnosiCandidato; origine: 'comitato' | 'verifica' | 'mancante' };
+export type SezioneDiagnostica = { ticker: string; comitato?: EsitoComitatoUI | undefined; diagnosi?: DiagnosiCandidato | undefined; origine: 'comitato' | 'verifica' | 'mancante' };
 export function sezioniDiagnostica(s: StatoIA, k = 3): SezioneDiagnostica[] {
   return candidatiComitato(s.screening, k).map(ticker => {
     const comitato = s.comitati[ticker], diagnosi = s.diagnosi?.[ticker];
