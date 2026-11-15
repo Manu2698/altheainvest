@@ -9,6 +9,7 @@ export async function leggiFMP(endpoint:string,parametri:Record<string,string>={
   const url=new URL(`https://connector-gateway.lovable.dev/udc_financial_modeling_prep/stable/${endpoint}`);
   for(const [k,v]of Object.entries(parametri))url.searchParams.set(k,v);
   const r=await fetch(url,{headers:{Authorization:`Bearer ${lov}`,'X-Connection-Api-Key':key},signal:AbortSignal.timeout(endpoint==='stock-list'?60000:20000)});
+  if(r.status===402&&/symbol/i.test((await r.text().catch(()=>'')).slice(0,400)))throw new Error('Financial Modeling Prep: simbolo non incluso nel piano attuale (rifiuto 402 per simbolo, non della fonte).');
   if(!r.ok)throw new Error(`Financial Modeling Prep: ${endpoint} HTTP ${r.status}.`);
   return r.json();
 }

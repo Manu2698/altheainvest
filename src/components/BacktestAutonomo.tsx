@@ -6,7 +6,7 @@ import { Input } from './ui/input';
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from './ui/select';
 import { useSessione } from '@/hooks/useSessione';
 import { STRATEGIE } from '@/lib/strategies';
-import { getUniversoAutonomo, getUniversoNasdaq, getBloccoAutonomo, getPrezziAutonomi, getCambiAutonomi, getDiagnosticaAlpaca, apriRunIA, eseguiScreeningIA, eseguiComitatoIA } from '@/lib/backtest/autonomo.functions';
+import { getUniversoAutonomo, getUniversoNasdaq, getBloccoAutonomo, getPrezziAutonomi, getCambiAutonomi, getDiagnosticaAlpaca, apriRunIA, getStatoRunIA, eseguiScreeningIA, eseguiComitatoIA } from '@/lib/backtest/autonomo.functions';
 import { preparaAutonomo, simulaAutonomo, type EsitoAutonomo, type DatiAutonomi, type ParametriAutonomi, type Copertura } from '@/lib/backtest/autonomo';
 import { blocchi, verificaSerie, type AssetAutonomo, type UniversoAutonomo } from '@/lib/backtest/universo-autonomo';
 import { checkpointAutonomo } from '@/lib/backtest/checkpoint-autonomo';
@@ -28,9 +28,9 @@ function elaborati(d: DatiAutonomi): DatiAutonomi { return { ...d, strumenti: d.
 
 export function BacktestAutonomo() {
   const { utente, caricata, autenticato } = useSessione();
-  const fn = { nasdaq: useServerFn(getUniversoNasdaq), alpaca: useServerFn(getUniversoAutonomo), blocco: useServerFn(getBloccoAutonomo), prezzi: useServerFn(getPrezziAutonomi), cambi: useServerFn(getCambiAutonomi), diag: useServerFn(getDiagnosticaAlpaca), apri: useServerFn(apriRunIA), screening: useServerFn(eseguiScreeningIA), comitato: useServerFn(eseguiComitatoIA) };
+  const fn = { nasdaq: useServerFn(getUniversoNasdaq), alpaca: useServerFn(getUniversoAutonomo), blocco: useServerFn(getBloccoAutonomo), prezzi: useServerFn(getPrezziAutonomi), cambi: useServerFn(getCambiAutonomi), diag: useServerFn(getDiagnosticaAlpaca), apri: useServerFn(apriRunIA), statoRun: useServerFn(getStatoRunIA), screening: useServerFn(eseguiScreeningIA), comitato: useServerFn(eseguiComitatoIA) };
   const [p, setP] = useState<ParametriAutonomi>({ dal: '2025-07-01', al: '2025-12-31', strategia: 'medio', quotaPct: 10, commissione: 0, spreadBps: 10, slippageBps: 5 });
-  const [fonte, setFonte] = useState<Fonte>('nasdaq'), [classe, setClasse] = useState<'tutte' | 'azione' | 'etf'>('tutte'), [limite, setLimite] = useState(40), [budget, setBudget] = useState(0);
+  const [fonte, setFonte] = useState<Fonte>('nasdaq'), [classe, setClasse] = useState<'tutte' | 'azione' | 'etf'>('tutte'), [limite, setLimite] = useState(40), [budget, setBudget] = useState(0), [simboli, setSimboli] = useState('');
   const [universo, setUniverso] = useState<Universo | null>(null), [d, setD] = useState<DatiAutonomi>(vuoti), [ia, setIa] = useState<StatoIA>(iaVuota), [run, setRun] = useState<RunServer>(null);
   const [busy, setBusy] = useState(false), [stato, setStato] = useState(''), [errore, setErrore] = useState(''), [copertura, setCopertura] = useState<Copertura[]>([]);
   const [esito, setEsito] = useState<EsitoAutonomo | null>(null), [esitoIA, setEsitoIA] = useState<EsitoAutonomo | null>(null), [diag, setDiag] = useState<Diagnostica | null>(null), [salvati, setSalvati] = useState<Salvataggio[]>([]);
@@ -40,7 +40,7 @@ export function BacktestAutonomo() {
 
   useEffect(() => { if (!caricata) return; try { const v = JSON.parse(localStorage.getItem(storage) ?? '[]'); setSalvati(Array.isArray(v) ? v : []); } catch { setErrore('Salvataggi non leggibili.'); } }, [storage, caricata]);
   // Resume the owner-scoped checkpoint for this source/period after a reload.
-  useEffect(() => { if (!utente) return; let vivo = true; checkpointAutonomo<Checkpoint>(utente.id, chiave).then(c => { if (!vivo || !c) return; setD(c.dati); setIa(c.ia ?? iaVuota()); setCopertura(preparaAutonomo(p, elaborati(c.dati)).copertura); if (c.errore) setErrore(c.errore); setStato('Checkpoint ripreso da questo dispositivo: lo stato del budget IA resta quello del server.'); }).catch(() => setErrore('Archivio locale non disponibile.')); return () => { vivo = false; }; // eslint-disable-next-line react-hooks/exhaustive-deps
+  useEffect(() => { if (!utente) return; let vivo = true; checkpointAutonomo<Checkpoint>(utente.id, chiave).then(c => { if (!vivo || !c) return; setD(c.dati); setIa(c.ia ?? iaVuota()); setCopertura(preparaAutonomo(p, elaborati(c.dati)).copertura); if (c.errore) setErrore(c.errore); if (c.ia?.runId) fn.statoRun({ data: { runId: c.ia.runId } }).then(r => { if (vivo) setRun(r); }).catch(() => setRun(null)); setStato('Checkpoint ripreso da questo dispositivo: lo stato del budget IA resta quello del server.'); }).catch(() => setErrore('Archivio locale non disponibile.')); return () => { vivo = false; }; // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [utente?.id, chiave]);
 
   const salvaCk = async (dati: DatiAutonomi, statoIa: StatoIA, err = '') => { if (utente) await checkpointAutonomo<Checkpoint>(utente.id, chiave, { dati, ia: statoIa, errore: err }); };
@@ -63,7 +63,10 @@ export function BacktestAutonomo() {
       if (!autenticato || !utente) throw new Error('Accedi per acquisire lo storico.');
       if (!dati.strumenti.length) { const r = await caricaUniverso(); dati = { ...dati, strumenti: r.strumenti, avvisi: r.avvisi }; }
       const assets = dati.strumenti.filter((s): s is AssetAutonomo => 'classe' in s).filter(filtra);
-      const daFare = assets.filter(s => !dati.serie[s.ticker] && !dati.errori[s.ticker]).slice(0, Math.max(1, limite));
+      const scelti = simboli.toUpperCase().split(/[\s,;]+/).filter(Boolean);
+      const ignoti = scelti.filter(t => !assets.some(s => s.ticker === t));
+      if (ignoti.length) dati.avvisi = [...dati.avvisi.filter(a => !a.startsWith('Simboli non presenti')), `Simboli non presenti nell’universo classificato (esclusi): ${ignoti.join(', ')}.`];
+      const daFare = assets.filter(s => (!scelti.length || scelti.includes(s.ticker)) && !dati.serie[s.ticker] && !dati.errori[s.ticker]).slice(0, Math.max(1, limite));
       if (!daFare.length) setStato('Nessuno strumento da acquisire con il filtro scelto: tutti già elaborati.');
       if (daFare.some(s => s.valuta === 'USD') && !dati.cambi['USD']) { setStato('Cambi storici EUR/USD'); dati.cambi['USD'] = await fn.cambi({ data: { valuta: 'USD', dal: p.dal, al: p.al } }); await salvaCk(dati, ia); }
       if (fonte === 'alpaca') {
@@ -164,6 +167,7 @@ export function BacktestAutonomo() {
       <label className="text-xs space-y-2">Universo e prezzi<Select value={fonte} onValueChange={v => { setFonte(v as Fonte); setD(vuoti()); setUniverso(null); setIa(iaVuota()); setCopertura([]); }}><SelectTrigger aria-label="Fonte universo"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="nasdaq">Nasdaq Trader + prezzi FMP</SelectItem><SelectItem value="alpaca">Alpaca PAPER (catalogo + prezzi)</SelectItem></SelectContent></Select></label>
       <label className="text-xs space-y-2">Classe<Select value={classe} onValueChange={v => setClasse(v as typeof classe)}><SelectTrigger aria-label="Classe strumenti"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="tutte">Azioni ed ETF</SelectItem><SelectItem value="azione">Solo azioni</SelectItem><SelectItem value="etf">Solo ETF</SelectItem></SelectContent></Select></label>
       <label className="text-xs space-y-2">Strumenti da acquisire in questa sessione<Input aria-label="Limite sessione" type="number" min="1" max="2000" value={limite} onChange={e => setLimite(Math.max(1, Math.min(2000, Math.floor(Number(e.target.value) || 1))))} /></label>
+      <label className="text-xs space-y-2 sm:col-span-2">Simboli da acquisire (facoltativo, separati da virgola; vuoto = coda dell’universo)<Input aria-label="Simboli autonomi" value={simboli} placeholder="AAPL, MSFT, SPY, KO" onChange={e => setSimboli(e.target.value)} /></label>
       <label className="text-xs space-y-2">Budget massimo chiamate IA (server, max 200)<Input aria-label="Budget IA autonomo" type="number" min="0" max="200" step="1" value={budget} onChange={e => setBudget(Math.max(0, Math.min(200, Math.floor(Number(e.target.value) || 0))))} /></label>
       {([{ k: 'quotaPct', l: 'Quota simulata per titolo (%)' }, { k: 'commissione', l: 'Commissione simulata (EUR)' }, { k: 'spreadBps', l: 'Spread simulato (bps)' }, { k: 'slippageBps', l: 'Slippage simulato (bps)' }] as const).map(x => <label key={x.k} className="text-xs space-y-2">{x.l}<Input aria-label={x.l} type="number" min="0" value={p[x.k]} onChange={e => modifica({ [x.k]: Number(e.target.value) })} /></label>)}
     </fieldset>
