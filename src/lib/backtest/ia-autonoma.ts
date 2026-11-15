@@ -1,11 +1,12 @@
+import type { DiagnosticaEvidenza } from './evidenze-autonome';
 import type { Barra } from './motore';
 import type { AssetAutonomo } from './universo-autonomo';
 import { inputScreening, motivoNonValutabile, type InputScreening } from './screening-autonomo';
 
 export type VerdettoUI = { ticker: string; verdetto: 'BUY' | 'SELL' | 'HOLD' | 'NON_VALUTABILE'; priorita: number; motivazione: string };
-export type EsitoComitatoUI =
+export type EsitoComitatoUI = { diagnostica?: DiagnosticaEvidenza[]; avvisi?: string[] } & (
   | { stato: 'eseguito'; approvato: boolean; azione: 'BUY' | 'SELL' | 'HOLD'; motivo: string; chiamate: number }
-  | { stato: 'non_eseguibile' | 'negata'; motivo: string };
+  | { stato: 'non_eseguibile' | 'negata'; motivo: string });
 export type StatoIA = { runId: string | null; screening: Record<string, VerdettoUI>; comitati: Record<string, EsitoComitatoUI>; messaggi: string[] };
 
 /** Every verified-class instrument with >=20 bars strictly before the start date is screened; order is deterministic. */

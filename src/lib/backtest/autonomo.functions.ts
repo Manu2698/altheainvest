@@ -55,11 +55,13 @@ export const eseguiComitatoIA=createServerFn({method:'POST'}).middleware([requir
   const {rifiltraInput}=await import('./screening-autonomo');const input=rifiltraInput(data.input);
   if(input.barre.length<20)throw new Error('Prezzi point-in-time insufficienti per il comitato.');
   const c=await import('./comitato-autonomo.server');const l=await import('./ledger-ia.server');
-  const ev=await c.evidenzeAutonome(context.userId,input.ticker,input.data);
-  if(ev.mancante)return {esito:{stato:'non_eseguibile' as const,motivo:ev.mancante,avvisi:ev.avvisi},run:await l.statoRunIA(context.userId,data.runId)};
+  const ev=await c.evidenzeAutonome(context.userId,input.ticker,input.data,input.classe);
+  const {conEvidenzeSufficienti}=await import('./evidenze-autonome');
+  const esito=await conEvidenzeSufficienti(ev,async()=>{
   const {chiaveIdempotenza,eseguiConLedger}=await import('./ledger-ia');
   const chiusure=input.barre.map(b=>b.chiusura);
   const chiave=await chiaveIdempotenza('comitato',{strategia:data.strategia,ticker:input.ticker,data:input.data,chiusure,evidenze:ev.evidenze});
-  const esito=await eseguiConLedger(await l.ledgerServer(context.userId,data.runId),chiave,'comitato',9,async()=>{const r=await c.comitatoAutonomo(input.ticker,data.strategia,input.data,chiusure,ev.evidenze);return {risultato:JSON.parse(JSON.stringify(r)) as typeof r,effettive:r.chiamate};},(r):r is Awaited<ReturnType<typeof c.comitatoAutonomo>>=>!!r&&typeof r==='object'&&'approvato' in r&&typeof (r as {approvato:unknown}).approvato==='boolean');
-  return {esito,run:await l.statoRunIA(context.userId,data.runId)};
+  return eseguiConLedger(await l.ledgerServer(context.userId,data.runId),chiave,'comitato',9,async()=>{const r=await c.comitatoAutonomo(input.ticker,data.strategia,input.data,chiusure,ev.evidenze);return {risultato:JSON.parse(JSON.stringify(r)) as typeof r,effettive:r.chiamate};},(r):r is Awaited<ReturnType<typeof c.comitatoAutonomo>>=>!!r&&typeof r==='object'&&'approvato' in r&&typeof (r as {approvato:unknown}).approvato==='boolean');
+  });
+  return {esito,diagnostica:ev.diagnostica,avvisi:ev.avvisi,run:await l.statoRunIA(context.userId,data.runId)};
  });
