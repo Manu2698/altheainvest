@@ -33,12 +33,23 @@ export async function prezziAlpacaBlocco(userId:string, strumenti:AssetAutonomo[
       const r=await fetch(url,{headers:cred.headers});if(!r.ok)throw new Error(`Storico Alpaca HTTP ${r.status}: blocco interrotto, nessun retry.`);
       const j=await r.json() as {bars?:Record<string,{t:string;o:number;c:number;v:number}[]>;next_page_token?:string|null};
       if(!j.bars || typeof j.bars!=='object')throw new Error('Risposta storica Alpaca non valida.');
-      for(const s of subset){const rows=j.bars[s.ticker]??[];if(!Array.isArray(rows))throw new Error('Serie Alpaca non leggibile.');serie[s.ticker]=unisciBarre([...(serie[s.ticker]??[]),...rows.map(b=>({data:b.t.slice(0,10),apertura:b.o,chiusura:b.c,volume:b.v}))]);}
+      for(const s of subset){
+        if(errori[s.ticker])continue;
+        try {
+          const rows=j.bars[s.ticker]??[];
+          if(!Array.isArray(rows))throw new Error('Serie Alpaca non leggibile.');
+          const barre=rows.map(b=>{
+            if(typeof b.t!=='string'||!Number.isFinite(Date.parse(b.t))||!Number.isFinite(b.o)||b.o<=0||!Number.isFinite(b.c)||b.c<=0||!Number.isFinite(b.v)||b.v<0)throw new Error('Barra Alpaca con timestamp, prezzi o volume non validi.');
+            return {data:new Date(b.t).toISOString().slice(0,10),apertura:b.o,chiusura:b.c,volume:b.v};
+          });
+          serie[s.ticker]=unisciBarre([...(serie[s.ticker]??[]),...barre]).filter(b=>b.data<=al);
+        } catch(e) { delete serie[s.ticker];errori[s.ticker]=e instanceof Error?e.message:'Serie non valida.'; }
+      }
       if(!j.next_page_token){completo=true;break;}
       if(tokens.has(j.next_page_token))throw new Error('Paginazione Alpaca ripetuta.');tokens.add(j.next_page_token);url.searchParams.set('page_token',j.next_page_token);
     }
     if(!completo)throw new Error('Paginazione Alpaca troncata: blocco non salvato.');
-    for(const s of subset)if(!serie[s.ticker]?.length)errori[s.ticker]='Serie storica assente presso Alpaca.';
+    for(const s of subset)if(!serie[s.ticker]?.length&&!errori[s.ticker])errori[s.ticker]='Serie storica assente presso Alpaca.';
   }
   return {serie,errori};
 }

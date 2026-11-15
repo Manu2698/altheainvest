@@ -7,6 +7,11 @@ const raw={symbol:'BTC/USD',class:'crypto',exchange:'CRYPTO',status:'active',tra
 beforeEach(()=>{mock.rows=[{ambiente:'paper',key_id:'fixture',api_secret:'fixture'}];mock.filters=[];});
 afterEach(()=>vi.unstubAllGlobals());
 describe('letture Alpaca PAPER only',()=>{
+ it('barra invalida di un simbolo non nasconde serie valide; warmup e pagine split IEX GET',async()=>{
+  const f=vi.fn(async(input:URL,init?:RequestInit)=>{const url=new URL(input);expect(init?.method??'GET').toBe('GET');expect(url.searchParams.get('adjustment')).toBe('split');expect(url.searchParams.get('feed')).toBe('iex');expect(Date.parse('2025-01-21')-Date.parse(url.searchParams.get('start')??'')).toBe(180*86400000);return Response.json({bars:{AAPL:[{t:'2025-01-01T05:00:00Z',o:100,c:110,v:1000}],BAD:[{t:'invalid',o:1,c:1,v:2}]}});});vi.stubGlobal('fetch',f);
+  const assets=normalizzaUniverso(['AAPL','BAD'].map(symbol=>({...raw,symbol,class:'us_equity'})),'2026').strumenti;
+  const r=await prezziAlpacaBlocco('fixture-user',assets,'2025-01-21','2025-02-20');expect(r.serie['AAPL']).toHaveLength(1);expect(r.errori['BAD']).toContain('timestamp');expect(f).toHaveBeenCalledTimes(1);
+ });
  it('usa solo colonne esistenti e cataloghi array completi, non inventa paginazione assets',async()=>{const f=vi.fn(async(url:string)=>Response.json(url.includes('us_equity')?[{...raw,symbol:'AAPL',class:'us_equity'}]:[raw]));vi.stubGlobal('fetch',f);const r=await catalogoAlpacaAutonomo('fixture-user');expect(r.strumenti).toHaveLength(2);expect(f).toHaveBeenCalledTimes(2);expect(mock.filters).toEqual([['user_id','fixture-user'],['ambiente','paper']]);expect(f.mock.calls.every(([url])=>url.startsWith('https://paper-api.alpaca.markets/v2/assets?'))).toBe(true);});
  it('REAL-only non avvia nessuna richiesta broker',async()=>{mock.rows=[{ambiente:'reale',key_id:'fixture',api_secret:'fixture'}];const f=vi.fn();vi.stubGlobal('fetch',f);await expect(catalogoAlpacaAutonomo('fixture-user')).rejects.toThrow('PAPER');expect(f).not.toHaveBeenCalled();});
  it('catalogo negato non produce un falso universo parziale né retry',async()=>{const f=vi.fn(async()=>new Response('',{status:401}));vi.stubGlobal('fetch',f);await expect(catalogoAlpacaAutonomo('fixture-user')).rejects.toThrow('HTTP 401');expect(f).toHaveBeenCalledTimes(1);});

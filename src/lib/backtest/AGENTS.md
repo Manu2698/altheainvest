@@ -6,4 +6,5 @@
 - Autonomous acquisitions checkpoint owner/period/source-scoped blocks in IndexedDB before continuing; failed or uncertain blocks are not automatically resent.
 - Autonomous Alpaca readers select only the requesting owner's PAPER credentials; REAL and shared environment fallbacks are forbidden, so absent PAPER access fails closed.
 - Optional monthly reserve (accantonamentoMensile) in the portfolio replay withdraws only realized net P&L from free cash at month close; metrics add the reserve back so withdrawals are not counted as losses.
-- The default autonomous stock/ETF universe is the public Nasdaq Trader directory (ETF from its official flag, names may only exclude); FMP per-symbol 402 is an exclusion, while source-level 401/402/403/429 stops the scan.
+- The default autonomous hybrid universe preserves Nasdaq equity subtypes and appends only validated Alpaca crypto pairs; historical prices use PAPER-only Alpaca IEX/split GET blocks of 25 and FMP only for observed FX, so FMP symbol-plan restrictions do not constrain equity price coverage. Legacy FMP remains optional.
+- Hybrid acquisition checkpoints block intent before dispatch and results before continuing; symbol errors remain separate from source refusals, uncertain blocks cannot auto-replay, and session limits segment the full universe rather than cap it.

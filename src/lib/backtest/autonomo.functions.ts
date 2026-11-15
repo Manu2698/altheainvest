@@ -25,6 +25,7 @@ export const getCambiAutonomi=createServerFn({method:'POST'}).middleware([requir
  .inputValidator((i:{valuta:string;dal:string;al:string})=>z.object({valuta:z.string().regex(/^[A-Z]{3}$/),dal:z.iso.date(),al:z.iso.date()}).refine(x=>x.dal<x.al&&x.al<=new Date().toISOString().slice(0,10)).parse(i))
  .handler(async({data})=>(await import('./prezzi-fmp.server')).cambiFMP(data.valuta,data.dal,data.al));
 export const getUniversoNasdaq=createServerFn({method:'GET'}).middleware([requireSupabaseAuth]).handler(async()=>(await import('./universo-nasdaq.server')).catalogoNasdaq());
+export const getUniversoIbrido=createServerFn({method:'GET'}).middleware([requireSupabaseAuth]).handler(async({context})=>(await import('./universo-ibrido.server')).catalogoIbrido(context.userId));
 export const getDiagnosticaAlpaca=createServerFn({method:'GET'}).middleware([requireSupabaseAuth]).handler(async({context})=>(await import('./universo-alpaca.server')).diagnosticaAlpacaPaper(context.userId));
 const barraSchema=z.object({data:z.iso.date(),apertura:z.number().positive(),chiusura:z.number().positive(),volume:z.number().min(0)});
 const evidenzaSchema=z.object({ticker:z.string(),tipo:z.enum(['fondamentali','news','etf','crypto']),fonte:z.string().max(200),disponibileIl:z.string(),efficaceIl:z.string(),contenuto:z.string().max(4000)});
