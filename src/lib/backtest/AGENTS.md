@@ -4,4 +4,5 @@
 - Autonomous catalog/data functions use owner-scoped credential SELECT and GET assets/market-data only, never trading modules; raw us_equity remains unclassified without authoritative subtype metadata, so names cannot fabricate ETF classification.
 - Autonomous AI dispatch remains disabled until server-owned budget/idempotency/denial persistence and class-specific historical evidence exist; the dependency-injected screening protocol is tested offline and cannot certify a production AI simulation.
 - Autonomous acquisitions checkpoint owner/period/source-scoped blocks in IndexedDB before continuing; failed or uncertain blocks are not automatically resent.
+- Autonomous Alpaca readers select only the requesting owner's PAPER credentials; REAL and shared environment fallbacks are forbidden, so absent PAPER access fails closed.
 - Optional monthly reserve (accantonamentoMensile) in the portfolio replay withdraws only realized net P&L from free cash at month close; metrics add the reserve back so withdrawals are not counted as losses.

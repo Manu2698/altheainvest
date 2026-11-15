@@ -14,4 +14,15 @@ describe('accantonamento Lovable',()=>{
   for(const m of r.mesiCapitale){expect(m.accantonato).toBe(0);expect(m.scoperto).toBe(25);}
   expect(r.equity).toBeCloseTo(50);
  });
+ it('perdite e profitti aperti non finanziano il costo mensile, contabilità resta riconciliata',()=>{
+  const r=simulaPortafoglio(cfg,{X:barre(i=>100+Math.sin(i/5)*30)});
+  expect(r.equity+r.accantonato-50).toBeCloseTo(r.operazioni.reduce((s,o)=>s+(o.pnl??0),0)+r.pnlAperto,8);
+  expect(r.mesiCapitale.every(m=>m.reinvestito===Math.max(0,m.realizzato-m.accantonato))).toBe(true);
+  for(const m of r.mesiCapitale.filter(m=>m.realizzato<=0))expect(m.accantonato).toBe(0);
+  expect(r.mesiCapitale.some(m=>m.realizzato<0)).toBe(true);
+ });
+ it('valuta posizioni aperte senza accantonare guadagni non realizzati',()=>{
+  const r=simulaPortafoglio({...cfg as object,strategia:'medio'} as never,{X:barre(i=>100+i*.1)});
+  expect(r.acquisti).toBeGreaterThan(0);expect(r.vendite).toBe(0);expect(r.pnlAperto).toBeGreaterThan(0);expect(r.accantonato).toBe(0);expect(r.mesiCapitale.every(m=>m.scoperto===25)).toBe(true);
+ });
 });

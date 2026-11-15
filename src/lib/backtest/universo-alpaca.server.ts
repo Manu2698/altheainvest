@@ -4,11 +4,11 @@ import type { Barra } from './motore';
 // No trading module imports: only authenticated credential SELECT, GET assets and market data.
 async function credenziali(userId: string) {
   const { supabaseAdmin } = await import('@/integrations/supabase/client.server');
-  const { data, error } = await supabaseAdmin.from('broker_credenziali').select('key_id,api_secret,ambiente').eq('user_id',userId).eq('piattaforma','alpaca');
+  const { data, error } = await supabaseAdmin.from('broker_credenziali').select('key_id,api_secret,ambiente').eq('user_id',userId).eq('ambiente','paper');
   if(error) throw new Error('Credenziali Alpaca non leggibili.');
-  const row=data?.find(r=>r.ambiente==='paper')??data?.find(r=>r.ambiente==='reale');
-  if(!row?.key_id || !row.api_secret) throw new Error('Catalogo non disponibile: credenziali Alpaca personali assenti.');
-  return {headers:{'APCA-API-KEY-ID':row.key_id,'APCA-API-SECRET-KEY':row.api_secret},base:row.ambiente==='paper'?'https://paper-api.alpaca.markets':'https://api.alpaca.markets'};
+  const row=data?.find(r=>r.ambiente==='paper');
+  if(!row?.key_id || !row.api_secret) throw new Error('Catalogo non disponibile: credenziali Alpaca PAPER personali assenti. Nessun uso di credenziali REAL.');
+  return {headers:{'APCA-API-KEY-ID':row.key_id,'APCA-API-SECRET-KEY':row.api_secret},base:'https://paper-api.alpaca.markets'};
 }
 export async function catalogoAlpacaAutonomo(userId:string) {
   const cred=await credenziali(userId),righe:unknown[]=[];

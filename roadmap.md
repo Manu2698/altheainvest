@@ -1,4 +1,6 @@
 # Audit PAPER prioritario
+- [x] Correzione attuale: schema credenziali PAPER-only, acquisizione/checkpoint senza reinvii, 243 test/regressioni e build automatico OK; UI autenticata senza errori o overflow. Catalogo Alpaca PAPER verificato HTTP 401, nessun fallback REAL.
+- [ ] Completamento IA autonoma bloccato: catalogo PAPER HTTP 401, ledger server budget/denial assente e metadati/evidenze storiche ETF/crypto non verificati. Nessuna chiamata IA attivata o migrazione creata.
 - [ ] Richiesta attuale: universo autonomo Alpaca multi-classe, acquisizione per blocchi e checkpoint, screening IA universale e budget verificabile, test e UI; nessun ordine o pubblicazione. Copertura point-in-time e registro server del budget devono essere verificati prima di abilitare chiamate IA.
 - [x] Prototipo rules-only con 50 EUR, replay riutilizzato senza limite di 20 simboli, prezzi FMP segmentati/cambi osservati, alternative Alpaca/CSV, risultati mensili e salvataggi locali.
 - [x] Verifica isolata e UI autenticata delle tre strategie AAPL/MSFT, recupero dopo reload e zero richieste IA/ordini; rapporto di copertura e limiti.

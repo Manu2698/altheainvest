@@ -13,9 +13,11 @@ const schema=z.object({ticker:z.string().regex(/^[A-Z0-9./-]{1,15}$/),valuta:z.s
 export const getPrezziAutonomi=createServerFn({method:'POST'}).middleware([requireSupabaseAuth])
  .inputValidator((i:z.infer<typeof schema>)=>schema.parse(i)).handler(async({data,context})=>{
   if(data.fonte==='Alpaca'){
-    const r=await(await import('./historique.server')).caricaStorico(context.userId,data.ticker,data.dal,data.al);
     if(!data.valuta)throw new Error('Specificare la valuta verificata dei prezzi Alpaca.');
-    return {...r,valuta:data.valuta};
+    const crypto=data.mercato==='crypto';
+    const r=await(await import('./universo-alpaca.server')).prezziAlpacaBlocco(context.userId,[{ticker:data.ticker,valuta:data.valuta,mercato:data.mercato,fonte:'Alpaca',classe:crypto?'crypto':'us_equity_non_classificata',exchange:'',stato:'active',tradabile:true,aggiornatoIl:'',adjustment:crypto?'nessuno':'split'}],data.dal,data.al);
+    if(r.errori[data.ticker])throw new Error(r.errori[data.ticker]);
+    return {barre:r.serie[data.ticker]??[],fonte:crypto?'Alpaca Crypto':'Alpaca IEX · split',valuta:data.valuta};
   }
   return (await import('./prezzi-fmp.server')).prezziFMP({...data,fonte:'FMP'},data.dal,data.al);
  });

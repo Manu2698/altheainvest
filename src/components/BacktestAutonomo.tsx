@@ -7,7 +7,7 @@ import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from '.
 import { useSessione } from '@/hooks/useSessione';
 import { STRATEGIE } from '@/lib/strategies';
 import { getUniversoAutonomo, getBloccoAutonomo, getPrezziAutonomi, getCambiAutonomi } from '@/lib/backtest/autonomo.functions';
-import { simulaAutonomo, preparaAutonomo, type EsitoAutonomo, type DatiAutonomi, type ParametriAutonomi, type Copertura } from '@/lib/backtest/autonomo';
+import { preparaAutonomo, type EsitoAutonomo, type DatiAutonomi, type ParametriAutonomi, type Copertura } from '@/lib/backtest/autonomo';
 import { leggiCSV } from '@/lib/backtest/motore';
 import { blocchi, verificaSerie, type AssetAutonomo, type UniversoAutonomo } from '@/lib/backtest/universo-autonomo';
 import { checkpointAutonomo } from '@/lib/backtest/checkpoint-autonomo';
@@ -25,32 +25,33 @@ export function BacktestAutonomo(){
  const stop=useRef(false),csv=useRef<HTMLInputElement>(null),fx=useRef<HTMLInputElement>(null);
  const storage=`althea-autonomo-v1-${utente?.id??'locale'}`;
  useEffect(()=>{if(!caricata)return;setEsito(null);setSalvati([]);try{const v=JSON.parse(localStorage.getItem(storage)??'[]');if(Array.isArray(v))setSalvati(v);}catch{setErrore('Salvataggi non leggibili.');}},[storage,caricata]);
- function salva(s:Salvataggio){setSalvati(old=>{const next=[s,...old].slice(0,3);try{localStorage.setItem(storage,JSON.stringify(next));}catch{setErrore('Spazio locale esaurito: esporta il risultato.');}return next;});}
- async function scopri(){setBusy(true);setErrore('');try{if(!autenticato)throw new Error('Accedi per acquisire il catalogo Alpaca.');const r=await catalogo();setUniverso(r);setD(old=>({...old,strumenti:r.strumenti,avvisi:r.avvisi}));setStato(`${r.strumenti.length} strumenti attivi e tradabili nel catalogo ricevuto`);}catch(e){setUniverso(null);setD(vuoti());setErrore(e instanceof Error?e.message:'Catalogo non disponibile.');}finally{setBusy(false);}}
- async function avvia(){setBusy(true);setErrore('');setEsito(null);stop.current=false;let dati={...d,serie:{...d.serie},cambi:{...d.cambi},errori:{...d.errori},strumenti:d.strumenti.map(s=>({...s}))};
+ async function scopri(){if(busy)return;setBusy(true);setErrore('');setEsito(null);setCopertura([]);setBlocchiFiniti(0);try{if(!autenticato)throw new Error('Accedi per acquisire il catalogo Alpaca.');const r=await catalogo();setUniverso(r);setD({...vuoti(),strumenti:r.strumenti,avvisi:r.avvisi});setStato(`${r.strumenti.length} strumenti attivi e tradabili nel catalogo ricevuto`);}catch(e){setUniverso(null);setD(vuoti());setStato('INCOMPLETE');setErrore(e instanceof Error?e.message:'Catalogo non disponibile.');}finally{setBusy(false);}}
+ async function avvia(){if(busy)return;setBusy(true);setErrore('');setEsito(null);stop.current=false;let dati={...d,serie:{...d.serie},cambi:{...d.cambi},errori:{...d.errori},strumenti:d.strumenti.map(s=>({...s}))};
+   let chiaveDati='',finiti=0;
   try{
    if(!dati.strumenti.length){if(!autenticato)throw new Error('Accedi per acquisire automaticamente il catalogo Alpaca.');const r=await catalogo();setUniverso(r);dati={...dati,...r};}
+   chiaveDati=JSON.stringify({dal:p.dal,al:p.al,fonte,strumenti:dati.strumenti});
    if(fonte==='Alpaca' && dati.strumenti.some(s=>'classe' in s)){
     if(!utente)throw new Error('Accedi per salvare i checkpoint.');
-    const key=JSON.stringify({dal:p.dal,al:p.al,fonte,tickers:dati.strumenti.map(s=>s.ticker)});
+    const key=chiaveDati;
     const cached=await checkpointAutonomo<{dati:DatiAutonomi;finiti:number;incerto:boolean;errore:string}>(utente.id,key);
-    if(cached){dati=cached.dati;setBlocchiFiniti(cached.finiti);if(cached.incerto||cached.errore){setD(dati);throw new Error(cached.errore||'Blocco incerto: nessun reinvio automatico.');}}
+    if(cached){dati=cached.dati;finiti=cached.finiti;setBlocchiFiniti(finiti);if(cached.incerto||cached.errore){setD(dati);throw new Error(cached.errore||'Blocco incerto: nessun reinvio automatico.');}}
     const assets=dati.strumenti.filter((s):s is AssetAutonomo=>'classe' in s),batches=blocchi(assets,25);
     for(let i=0;i<batches.length;i++){
-     if(stop.current)break;const batch=batches[i];if(!batch)continue;
-     if(batch.every(s=>dati.serie[s.ticker]||dati.errori[s.ticker]))continue;
+     if(stop.current)break;const batch=batches[i]?.filter(s=>!dati.serie[s.ticker]&&!dati.errori[s.ticker]);if(!batch?.length)continue;
      setStato(`Acquisizione blocco ${i+1}/${batches.length} · ${batch.length} strumenti`);
      await checkpointAutonomo(utente.id,key,{dati,finiti:i,incerto:true,errore:''});
      try{const r=await blocco({data:{strumenti:batch,dal:p.dal,al:p.al}});Object.assign(dati.serie,r.serie);Object.assign(dati.errori,r.errori);
       for(const s of batch){try{verificaSerie(s,dati.serie[s.ticker]??[],p.dal,p.al);}catch(e){dati.errori[s.ticker]=e instanceof Error?e.message:'Serie non verificata.';}}
-      await checkpointAutonomo(utente.id,key,{dati,finiti:i+1,incerto:false,errore:''});setBlocchiFiniti(i+1);
+      finiti=i+1;await checkpointAutonomo(utente.id,key,{dati,finiti,incerto:false,errore:''});setBlocchiFiniti(finiti);
      }catch(e){const msg=e instanceof Error?e.message:'Provider non disponibile.';await checkpointAutonomo(utente.id,key,{dati,finiti:i,incerto:true,errore:msg});throw new Error(msg);}
      await new Promise(r=>setTimeout(r,0));
     }
    }
    for(let i=0;i<dati.strumenti.length;i++){
     if(stop.current)break;const s=dati.strumenti[i];if(!s)continue;setStato(`Copertura ${i+1}/${dati.strumenti.length} · ${s.ticker}`);
-    try{if(!dati.serie[s.ticker]){if(!autenticato)throw new Error('Prezzi CSV assenti.');const r=await prezzi({data:{...s,fonte,dal:p.dal,al:p.al}});dati.serie[s.ticker]=r.barre;s.valuta=r.valuta;s.fonte=r.fonte;}
+    if(dati.errori[s.ticker])continue;
+    try{if(!dati.serie[s.ticker]){if('classe' in s&&fonte==='Alpaca')continue;if(!autenticato)throw new Error('Prezzi CSV assenti.');const r=await prezzi({data:{...s,fonte,dal:p.dal,al:p.al}});dati.serie[s.ticker]=r.barre;s.valuta=r.valuta;s.fonte=r.fonte;}
       if(s.valuta&&s.valuta!=='EUR'&&!dati.cambi[s.valuta]){if(!autenticato)throw new Error(`Importa cambio ${s.valuta}/EUR.`);dati.cambi[s.valuta]=await cambi({data:{valuta:s.valuta,dal:p.dal,al:p.al}});}
       if(!('classe' in s))delete dati.errori[s.ticker];
     }catch(e){dati.errori[s.ticker]=e instanceof Error?e.message:'Fonte non disponibile.';
@@ -59,15 +60,16 @@ export function BacktestAutonomo(){
     await new Promise(r=>setTimeout(r,0));
    }
    setD(dati);const prepared=preparaAutonomo(p,dati);setCopertura(prepared.copertura);
-   if(stop.current){setStato('Scansione interrotta; copertura parziale, nessun risultato certificato.');return;}
-   setStato('INCOMPLETO · screening IA 0 · comitato 0');
+   if(utente)await checkpointAutonomo(utente.id,chiaveDati,{dati,finiti,incerto:false,errore:stop.current&&Object.values(dati.errori).some(e=>/HTTP (401|402|403|429)/.test(e))?'Fonte bloccata: nessun reinvio automatico.':''});
+   if(stop.current){setStato('INCOMPLETE · scansione interrotta; copertura parziale.');return;}
+   setStato('INCOMPLETE · screening IA 0 · comitato 0');
    throw new Error('Screening IA non attivato: mancano registro server persistente del budget/anti-duplicazione e blocco dei rifiuti del modello; evidenze storiche ETF/crypto e classificazione azione/ETF non disponibili. Nessuna simulazione IA completa dichiarata.');
-  }catch(e){setErrore(e instanceof Error?e.message:'Simulazione interrotta.');}finally{setBusy(false);}
+  }catch(e){setD(dati);setStato('INCOMPLETE');setErrore(e instanceof Error?e.message:'Simulazione interrotta.');}finally{setBusy(false);}
  }
  function esporta(){if(!esito)return;const url=URL.createObjectURL(new Blob([JSON.stringify({parametri:p,dati:d,esito},null,2)],{type:'application/json'}));const a=document.createElement('a');a.href=url;a.download='althea-rules-only-eur.json';a.click();URL.revokeObjectURL(url);}
- const modifica=(v:Partial<ParametriAutonomi>)=>setP(old=>({...old,...v}));
+ const modifica=(v:Partial<ParametriAutonomi>)=>{setP(old=>({...old,...v}));setEsito(null);setCopertura([]);if(v.dal!==undefined||v.al!==undefined){setD(old=>({...old,serie:{},cambi:{},errori:{}}));setBlocchiFiniti(0);}};
  return <section className="border-b border-border pb-8 mb-8 space-y-5 min-w-0">
- <header><h2 className="text-xl font-semibold">Backtest autonomo · universo Alpaca</h2><p className="text-xs text-warn mt-2">50 EUR · accantonamento 25 EUR/mese da profitto realizzato · solo simulazione · INCOMPLETO</p></header>
+ <header><h2 className="text-xl font-semibold">Backtest autonomo · universo Alpaca</h2><p className="text-xs text-warn mt-2">50 EUR · accantonamento 25 EUR/mese da profitto realizzato · solo simulazione · INCOMPLETE</p></header>
  <fieldset disabled={busy} className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
  <label className="text-xs space-y-2">Strategia<Select value={p.strategia} onValueChange={v=>modifica({strategia:v as ParametriAutonomi['strategia']})}><SelectTrigger aria-label="Strategia autonoma"><SelectValue/></SelectTrigger><SelectContent>{STRATEGIE.map(s=><SelectItem key={s.id} value={s.id}>{s.nome}</SelectItem>)}</SelectContent></Select></label>
  {(['dal','al'] as const).map(k=><label key={k} className="text-xs space-y-2">{k==='dal'?'Dal':'Al'}<Input aria-label={`Autonomo ${k}`} type="date" value={p[k]} onChange={e=>modifica({[k]:e.target.value})}/></label>)}
@@ -82,7 +84,8 @@ export function BacktestAutonomo(){
  <Button variant="outline" disabled={busy} onClick={()=>csv.current?.click()}><Upload className="size-4"/>Importa universo CSV</Button><Button variant="outline" disabled={busy} onClick={()=>fx.current?.click()}><Upload className="size-4"/>Importa cambio {valuta}/EUR</Button></div></details>
  <input ref={csv} type="file" multiple accept=".csv" className="hidden" aria-label="Universo CSV autonomo" onChange={async e=>{try{const next=vuoti();for(const file of Array.from(e.target.files??[])){if(file.size>5000000)throw new Error('CSV massimo 5 MB.');const ticker=file.name.replace(/\.csv$/i,'').toUpperCase();if(!/^[A-Z0-9./-]{1,15}$/.test(ticker))throw new Error('Nome CSV: simbolo dello strumento.');next.serie[ticker]=leggiCSV(await file.text());next.strumenti.push({ticker,valuta,mercato,fonte:`CSV ${file.name}`});}next.cambi=d.cambi;next.avvisi=['Universo fornito dai CSV: copertura limitata ai file importati, non all’intero mercato.'];setD(next);setErrore('');}catch(x){setErrore(x instanceof Error?x.message:'CSV non valido.');}e.target.value='';}}/>
  <input ref={fx} type="file" accept=".csv" className="hidden" aria-label="Cambio CSV autonomo" onChange={async e=>{try{const file=e.target.files?.[0];if(!file)return;if(file.size>5000000)throw new Error('CSV massimo 5 MB.');const b=leggiCSV(await file.text());setD(old=>({...old,cambi:{...old.cambi,[valuta]:b},avvisi:[...old.avvisi,`Cambio CSV dichiarato ${valuta}/EUR: EUR per unità di ${valuta}, open/close.`]}));setErrore('');}catch(x){setErrore(x instanceof Error?x.message:'Cambio non valido.');}e.target.value='';}}/>
- <p className="text-xs text-muted-foreground">Totale scoperto: {d.strumenti.length} · storico caricato: {Object.keys(d.serie).length} · screening IA: 0 · comitato: 0 · blocchi completati: {blocchiFiniti} · budget consumato/rimanente: 0/{budget}</p>
+ <p className="text-xs text-muted-foreground">Totale scoperto: {d.strumenti.length} · storico caricato: {Object.keys(d.serie).length} · storico utilizzabile: {copertura.filter(x=>x.incluso).length} · eleggibili IA verificati: 0 · screening IA: 0 · comitati completati: 0 · esclusi: {copertura.filter(x=>!x.incluso).length} · blocchi completati: {blocchiFiniti} · budget consumato/rimanente: 0/{budget}</p>
+ <p className="text-xs text-muted-foreground">Checkpoint solo su questo dispositivo e browser, non un registro server né una protezione tra dispositivi. Dividendi, universo storico e conoscenza futura del modello non certificati.</p>
  <p className="text-xs text-warn">Screening IA BLOCCATO: budget server persistente e metadati/evidenze storiche per classe non disponibili. Nessuna chiamata IA abilitata.</p>
  {universo&&<p className="text-xs text-muted-foreground">Provider: {universo.provider} · aggiornamento: {universo.aggiornatoIl} · righe acquisite: {universo.totaleAcquisito} · classi: {universo.classi.join(', ')} · stima minima teorica screening: {Math.ceil(d.strumenti.length/10)} chiamate batch, più fino a 9 per candidato al comitato; eleggibilità da verificare.</p>}
  {stato&&<p role="status" className="text-xs">{stato}</p>}{errore&&<p role="alert" className="text-sm text-bear break-words">{errore}</p>}

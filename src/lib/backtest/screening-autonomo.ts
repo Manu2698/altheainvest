@@ -15,7 +15,7 @@ export function motivoNonValutabile(i:InputScreening) {
   if(i.classe==='us_equity_non_classificata')return 'Sottotipo azione/ETF non verificato.';
   const tipo=i.classe==='azione'?'fondamentali':i.classe;
   if(!i.evidenze.some(e=>e.tipo===tipo))return `Evidenze storiche ${tipo} con date verificabili assenti.`;
-  if(!i.evidenze.some(e=>e.tipo==='news'))return 'News point-in-time assenti.';
+  if(i.classe==='azione'&&!i.evidenze.some(e=>e.tipo==='news'))return 'News point-in-time assenti.';
   return null;
 }
 /** Dependency-injected protocol. Production model dispatch stays disabled until a server-owned ledger exists. */
@@ -24,6 +24,8 @@ export async function screeningPerBlocchi(inputs:InputScreening[],maxChiamate:nu
   const contesto=JSON.stringify(inputs);if(checkpoint.contesto!==contesto)throw new Error('Checkpoint di un contesto differente.');
   if(new Set(inputs.map(i=>i.ticker)).size!==inputs.length)throw new Error('Simboli screening duplicati.');
   const c=structuredClone(checkpoint);
+  if(!Number.isInteger(c.chiamate)||c.chiamate<0||c.chiamate>maxChiamate)throw new Error('Contatore checkpoint fuori budget.');
+  if(Object.entries(c.risultati).some(([ticker,v])=>!inputs.some(i=>i.ticker===ticker && JSON.stringify(i)===JSON.stringify(v.input) && i.data===v.data && ticker===v.ticker)))throw new Error('Risultati checkpoint incoerenti.');
   const eleggibili=inputs.filter(i=>!motivoNonValutabile(i));
   const pendenti=eleggibili.filter(i=>!c.risultati[i.ticker]);
   const stima=blocchi(pendenti,dimensione).length;

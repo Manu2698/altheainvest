@@ -9,8 +9,7 @@ export type UniversoAutonomo = { strumenti: AssetAutonomo[]; avvisi: string[]; p
 export function classificaAsset(r: Record<string, unknown>): ClasseAutonoma {
   if (r['class'] === 'crypto') return 'crypto';
   if (r['class'] !== 'us_equity') throw new Error('Classe Alpaca non supportata.');
-  if (r['isEtf'] === true) return 'etf';
-  if (r['isEtf'] === false) return 'azione';
+  // The existing Alpaca assets endpoint does not document an isEtf field.
   return 'us_equity_non_classificata';
 }
 export function normalizzaUniverso(righe: unknown, aggiornatoIl: string): UniversoAutonomo {
