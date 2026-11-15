@@ -14,13 +14,13 @@ describe('diagnostica candidati comitato', () => {
     expect(s.every(x => x.origine === 'mancante' && !x.comitato && !x.diagnosi)).toBe(true);
   });
   it('conserva diagnostica e comitati esistenti', () => {
-    const conCom: StatoIA = { ...base, comitati: { AAPL: { stato: 'eseguito', approvato: true, azione: 'BUY', motivo: 'ok', chiamate: 9, diagnostica: [{ fonte: 'FMP', stato: 'ok', http: 200, ricevute: 4, valide: 4, pagine: 1, motivo: '' }] } } };
+    const conCom: StatoIA = { ...base, comitati: { AAPL: { stato: 'eseguito', approvato: true, azione: 'BUY', motivo: 'ok', chiamate: 9, diagnostica: [{ fonte: 'FMP', stato: 'valida', http: 200, ricevute: 4, valide: 4, pagine: 1, motivo: '' }] } } };
     const s = conDiagnosi(conCom, { ticker: 'AAPL', classe: 'azione', data: '2025-07-01', diagnostica: [], avvisi: [], mancante: null, validi: 0, acquisitaIl: 'x' });
-    expect(s.comitati.AAPL).toBe(conCom.comitati.AAPL);
+    expect(s.comitati['AAPL']).toBe(conCom.comitati['AAPL']);
     expect(sezioniDiagnostica(s)[0]?.origine).toBe('comitato');
   });
   it('la funzione diagnostica usa solo il caricatore di evidenze e riporta ETF senza fonti', async () => {
-    const carica = vi.fn(async () => ({ evidenze: [], avvisi: ['Nessuna fonte ETF storica configurata'], diagnostica: [{ fonte: 'ETF', stato: 'non_configurata' as never, http: null, ricevute: 0, valide: 0, pagine: 0, motivo: 'fonte ETF point-in-time non disponibile' }], mancante: 'dati fondo ETF point-in-time' }));
+    const carica = vi.fn(async () => ({ evidenze: [], avvisi: ['Nessuna fonte ETF storica configurata'], diagnostica: [{ fonte: 'ETF', stato: 'non_disponibile' as const, http: null, ricevute: 0, valide: 0, pagine: 0, motivo: 'fonte ETF point-in-time non disponibile' }], mancante: 'dati fondo ETF point-in-time' }));
     const r = await diagnosticaCandidato('u', { ticker: 'SPY', classe: 'etf', data: '2025-07-01', candidati: cand }, carica, () => 't');
     expect(carica).toHaveBeenCalledOnce();
     expect(r).toMatchObject({ ticker: 'SPY', mancante: 'dati fondo ETF point-in-time', validi: 0 });
