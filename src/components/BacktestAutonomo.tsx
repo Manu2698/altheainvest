@@ -6,12 +6,12 @@ import { Input } from './ui/input';
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from './ui/select';
 import { useSessione } from '@/hooks/useSessione';
 import { STRATEGIE } from '@/lib/strategies';
-import { getUniversoAutonomo, getUniversoNasdaq, getUniversoIbrido, getBloccoAutonomo, getPrezziAutonomi, getCambiAutonomi, getDiagnosticaAlpaca, apriRunIA, getStatoRunIA, eseguiScreeningIA, eseguiComitatoIA } from '@/lib/backtest/autonomo.functions';
+import { getUniversoAutonomo, getUniversoNasdaq, getUniversoIbrido, getBloccoAutonomo, getPrezziAutonomi, getCambiAutonomi, getDiagnosticaAlpaca, apriRunIA, getStatoRunIA, eseguiScreeningIA, eseguiComitatoIA, getEvidenzeCandidato } from '@/lib/backtest/autonomo.functions';
 import { preparaAutonomo, simulaAutonomo, type EsitoAutonomo, type DatiAutonomi, type ParametriAutonomi, type Copertura } from '@/lib/backtest/autonomo';
 import { blocchi, verificaSerie, type AssetAutonomo, type UniversoAutonomo } from '@/lib/backtest/universo-autonomo';
 import { checkpointAutonomo } from '@/lib/backtest/checkpoint-autonomo';
 import { acquisisciBlocchiAlpaca, type StatoAcquisizione } from '@/lib/backtest/acquisizione-ibrida';
-import { eleggibiliScreening, candidatiComitato, comitatoDaRitentare, statoIA, type StatoIA, type EsitoComitatoUI } from '@/lib/backtest/ia-autonoma';
+import { eleggibiliScreening, candidatiComitato, comitatoDaRitentare, statoIA, sezioniDiagnostica, conDiagnosi, type StatoIA, type EsitoComitatoUI } from '@/lib/backtest/ia-autonoma';
 
 type Fonte = 'nasdaq' | 'alpaca' | 'ibrida';
 type Universo = UniversoAutonomo & { esclusiPerMotivo?: Record<string, number> };
@@ -29,7 +29,8 @@ function elaborati(d: DatiAutonomi): DatiAutonomi { return { ...d, strumenti: d.
 
 export function BacktestAutonomo() {
   const { utente, caricata, autenticato } = useSessione();
-  const fn = { nasdaq: useServerFn(getUniversoNasdaq), ibrido: useServerFn(getUniversoIbrido), alpaca: useServerFn(getUniversoAutonomo), blocco: useServerFn(getBloccoAutonomo), prezzi: useServerFn(getPrezziAutonomi), cambi: useServerFn(getCambiAutonomi), diag: useServerFn(getDiagnosticaAlpaca), apri: useServerFn(apriRunIA), statoRun: useServerFn(getStatoRunIA), screening: useServerFn(eseguiScreeningIA), comitato: useServerFn(eseguiComitatoIA) };
+  const fn = { nasdaq: useServerFn(getUniversoNasdaq), ibrido: useServerFn(getUniversoIbrido), alpaca: useServerFn(getUniversoAutonomo), blocco: useServerFn(getBloccoAutonomo), prezzi: useServerFn(getPrezziAutonomi), cambi: useServerFn(getCambiAutonomi), diag: useServerFn(getDiagnosticaAlpaca), apri: useServerFn(apriRunIA), statoRun: useServerFn(getStatoRunIA), screening: useServerFn(eseguiScreeningIA), comitato: useServerFn(eseguiComitatoIA), evidenze: useServerFn(getEvidenzeCandidato) };
+  const [verifica, setVerifica] = useState<Record<string, string>>({});
   const [p, setP] = useState<ParametriAutonomi>({ dal: '2025-07-01', al: '2025-12-31', strategia: 'medio', quotaPct: 10, commissione: 0, spreadBps: 10, slippageBps: 5 });
   const [fonte, setFonte] = useState<Fonte>('ibrida'), [classe, setClasse] = useState<'tutte' | 'azione' | 'etf' | 'crypto'>('tutte'), [limite, setLimite] = useState(40), [budget, setBudget] = useState(0), [simboli, setSimboli] = useState('');
   const [universo, setUniverso] = useState<Universo | null>(null), [d, setD] = useState<DatiAutonomi>(vuoti), [ia, setIa] = useState<StatoIA>(iaVuota), [run, setRun] = useState<RunServer>(null);
@@ -161,6 +162,16 @@ export function BacktestAutonomo() {
     finally { setIa(s); setBusy(false); }
   }
 
+  async function verificaEvidenze(ticker: string) {
+    if (busy || !utente) return;
+    const cand = sezioniDiagnostica(ia).map(x => ({ ticker: x.ticker, classe: d.strumenti.find(a => a.ticker === x.ticker && 'classe' in a) as AssetAutonomo | undefined })).filter((x): x is { ticker: string; classe: AssetAutonomo } => !!x.classe).map(x => ({ ticker: x.ticker, classe: x.classe.classe }));
+    const c = cand.find(x => x.ticker === ticker);
+    if (!c) { setVerifica(v => ({ ...v, [ticker]: 'Classe dello strumento non presente nel checkpoint: verifica non possibile.' })); return; }
+    setBusy(true); setVerifica(v => ({ ...v, [ticker]: 'Verifica in corso (nessuna chiamata IA)…' }));
+    try { const r = await fn.evidenze({ data: { ticker, classe: c.classe, data: p.dal, candidati: cand } }); const s = conDiagnosi(ia, r); setIa(s); await salvaCk(d, s); setVerifica(v => ({ ...v, [ticker]: '' })); }
+    catch (e) { setVerifica(v => ({ ...v, [ticker]: `Verifica non riuscita: ${e instanceof Error ? e.message : 'errore di rete'}. Checkpoint invariato; comitato non eseguito.` })); }
+    finally { setBusy(false); }
+  }
   async function diagnostica() { setBusy(true); try { setDiag(await fn.diag()); } catch (e) { setErrore(e instanceof Error ? e.message : 'Diagnostica non disponibile.'); } finally { setBusy(false); } }
   const modifica = (v: Partial<ParametriAutonomi>) => { setP(old => ({ ...old, ...v })); setEsito(null); setEsitoIA(null); if (v.dal !== undefined || v.al !== undefined) { setD(old => ({ ...vuoti(), strumenti: old.strumenti, avvisi: old.avvisi })); setIa(iaVuota()); setCopertura([]); } };
 
@@ -200,7 +211,7 @@ export function BacktestAutonomo() {
     {stato && <p role="status" className="text-xs">{stato}</p>}{errore && <p role="alert" className="text-sm text-bear break-words">{errore}</p>}
     {ia.messaggi.length > 0 && <ul className="text-xs text-warn space-y-1">{ia.messaggi.map((m, i) => <li key={i}>{m}</li>)}</ul>}
     {screenati > 0 && <details open className="text-xs"><summary className="font-semibold text-sm cursor-pointer">Screening IA alla data {p.dal} (solo dati precedenti)</summary><div className="max-h-72 overflow-auto mt-2 space-y-1">{Object.values(ia.screening).sort((a, b) => b.priorita - a.priorita).map(v => <p key={v.ticker} className="break-words">{v.ticker} · {v.verdetto} · priorità {v.priorita} · {v.motivazione}{ia.comitati[v.ticker] ? ` · comitato: ${ia.comitati[v.ticker]?.stato === 'eseguito' ? (ia.comitati[v.ticker] as { approvato: boolean }).approvato ? 'APPROVATO' : 'NON APPROVATO' : ia.comitati[v.ticker]?.stato} — ${ia.comitati[v.ticker]?.motivo}` : ''}</p>)}</div></details>}
-    {Object.entries(ia.comitati).map(([ticker, c]) => <details key={ticker} className="text-xs"><summary className="cursor-pointer font-semibold">Evidenze comitato · {ticker} · {c.stato}</summary><p className="mt-2 break-words">{c.motivo}</p>{c.diagnostica?.length ? <ul className="mt-2 space-y-2">{c.diagnostica.map((e, i) => <li key={i} className="break-words">{e.fonte} · {e.stato} · HTTP {e.http ?? '—'} · {e.valide} valide / {e.ricevute} ricevute · {e.pagine} pagine · {e.motivo}</li>)}</ul> : <p className="mt-2">Diagnostica non presente nel checkpoint precedente.</p>}{c.avvisi?.map((a, i) => <p key={i} className="mt-1 break-words text-warn">{a}</p>)}</details>)}
+    {sezioniDiagnostica(ia).map(({ ticker, comitato: c, diagnosi: g, origine }) => { const righe = origine === 'comitato' ? c?.diagnostica ?? [] : g?.diagnostica ?? []; const avvisi = origine === 'comitato' ? c?.avvisi ?? [] : g?.avvisi ?? []; return <details key={ticker} className="text-xs"><summary className="cursor-pointer font-semibold">Evidenze comitato · {ticker} · {c ? c.stato : 'comitato non eseguito'}{origine === 'mancante' ? ' · diagnostica non ancora acquisita' : ''}</summary>{c && <p className="mt-2 break-words">{c.motivo}</p>}{origine === 'verifica' && g && <p className="mt-2 break-words">Verifica evidenze del {g.acquisitaIl.slice(0, 16).replace('T', ' ')} UTC (senza chiamate IA) · {g.validi} evidenze valide · {g.mancante ? `requisito mancante: ${g.mancante}` : 'requisiti di classe soddisfatti'}</p>}{righe.length ? <ul className="mt-2 space-y-2">{righe.map((e, i) => <li key={i} className="break-words">{e.fonte} · {e.stato} · HTTP {e.http ?? '—'} · {e.valide} valide / {e.ricevute} ricevute · {e.pagine} pagine · {e.motivo}</li>)}</ul> : <p className="mt-2">Diagnostica non ancora acquisita.</p>}{avvisi.map((a, i) => <p key={i} className="mt-1 break-words text-warn">{a}</p>)}{origine === 'mancante' && <Button size="sm" variant="outline" className="mt-2" disabled={busy || !autenticato} onClick={() => verificaEvidenze(ticker)}>Verifica evidenze (senza chiamate IA)</Button>}{verifica[ticker] && <p className="mt-1 break-words text-warn">{verifica[ticker]}</p>}</details>; })}
     <p className="text-xs text-muted-foreground">Checkpoint dei dati su questo dispositivo; budget, idempotenza e blocchi IA sono registrati dal server. Universo corrente (survivorship bias), dividendi e conoscenza pregressa del modello non eliminati.</p>
     {salvati.length > 0 && <div className="space-y-2"><h3 className="text-sm font-semibold">Risultati salvati su questo dispositivo</h3><div className="flex flex-wrap gap-2">{salvati.map(s => <Button key={s.id} className="h-auto max-w-full whitespace-normal text-left" variant="outline" disabled={busy} onClick={() => { setP(s.parametri); setEsito(s.esito); setCopertura(s.esito.copertura); }}>{s.etichetta} · {s.parametri.strategia} · {s.parametri.dal} / {s.parametri.al} · {n(s.esito.risultato.equity)} EUR</Button>)}</div></div>}
     {esitoIA && <Risultato titolo="Risultato IA (screening + comitato) · EUR" esito={esitoIA} />}

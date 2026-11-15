@@ -1,6 +1,7 @@
 import { createServerFn } from '@tanstack/react-start';
 import { requireSupabaseAuth } from '@/integrations/supabase/auth-middleware';
 import { z } from 'zod';
+import { richiestaDiagnosticaSchema, type RichiestaDiagnostica } from './diagnostica-candidato';
 
 export const getUniversoAutonomo=createServerFn({method:'GET'}).middleware([requireSupabaseAuth]).handler(async({context})=>{
   return (await import('./universo-alpaca.server')).catalogoAlpacaAutonomo(context.userId);
@@ -65,3 +66,7 @@ export const eseguiComitatoIA=createServerFn({method:'POST'}).middleware([requir
   });
   return {esito,diagnostica:ev.diagnostica,avvisi:ev.avvisi,run:await l.statoRunIA(context.userId,data.runId)};
  });
+/** Read-only evidence diagnostic for a committee candidate: no ledger, no budget, no model call. */
+export const getEvidenzeCandidato=createServerFn({method:'POST'}).middleware([requireSupabaseAuth])
+ .inputValidator((i:RichiestaDiagnostica)=>richiestaDiagnosticaSchema.parse(i))
+ .handler(async({data,context})=>{const d=await import('./diagnostica-candidato');const r=data;const e=await import('./evidenze-autonome.server');return d.diagnosticaCandidato(context.userId,r,(u,t,dt,c)=>e.caricaEvidenzeAutonome(u,t,dt,c));});

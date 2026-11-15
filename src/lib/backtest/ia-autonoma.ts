@@ -1,4 +1,5 @@
 import type { DiagnosticaEvidenza } from './evidenze-autonome';
+import type { DiagnosiCandidato } from './diagnostica-candidato';
 import type { Barra } from './motore';
 import type { AssetAutonomo } from './universo-autonomo';
 import { inputScreening, motivoNonValutabile, type InputScreening } from './screening-autonomo';
@@ -7,7 +8,7 @@ export type VerdettoUI = { ticker: string; verdetto: 'BUY' | 'SELL' | 'HOLD' | '
 export type EsitoComitatoUI = { diagnostica?: DiagnosticaEvidenza[]; avvisi?: string[] } & (
   | { stato: 'eseguito'; approvato: boolean; azione: 'BUY' | 'SELL' | 'HOLD'; motivo: string; chiamate: number }
   | { stato: 'non_eseguibile' | 'negata'; motivo: string });
-export type StatoIA = { runId: string | null; screening: Record<string, VerdettoUI>; comitati: Record<string, EsitoComitatoUI>; messaggi: string[] };
+export type StatoIA = { runId: string | null; screening: Record<string, VerdettoUI>; comitati: Record<string, EsitoComitatoUI>; messaggi: string[]; diagnosi?: Record<string, DiagnosiCandidato> };
 
 /** Every verified-class instrument with >=20 bars strictly before the start date is screened; order is deterministic. */
 export function eleggibiliScreening(assets: AssetAutonomo[], serie: Record<string, Barra[]>, data: string): InputScreening[] {
@@ -32,4 +33,16 @@ export function statoIA(eleggibili: string[], s: StatoIA, k: number) {
   for (const t of nonEseguiti) motivi.push(`${t}: comitato ${s.comitati[t] ? s.comitati[t]?.motivo : 'non ancora eseguito'}`);
   const approvati = cand.filter(t => { const c = s.comitati[t]; return c?.stato === 'eseguito' && c.approvato; });
   return { completo: eleggibili.length > 0 && !mancanti.length && !nonEseguiti.length, approvati, candidati: cand, motivi };
+}
+/** One diagnostic section per top-k BUY candidate, even with empty/old committee checkpoints; never invents results. */
+export type SezioneDiagnostica = { ticker: string; comitato?: EsitoComitatoUI; diagnosi?: DiagnosiCandidato; origine: 'comitato' | 'verifica' | 'mancante' };
+export function sezioniDiagnostica(s: StatoIA, k = 3): SezioneDiagnostica[] {
+  return candidatiComitato(s.screening, k).map(ticker => {
+    const comitato = s.comitati[ticker], diagnosi = s.diagnosi?.[ticker];
+    return { ticker, comitato, diagnosi, origine: comitato?.diagnostica?.length ? 'comitato' : diagnosi ? 'verifica' : 'mancante' };
+  });
+}
+/** Stores a read-only diagnostic beside (never over) committee results. */
+export function conDiagnosi(s: StatoIA, d: DiagnosiCandidato): StatoIA {
+  return { ...s, diagnosi: { ...(s.diagnosi ?? {}), [d.ticker]: d } };
 }
