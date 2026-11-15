@@ -1,0 +1,6 @@
+/** IndexedDB stores one owner-scoped checkpoint, not repeated full universes in localStorage. */
+export async function checkpointAutonomo<T>(owner:string,chiave:string,valore?:T):Promise<T|null>{
+  const db=await new Promise<IDBDatabase>((resolve,reject)=>{const r=indexedDB.open('althea-autonomo-v2',1);r.onupgradeneeded=()=>r.result.createObjectStore('checkpoint');r.onsuccess=()=>resolve(r.result);r.onerror=()=>reject(new Error('Archivio locale non disponibile.'));});
+  try{return await new Promise<T|null>((resolve,reject)=>{const tx=db.transaction('checkpoint',valore===undefined?'readonly':'readwrite'),store=tx.objectStore('checkpoint'),key=JSON.stringify([owner,chiave]);let letto:T|null=null;
+    const r=valore===undefined?store.get(key):store.put(valore,key);r.onsuccess=()=>{if(valore===undefined)letto=(r.result as T|undefined)??null;};tx.oncomplete=()=>resolve(valore??letto);tx.onerror=()=>reject(new Error('Salvataggio checkpoint fallito: scansione arrestata.'));tx.onabort=()=>reject(new Error('Salvataggio checkpoint annullato.'));});}finally{db.close();}
+}

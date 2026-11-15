@@ -6,32 +6,53 @@ import { Input } from './ui/input';
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from './ui/select';
 import { useSessione } from '@/hooks/useSessione';
 import { STRATEGIE } from '@/lib/strategies';
-import { getUniversoAutonomo, getPrezziAutonomi, getCambiAutonomi } from '@/lib/backtest/autonomo.functions';
+import { getUniversoAutonomo, getBloccoAutonomo, getPrezziAutonomi, getCambiAutonomi } from '@/lib/backtest/autonomo.functions';
 import { simulaAutonomo, preparaAutonomo, type EsitoAutonomo, type DatiAutonomi, type ParametriAutonomi, type Copertura } from '@/lib/backtest/autonomo';
 import { leggiCSV } from '@/lib/backtest/motore';
+import { blocchi, verificaSerie, type AssetAutonomo, type UniversoAutonomo } from '@/lib/backtest/universo-autonomo';
+import { checkpointAutonomo } from '@/lib/backtest/checkpoint-autonomo';
 
 type Salvataggio={id:string;parametri:ParametriAutonomi;dati:DatiAutonomi;esito:EsitoAutonomo};
 const vuoti=():DatiAutonomi=>({strumenti:[],serie:{},cambi:{},errori:{},avvisi:[]});
 const n=(v:number)=>v.toFixed(2);
 export function BacktestAutonomo(){
  const {utente,caricata,autenticato}=useSessione();
- const catalogo=useServerFn(getUniversoAutonomo),prezzi=useServerFn(getPrezziAutonomi),cambi=useServerFn(getCambiAutonomi);
+ const catalogo=useServerFn(getUniversoAutonomo),blocco=useServerFn(getBloccoAutonomo),prezzi=useServerFn(getPrezziAutonomi),cambi=useServerFn(getCambiAutonomi);
  const [p,setP]=useState<ParametriAutonomi>({dal:'2025-10-01',al:'2025-12-31',strategia:'medio',quotaPct:10,commissione:0,spreadBps:10,slippageBps:5});
- const [d,setD]=useState<DatiAutonomi>(vuoti),[fonte,setFonte]=useState<'FMP'|'Alpaca'>('FMP'),[valuta,setValuta]=useState('EUR'),[mercato,setMercato]=useState<'azioni'|'crypto'>('azioni');
+ const [d,setD]=useState<DatiAutonomi>(vuoti),[fonte,setFonte]=useState<'FMP'|'Alpaca'>('Alpaca'),[valuta,setValuta]=useState('EUR'),[mercato,setMercato]=useState<'azioni'|'crypto'>('azioni');
+ const [universo,setUniverso]=useState<UniversoAutonomo|null>(null),[budget,setBudget]=useState(0),[blocchiFiniti,setBlocchiFiniti]=useState(0);
  const [busy,setBusy]=useState(false),[stato,setStato]=useState(''),[errore,setErrore]=useState(''),[copertura,setCopertura]=useState<Copertura[]>([]),[esito,setEsito]=useState<EsitoAutonomo|null>(null),[salvati,setSalvati]=useState<Salvataggio[]>([]);
  const stop=useRef(false),csv=useRef<HTMLInputElement>(null),fx=useRef<HTMLInputElement>(null);
  const storage=`althea-autonomo-v1-${utente?.id??'locale'}`;
  useEffect(()=>{if(!caricata)return;setEsito(null);setSalvati([]);try{const v=JSON.parse(localStorage.getItem(storage)??'[]');if(Array.isArray(v))setSalvati(v);}catch{setErrore('Salvataggi non leggibili.');}},[storage,caricata]);
  function salva(s:Salvataggio){setSalvati(old=>{const next=[s,...old].slice(0,3);try{localStorage.setItem(storage,JSON.stringify(next));}catch{setErrore('Spazio locale esaurito: esporta il risultato.');}return next;});}
- async function scopri(){setBusy(true);setErrore('');try{if(!autenticato)throw new Error('Accedi per leggere Financial Modeling Prep oppure importa CSV.');const r=await catalogo();setD(old=>({...old,strumenti:r.strumenti,avvisi:r.avvisi}));setStato(`${r.strumenti.length} strumenti nel catalogo ricevuto`);}catch(e){setErrore(e instanceof Error?e.message:'Catalogo non disponibile.');}finally{setBusy(false);}}
+ async function scopri(){setBusy(true);setErrore('');try{if(!autenticato)throw new Error('Accedi per acquisire il catalogo Alpaca.');const r=await catalogo();setUniverso(r);setD(old=>({...old,strumenti:r.strumenti,avvisi:r.avvisi}));setStato(`${r.strumenti.length} strumenti attivi e tradabili nel catalogo ricevuto`);}catch(e){setUniverso(null);setD(vuoti());setErrore(e instanceof Error?e.message:'Catalogo non disponibile.');}finally{setBusy(false);}}
  async function avvia(){setBusy(true);setErrore('');setEsito(null);stop.current=false;let dati={...d,serie:{...d.serie},cambi:{...d.cambi},errori:{...d.errori},strumenti:d.strumenti.map(s=>({...s}))};
   try{
-   if(!dati.strumenti.length){if(!autenticato)throw new Error('Accedi o importa un universo di prezzi CSV.');const r=await catalogo();dati={...dati,...r};}
+   if(!dati.strumenti.length){if(!autenticato)throw new Error('Accedi per acquisire automaticamente il catalogo Alpaca.');const r=await catalogo();setUniverso(r);dati={...dati,...r};}
+   if(fonte==='Alpaca' && dati.strumenti.some(s=>'classe' in s)){
+    if(!utente)throw new Error('Accedi per salvare i checkpoint.');
+    const key=JSON.stringify({dal:p.dal,al:p.al,fonte,tickers:dati.strumenti.map(s=>s.ticker)});
+    const cached=await checkpointAutonomo<{dati:DatiAutonomi;finiti:number;incerto:boolean;errore:string}>(utente.id,key);
+    if(cached){dati=cached.dati;setBlocchiFiniti(cached.finiti);if(cached.incerto||cached.errore){setD(dati);throw new Error(cached.errore||'Blocco incerto: nessun reinvio automatico.');}}
+    const assets=dati.strumenti.filter((s):s is AssetAutonomo=>'classe' in s),batches=blocchi(assets,25);
+    for(let i=0;i<batches.length;i++){
+     if(stop.current)break;const batch=batches[i];if(!batch)continue;
+     if(batch.every(s=>dati.serie[s.ticker]||dati.errori[s.ticker]))continue;
+     setStato(`Acquisizione blocco ${i+1}/${batches.length} · ${batch.length} strumenti`);
+     await checkpointAutonomo(utente.id,key,{dati,finiti:i,incerto:true,errore:''});
+     try{const r=await blocco({data:{strumenti:batch,dal:p.dal,al:p.al}});Object.assign(dati.serie,r.serie);Object.assign(dati.errori,r.errori);
+      for(const s of batch){try{verificaSerie(s,dati.serie[s.ticker]??[],p.dal,p.al);}catch(e){dati.errori[s.ticker]=e instanceof Error?e.message:'Serie non verificata.';}}
+      await checkpointAutonomo(utente.id,key,{dati,finiti:i+1,incerto:false,errore:''});setBlocchiFiniti(i+1);
+     }catch(e){const msg=e instanceof Error?e.message:'Provider non disponibile.';await checkpointAutonomo(utente.id,key,{dati,finiti:i,incerto:true,errore:msg});throw new Error(msg);}
+     await new Promise(r=>setTimeout(r,0));
+    }
+   }
    for(let i=0;i<dati.strumenti.length;i++){
     if(stop.current)break;const s=dati.strumenti[i];if(!s)continue;setStato(`Copertura ${i+1}/${dati.strumenti.length} · ${s.ticker}`);
     try{if(!dati.serie[s.ticker]){if(!autenticato)throw new Error('Prezzi CSV assenti.');const r=await prezzi({data:{...s,fonte,dal:p.dal,al:p.al}});dati.serie[s.ticker]=r.barre;s.valuta=r.valuta;s.fonte=r.fonte;}
       if(s.valuta&&s.valuta!=='EUR'&&!dati.cambi[s.valuta]){if(!autenticato)throw new Error(`Importa cambio ${s.valuta}/EUR.`);dati.cambi[s.valuta]=await cambi({data:{valuta:s.valuta,dal:p.dal,al:p.al}});}
-      delete dati.errori[s.ticker];
+      if(!('classe' in s))delete dati.errori[s.ticker];
     }catch(e){dati.errori[s.ticker]=e instanceof Error?e.message:'Fonte non disponibile.';
       // A denied plan/auth response affects the source, not just this symbol; stop wasting its quota.
       if(/HTTP (401|402|403|429)/.test(dati.errori[s.ticker]??'')){for(const rest of dati.strumenti.slice(i+1))if(!dati.serie[rest.ticker])dati.errori[rest.ticker]='Fonte bloccata: scansione interrotta dopo rifiuto del servizio.';stop.current=true;break;}}
@@ -39,27 +60,31 @@ export function BacktestAutonomo(){
    }
    setD(dati);const prepared=preparaAutonomo(p,dati);setCopertura(prepared.copertura);
    if(stop.current){setStato('Scansione interrotta; copertura parziale, nessun risultato certificato.');return;}
-   const r=simulaAutonomo(p,dati);setEsito(r);salva({id:crypto.randomUUID(),parametri:p,dati,esito:r});setStato('Simulazione rules-only completata');
+   setStato('INCOMPLETO · screening IA 0 · comitato 0');
+   throw new Error('Screening IA non attivato: mancano registro server persistente del budget/anti-duplicazione e blocco dei rifiuti del modello; evidenze storiche ETF/crypto e classificazione azione/ETF non disponibili. Nessuna simulazione IA completa dichiarata.');
   }catch(e){setErrore(e instanceof Error?e.message:'Simulazione interrotta.');}finally{setBusy(false);}
  }
  function esporta(){if(!esito)return;const url=URL.createObjectURL(new Blob([JSON.stringify({parametri:p,dati:d,esito},null,2)],{type:'application/json'}));const a=document.createElement('a');a.href=url;a.download='althea-rules-only-eur.json';a.click();URL.revokeObjectURL(url);}
  const modifica=(v:Partial<ParametriAutonomi>)=>setP(old=>({...old,...v}));
  return <section className="border-b border-border pb-8 mb-8 space-y-5 min-w-0">
- <header><h2 className="text-xl font-semibold">Prototipo autonomo · rules-only</h2><p className="text-xs text-warn mt-2">50 EUR · budget IA 0 · nessun ordine PAPER o REAL · non misura le capacità dell’IA</p></header>
+ <header><h2 className="text-xl font-semibold">Backtest autonomo · universo Alpaca</h2><p className="text-xs text-warn mt-2">50 EUR · accantonamento 25 EUR/mese da profitto realizzato · solo simulazione · INCOMPLETO</p></header>
  <fieldset disabled={busy} className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
  <label className="text-xs space-y-2">Strategia<Select value={p.strategia} onValueChange={v=>modifica({strategia:v as ParametriAutonomi['strategia']})}><SelectTrigger aria-label="Strategia autonoma"><SelectValue/></SelectTrigger><SelectContent>{STRATEGIE.map(s=><SelectItem key={s.id} value={s.id}>{s.nome}</SelectItem>)}</SelectContent></Select></label>
  {(['dal','al'] as const).map(k=><label key={k} className="text-xs space-y-2">{k==='dal'?'Dal':'Al'}<Input aria-label={`Autonomo ${k}`} type="date" value={p[k]} onChange={e=>modifica({[k]:e.target.value})}/></label>)}
- <label className="text-xs space-y-2">Fonte prezzi<Select value={fonte} onValueChange={v=>{setFonte(v as typeof fonte);setD(vuoti());}}><SelectTrigger aria-label="Fonte prezzi autonoma"><SelectValue/></SelectTrigger><SelectContent><SelectItem value="FMP">Financial Modeling Prep</SelectItem><SelectItem value="Alpaca">Alpaca · universo FMP / CSV</SelectItem></SelectContent></Select></label>
+ <label className="text-xs space-y-2">Fonte prezzi<Select value={fonte} onValueChange={v=>{setFonte(v as typeof fonte);setD(vuoti());setUniverso(null);}}><SelectTrigger aria-label="Fonte prezzi autonoma"><SelectValue/></SelectTrigger><SelectContent><SelectItem value="FMP">FMP · secondaria, adjustment da verificare</SelectItem><SelectItem value="Alpaca">Alpaca · catalogo automatico</SelectItem></SelectContent></Select></label>
+ <label className="text-xs space-y-2">Budget massimo chiamate IA<Input aria-label="Budget IA autonomo" type="number" min="0" max="10000" step="1" value={budget} onChange={e=>setBudget(Math.max(0,Math.min(10000,Math.floor(Number(e.target.value)||0))))}/></label>
  {([{k:'quotaPct',l:'Quota simulata per titolo (%)'},{k:'commissione',l:'Commissione simulata (EUR)'},{k:'spreadBps',l:'Spread simulato (bps)'},{k:'slippageBps',l:'Slippage simulato (bps)'}] as const).map(x=><label key={x.k} className="text-xs space-y-2">{x.l}<Input aria-label={x.l} type="number" min="0" value={p[x.k]} onChange={e=>modifica({[x.k]:Number(e.target.value)})}/></label>)}
  </fieldset>
- <div className="flex flex-wrap gap-2"><Button variant="outline" disabled={busy} onClick={scopri}>Scopri universo FMP</Button><Button disabled={busy} onClick={avvia}><Play className="size-4"/>Avvia prototipo autonomo</Button>{busy&&<Button variant="outline" onClick={()=>{stop.current=true;}}><Pause className="size-4"/>Interrompi scansione</Button>}</div>
+ <div className="flex flex-wrap gap-2"><Button variant="outline" disabled={busy} onClick={scopri}>Acquisisci universo Alpaca</Button><Button disabled={busy} onClick={avvia}><Play className="size-4"/>Acquisisci storico / riprendi</Button>{busy&&<Button variant="outline" onClick={()=>{stop.current=true;}}><Pause className="size-4"/>Interrompi scansione</Button>}</div>
  <details className="border-y border-border py-3"><summary className="text-sm font-semibold cursor-pointer">Universo CSV e cambi storici</summary><div className="mt-4 flex flex-wrap items-end gap-3">
  <label className="text-xs space-y-2">Valuta dei prezzi CSV<Select value={valuta} onValueChange={setValuta}><SelectTrigger aria-label="Valuta CSV autonomo"><SelectValue/></SelectTrigger><SelectContent>{['EUR','USD','GBP','CHF','JPY','CAD'].map(v=><SelectItem key={v} value={v}>{v}</SelectItem>)}</SelectContent></Select></label>
  <label className="text-xs space-y-2">Mercato CSV<Select value={mercato} onValueChange={v=>setMercato(v as typeof mercato)}><SelectTrigger aria-label="Mercato CSV autonomo"><SelectValue/></SelectTrigger><SelectContent><SelectItem value="azioni">Azioni / ETF</SelectItem><SelectItem value="crypto">Crypto · calendario giornaliero</SelectItem></SelectContent></Select></label>
  <Button variant="outline" disabled={busy} onClick={()=>csv.current?.click()}><Upload className="size-4"/>Importa universo CSV</Button><Button variant="outline" disabled={busy} onClick={()=>fx.current?.click()}><Upload className="size-4"/>Importa cambio {valuta}/EUR</Button></div></details>
  <input ref={csv} type="file" multiple accept=".csv" className="hidden" aria-label="Universo CSV autonomo" onChange={async e=>{try{const next=vuoti();for(const file of Array.from(e.target.files??[])){if(file.size>5000000)throw new Error('CSV massimo 5 MB.');const ticker=file.name.replace(/\.csv$/i,'').toUpperCase();if(!/^[A-Z0-9./-]{1,15}$/.test(ticker))throw new Error('Nome CSV: simbolo dello strumento.');next.serie[ticker]=leggiCSV(await file.text());next.strumenti.push({ticker,valuta,mercato,fonte:`CSV ${file.name}`});}next.cambi=d.cambi;next.avvisi=['Universo fornito dai CSV: copertura limitata ai file importati, non all’intero mercato.'];setD(next);setErrore('');}catch(x){setErrore(x instanceof Error?x.message:'CSV non valido.');}e.target.value='';}}/>
  <input ref={fx} type="file" accept=".csv" className="hidden" aria-label="Cambio CSV autonomo" onChange={async e=>{try{const file=e.target.files?.[0];if(!file)return;if(file.size>5000000)throw new Error('CSV massimo 5 MB.');const b=leggiCSV(await file.text());setD(old=>({...old,cambi:{...old.cambi,[valuta]:b},avvisi:[...old.avvisi,`Cambio CSV dichiarato ${valuta}/EUR: EUR per unità di ${valuta}, open/close.`]}));setErrore('');}catch(x){setErrore(x instanceof Error?x.message:'Cambio non valido.');}e.target.value='';}}/>
- <p className="text-xs text-muted-foreground">Universo ricevuto: {d.strumenti.length} strumenti · serie caricate: {Object.keys(d.serie).length} · chiamate IA: 0</p>
+ <p className="text-xs text-muted-foreground">Totale scoperto: {d.strumenti.length} · storico caricato: {Object.keys(d.serie).length} · screening IA: 0 · comitato: 0 · blocchi completati: {blocchiFiniti} · budget consumato/rimanente: 0/{budget}</p>
+ <p className="text-xs text-warn">Screening IA BLOCCATO: budget server persistente e metadati/evidenze storiche per classe non disponibili. Nessuna chiamata IA abilitata.</p>
+ {universo&&<p className="text-xs text-muted-foreground">Provider: {universo.provider} · aggiornamento: {universo.aggiornatoIl} · righe acquisite: {universo.totaleAcquisito} · classi: {universo.classi.join(', ')} · stima minima teorica screening: {Math.ceil(d.strumenti.length/10)} chiamate batch, più fino a 9 per candidato al comitato; eleggibilità da verificare.</p>}
  {stato&&<p role="status" className="text-xs">{stato}</p>}{errore&&<p role="alert" className="text-sm text-bear break-words">{errore}</p>}
  {salvati.length>0&&<div className="space-y-2"><h3 className="text-sm font-semibold">Prototipi salvati su questo dispositivo</h3><div className="flex flex-wrap gap-2">{salvati.map(s=><Button key={s.id} className="h-auto max-w-full whitespace-normal text-left" variant="outline" disabled={busy} onClick={()=>{setP(s.parametri);setD(s.dati);setEsito(s.esito);setCopertura(s.esito.copertura);}}>{s.parametri.strategia} · {s.parametri.dal} / {s.parametri.al} · {n(s.esito.risultato.equity)} EUR</Button>)}</div></div>}
  {esito&&<div className="space-y-4 border-t border-border pt-4"><div className="flex flex-wrap justify-between gap-2"><h3 className="font-semibold">Risultati rules-only · EUR</h3><Button variant="outline" onClick={esporta}><Download className="size-4"/>Esporta prototipo</Button></div>
