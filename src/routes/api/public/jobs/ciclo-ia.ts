@@ -19,7 +19,7 @@ export const Route = createFileRoute("/api/public/jobs/ciclo-ia")({
         const adesso = new Date();
         const soglia = new Date(adesso.getTime() - 55_000).toISOString();
 
-        const { data: righe } = await supabaseAdmin
+        const { data: righe, error: erroreRighe } = await supabaseAdmin
           .from("automazioni_conti")
           .select("*")
           .eq("attivo", true)
@@ -29,10 +29,14 @@ export const Route = createFileRoute("/api/public/jobs/ciclo-ia")({
           .order("ultimo_ciclo", { ascending: true, nullsFirst: true })
           .limit(MAX_CONTI);
 
+        if (erroreRighe) {
+          return Response.json({ errore: "Lettura delle automazioni non riuscita." }, { status: 500 });
+        }
+
         let elaborati = 0;
         for (const r of righe ?? []) {
           // Acquisizione atomica del lease: se un'altra esecuzione l'ha già preso, salta.
-          const { data: preso } = await supabaseAdmin
+          const { data: preso, error: erroreLease } = await supabaseAdmin
             .from("automazioni_conti")
             .update({
               bloccato_fino: new Date(Date.now() + 120_000).toISOString(),
@@ -43,7 +47,11 @@ export const Route = createFileRoute("/api/public/jobs/ciclo-ia")({
             .eq("ambiente", "paper")
             .eq("attivo", true)
             .or(`ultimo_ciclo.is.null,ultimo_ciclo.lt.${soglia}`)
+            .or(`bloccato_fino.is.null,bloccato_fino.lt.${adesso.toISOString()}`)
             .select("user_id");
+          if (erroreLease) {
+            return Response.json({ errore: "Acquisizione del lease non riuscita." }, { status: 500 });
+          }
           if (!preso?.length) continue;
 
           let esito;
@@ -67,7 +75,7 @@ export const Route = createFileRoute("/api/public/jobs/ciclo-ia")({
             };
           }
           const blocco = "bloccoPerdita" in esito && esito.bloccoPerdita;
-          await supabaseAdmin
+          const { error: erroreEsito } = await supabaseAdmin
             .from("automazioni_conti")
             .update({
               ultimo_esito: JSON.parse(JSON.stringify(esito)),
@@ -80,6 +88,9 @@ export const Route = createFileRoute("/api/public/jobs/ciclo-ia")({
             .eq("user_id", r.user_id)
             .eq("piattaforma", r.piattaforma)
             .eq("ambiente", "paper");
+          if (erroreEsito) {
+            return Response.json({ errore: "Salvataggio dell'esito non riuscito." }, { status: 500 });
+          }
           elaborati++;
         }
         return Response.json({ elaborati });
