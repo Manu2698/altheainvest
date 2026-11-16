@@ -23,6 +23,7 @@ export const Route = createFileRoute("/api/public/jobs/ciclo-ia")({
           .from("automazioni_conti")
           .select("*")
           .eq("attivo", true)
+          .eq("ambiente", "paper")
           .or(`ultimo_ciclo.is.null,ultimo_ciclo.lt.${soglia}`)
           .or(`bloccato_fino.is.null,bloccato_fino.lt.${adesso.toISOString()}`)
           .order("ultimo_ciclo", { ascending: true, nullsFirst: true })
@@ -39,7 +40,7 @@ export const Route = createFileRoute("/api/public/jobs/ciclo-ia")({
             })
             .eq("user_id", r.user_id)
             .eq("piattaforma", r.piattaforma)
-            .eq("ambiente", r.ambiente)
+            .eq("ambiente", "paper")
             .eq("attivo", true)
             .or(`ultimo_ciclo.is.null,ultimo_ciclo.lt.${soglia}`)
             .select("user_id");
@@ -78,7 +79,7 @@ export const Route = createFileRoute("/api/public/jobs/ciclo-ia")({
             })
             .eq("user_id", r.user_id)
             .eq("piattaforma", r.piattaforma)
-            .eq("ambiente", r.ambiente);
+            .eq("ambiente", "paper");
           elaborati++;
         }
         return Response.json({ elaborati });
