@@ -3,8 +3,8 @@ import { authenticateCronRequest } from "@/integrations/supabase/cron-auth";
 
 // Chiamato ogni minuto dallo scheduler Cloudflare dedicato alla Preview: fa girare l'IA per ogni
 // conto (piattaforma + ambiente) con il motore automatico attivo, anche a sito chiuso.
-// Ogni conto viene elaborato al massimo una volta ogni 55 secondi (lease nel DB),
-// quindi chiamate ripetute non possono far operare l'IA più spesso del previsto.
+// Il lease atomico nel DB impedisce cicli sovrapposti; la scadenza di 120 secondi
+// protegge anche da esecuzioni duplicate o cicli che superano l'intervallo del cron.
 const MAX_CONTI = 25;
 
 export const Route = createFileRoute("/api/public/jobs/ciclo-ia")({
@@ -17,14 +17,11 @@ export const Route = createFileRoute("/api/public/jobs/ciclo-ia")({
         const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
         const { eseguiCiclo } = await import("@/lib/trading.server");
         const adesso = new Date();
-        const soglia = new Date(adesso.getTime() - 55_000).toISOString();
-
         const { data: righe, error: erroreRighe } = await supabaseAdmin
           .from("automazioni_conti")
           .select("*")
           .eq("attivo", true)
           .eq("ambiente", "paper")
-          .or(`ultimo_ciclo.is.null,ultimo_ciclo.lt.${soglia}`)
           .or(`bloccato_fino.is.null,bloccato_fino.lt.${adesso.toISOString()}`)
           .order("ultimo_ciclo", { ascending: true, nullsFirst: true })
           .limit(MAX_CONTI);
@@ -46,7 +43,6 @@ export const Route = createFileRoute("/api/public/jobs/ciclo-ia")({
             .eq("piattaforma", r.piattaforma)
             .eq("ambiente", "paper")
             .eq("attivo", true)
-            .or(`ultimo_ciclo.is.null,ultimo_ciclo.lt.${soglia}`)
             .or(`bloccato_fino.is.null,bloccato_fino.lt.${adesso.toISOString()}`)
             .select("user_id");
           if (erroreLease) {
