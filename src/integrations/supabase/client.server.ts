@@ -50,7 +50,12 @@ function createSupabaseFetch(supabaseKey: string): typeof fetch {
             }).map((key) => [key, body[key]]),
           );
         } catch {
-          diagnostic = 'non-json error response';
+          try {
+            const raw = await response.clone().text();
+            diagnostic = { kind: 'non-json error response', body: raw.slice(0, 500) };
+          } catch {
+            diagnostic = 'non-json error response';
+          }
         }
         const responseHeaders = Object.fromEntries(
           ['content-type', 'content-length', 'server', 'cf-ray', 'cf-cache-status', 'via',
@@ -61,8 +66,13 @@ function createSupabaseFetch(supabaseKey: string): typeof fetch {
             }),
         );
         const authHeader = headers.get('Authorization');
+        let requestQuery: string | undefined;
+        if (path === '/rest/v1/automazioni_conti') {
+          try { requestQuery = new URL(url).search; } catch { requestQuery = undefined; }
+        }
         console.error('[Supabase admin fetch] HTTP response', JSON.stringify({
           method, path, status: response.status, statusText: response.statusText, diagnostic,
+          ...(requestQuery ? { requestQuery } : {}),
           responseHeaders,
           requestAuth: !authHeader ? 'absent' : authHeader.startsWith('Bearer ') ? 'bearer' : 'other',
           apiKeyType: supabaseKey.startsWith('sb_secret_') ? 'sb_secret' :
