@@ -11,6 +11,17 @@ function isNewSupabaseApiKey(value: string): boolean {
   return value.startsWith('sb_publishable_') || value.startsWith('sb_secret_');
 }
 
+function getLegacyJwtRole(value: string): string | null {
+  const payload = value.split('.')[1];
+  if (!payload) return null;
+  try {
+    const decoded = JSON.parse(atob(payload.replace(/-/g, '+').replace(/_/g, '/')));
+    return typeof decoded.role === 'string' ? decoded.role : null;
+  } catch {
+    return null;
+  }
+}
+
 function createSupabaseFetch(supabaseKey: string): typeof fetch {
   return async (input, init) => {
     const headers = new Headers(
@@ -31,8 +42,11 @@ function createSupabaseFetch(supabaseKey: string): typeof fetch {
     const url = input instanceof Request ? input.url : String(input);
     const method = init?.method ?? (input instanceof Request ? input.method : 'GET');
     let path = 'unknown';
+    let requestHost = 'unknown';
     try {
-      path = new URL(url).pathname;
+      const parsedUrl = new URL(url);
+      path = parsedUrl.pathname;
+      requestHost = parsedUrl.host;
     } catch {
       // Never log query strings, headers, or request bodies.
     }
@@ -71,11 +85,12 @@ function createSupabaseFetch(supabaseKey: string): typeof fetch {
           try { requestQuery = new URL(url).search; } catch { requestQuery = undefined; }
         }
         console.error('[Supabase admin fetch] HTTP response', JSON.stringify({
-          method, path, status: response.status, statusText: response.statusText, diagnostic,
+          method, path, requestHost, status: response.status, statusText: response.statusText, diagnostic,
           responseHeaders,
           requestAuth: !authHeader ? 'absent' : authHeader.startsWith('Bearer ') ? 'bearer' : 'other',
           apiKeyType: supabaseKey.startsWith('sb_secret_') ? 'sb_secret' :
             supabaseKey.startsWith('sb_publishable_') ? 'sb_publishable' : 'legacy',
+          apiKeyRole: getLegacyJwtRole(supabaseKey),
         }));
         if (requestQuery) {
           console.error('[Supabase admin fetch] automazioni_conti request query', requestQuery);
