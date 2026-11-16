@@ -1,7 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { authenticateCronRequest } from "@/integrations/supabase/cron-auth";
 
-// Chiamato ogni minuto dallo scheduler del database: fa girare l'IA per ogni
+// Chiamato ogni minuto dallo scheduler Cloudflare dedicato alla Preview: fa girare l'IA per ogni
 // conto (piattaforma + ambiente) con il motore automatico attivo, anche a sito chiuso.
 // Ogni conto viene elaborato al massimo una volta ogni 55 secondi (lease nel DB),
 // quindi chiamate ripetute non possono far operare l'IA più spesso del previsto.
@@ -49,7 +49,7 @@ export const Route = createFileRoute("/api/public/jobs/ciclo-ia")({
           let esito;
           try {
             esito = await eseguiCiclo(r.user_id, {
-              reale: r.ambiente === "reale",
+              reale: false,
               strategia: r.strategia as "conservativo" | "medio" | "aggressivo",
               capitale: Number(r.capitale),
               modalita: r.modalita === "conto" ? "conto" : "limite",
