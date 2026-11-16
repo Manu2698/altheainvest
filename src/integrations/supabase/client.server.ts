@@ -72,12 +72,14 @@ function createSupabaseFetch(supabaseKey: string): typeof fetch {
         }
         console.error('[Supabase admin fetch] HTTP response', JSON.stringify({
           method, path, status: response.status, statusText: response.statusText, diagnostic,
-          ...(requestQuery ? { requestQuery } : {}),
           responseHeaders,
           requestAuth: !authHeader ? 'absent' : authHeader.startsWith('Bearer ') ? 'bearer' : 'other',
           apiKeyType: supabaseKey.startsWith('sb_secret_') ? 'sb_secret' :
             supabaseKey.startsWith('sb_publishable_') ? 'sb_publishable' : 'legacy',
         }));
+        if (requestQuery) {
+          console.error('[Supabase admin fetch] automazioni_conti request query', requestQuery);
+        }
       }
       return response;
     } catch (error) {
