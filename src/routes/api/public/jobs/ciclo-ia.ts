@@ -2,7 +2,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { authenticateCronRequest } from "@/integrations/supabase/cron-auth";
 
 // Chiamato ogni minuto dallo scheduler Cloudflare dedicato alla Preview: fa girare l'IA per ogni
-// conto (piattaforma + ambiente) con il motore automatico attivo, anche a sito chiuso.
+// conto PAPER con il motore automatico attivo, anche a sito chiuso.
 // Il lease atomico nel DB impedisce cicli sovrapposti; la scadenza di 120 secondi
 // protegge anche da esecuzioni duplicate o cicli che superano l'intervallo del cron.
 const MAX_CONTI = 25;
@@ -16,37 +16,74 @@ export const Route = createFileRoute("/api/public/jobs/ciclo-ia")({
         if (authFailure) return authFailure;
         const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
         const { eseguiCiclo } = await import("@/lib/trading.server");
-        const adesso = new Date();
-        const { data: righe, error: erroreRighe } = await supabaseAdmin
-          .from("automazioni_conti")
-          .select("*")
-          .eq("attivo", true)
-          .eq("ambiente", "paper")
-          .or(`bloccato_fino.is.null,bloccato_fino.lt.${adesso.toISOString()}`)
-          .order("ultimo_ciclo", { ascending: true, nullsFirst: true })
-          .limit(MAX_CONTI);
+        const adesso = new Date().toISOString();
 
-        if (erroreRighe) {
+        // Evita il filtro PostgREST .or(...): i due casi sono equivalenti ma più affidabili
+        // come query distinte, soprattutto con timestamp timestamptz.
+        const [senzaLease, leaseScaduti] = await Promise.all([
+          supabaseAdmin
+            .from("automazioni_conti")
+            .select("*")
+            .eq("attivo", true)
+            .eq("ambiente", "paper")
+            .is("bloccato_fino", null)
+            .order("ultimo_ciclo", { ascending: true, nullsFirst: true })
+            .limit(MAX_CONTI),
+          supabaseAdmin
+            .from("automazioni_conti")
+            .select("*")
+            .eq("attivo", true)
+            .eq("ambiente", "paper")
+            .lt("bloccato_fino", adesso)
+            .order("ultimo_ciclo", { ascending: true, nullsFirst: true })
+            .limit(MAX_CONTI),
+        ]);
+
+        if (senzaLease.error || leaseScaduti.error) {
+          console.error("[Althea cron] lettura PAPER fallita", JSON.stringify({
+            senzaLease: senzaLease.error?.code ?? null,
+            leaseScaduti: leaseScaduti.error?.code ?? null,
+            senzaLeaseMessage: senzaLease.error?.message ?? null,
+            leaseScadutiMessage: leaseScaduti.error?.message ?? null,
+          }));
           return Response.json({ errore: "Lettura delle automazioni non riuscita." }, { status: 500 });
         }
 
+        const righe = [...(senzaLease.data ?? []), ...(leaseScaduti.data ?? [])]
+          .sort((a, b) => {
+            if (a.ultimo_ciclo == null) return b.ultimo_ciclo == null ? 0 : -1;
+            if (b.ultimo_ciclo == null) return 1;
+            return new Date(a.ultimo_ciclo).getTime() - new Date(b.ultimo_ciclo).getTime();
+          })
+          .slice(0, MAX_CONTI);
+
         let elaborati = 0;
-        for (const r of righe ?? []) {
-          // Acquisizione atomica del lease: se un'altra esecuzione l'ha già preso, salta.
-          const { data: preso, error: erroreLease } = await supabaseAdmin
+        for (const r of righe) {
+          // Acquisizione atomica: prima prova un lease libero, poi uno scaduto.
+          const leaseNow = new Date().toISOString();
+          const leaseUpdate = {
+            bloccato_fino: new Date(Date.now() + 120_000).toISOString(),
+            ultimo_ciclo: leaseNow,
+          };
+          const baseLease = () => supabaseAdmin
             .from("automazioni_conti")
-            .update({
-              bloccato_fino: new Date(Date.now() + 120_000).toISOString(),
-              ultimo_ciclo: new Date().toISOString(),
-            })
+            .update(leaseUpdate)
             .eq("user_id", r.user_id)
             .eq("piattaforma", r.piattaforma)
             .eq("ambiente", "paper")
-            .eq("attivo", true)
-            .or(`bloccato_fino.is.null,bloccato_fino.lt.${adesso.toISOString()}`)
-            .select("user_id");
-          if (erroreLease) {
+            .eq("attivo", true);
+
+          const libero = await baseLease().is("bloccato_fino", null).select("user_id");
+          if (libero.error) {
             return Response.json({ errore: "Acquisizione del lease non riuscita." }, { status: 500 });
+          }
+          let preso = libero.data;
+          if (!preso?.length) {
+            const scaduto = await baseLease().lt("bloccato_fino", leaseNow).select("user_id");
+            if (scaduto.error) {
+              return Response.json({ errore: "Acquisizione del lease non riuscita." }, { status: 500 });
+            }
+            preso = scaduto.data;
           }
           if (!preso?.length) continue;
 
