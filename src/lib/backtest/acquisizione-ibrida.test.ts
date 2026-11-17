@@ -42,8 +42,7 @@ describe('acquisizione ibrida isolata', () => {
     const s = vuoto(), prezzi = vi.fn(async () => { throw new Error('network timeout'); });
     const dep = { prezzi, checkpoint: async () => {}, stop: () => false, progresso: vi.fn() };
     await expect(acquisisciBlocchiAlpaca([asset('AAPL')], s, ...periodo, 50, dep)).rejects.toThrow('timeout');
-    await expect(acquisisciBlocchiAlpaca([asset('AAPL')], s, ...periodo, 50, dep)).rejects.toThrow('incerto');
-    expect(prezzi).toHaveBeenCalledTimes(1);
+    expect(prezzi).toHaveBeenCalledTimes(1); expect(s.inCorso).toBeUndefined(); expect(s.errori['AAPL']).toBeUndefined();
   });
   it('rifiuta split non verificato, meno di 20 barre precedenti e crypto con lacune', async () => {
     const s = vuoto(), crypto = normalizzaUniverso([{ symbol: 'BTC/USD', class: 'crypto', status: 'active', tradable: true }], '2026').strumenti[0];
@@ -52,5 +51,18 @@ describe('acquisizione ibrida isolata', () => {
       prezzi: async () => ({ serie: { BAD: barre, SHORT: barre.slice(1), 'BTC/USD': barre.filter((_, i) => i !== 30) }, errori: {} }), checkpoint: async () => {}, stop: () => false, progresso: vi.fn(),
     });
     expect(s.errori['BAD']).toContain('split'); expect(s.errori['SHORT']).toContain('Copertura'); expect(s.errori['BTC/USD']).toContain('Lacuna'); expect(Object.keys(s.serie)).toHaveLength(0);
+  });
+});
+describe('intero universo', () => {
+  it('oltre 2000 simboli in blocchi da 25, stop tra blocchi e 429 lascia pendenti', async () => {
+    const assets = Array.from({ length: 2101 }, (_, i) => asset(`U${i}`)); const s = vuoto(); let n = 0, ferma = false;
+    const prezzi = vi.fn(async (b: AssetAutonomo[]) => { n++; if (n === 3) ferma = true; return { serie: Object.fromEntries(b.map(a => [a.ticker, barre])), errori: {} }; });
+    expect(await acquisisciBlocchiAlpaca(assets, s, ...periodo, Infinity, { prezzi, checkpoint: async () => {}, stop: () => ferma, progresso: vi.fn() })).toBe('interrotto');
+    expect(Object.keys(s.serie)).toHaveLength(75);
+    const p2 = vi.fn(async () => { throw new Error('Storico Alpaca HTTP 429'); });
+    await expect(acquisisciBlocchiAlpaca(assets, s, ...periodo, Infinity, { prezzi: p2, checkpoint: async () => {}, stop: () => false, progresso: vi.fn() })).rejects.toThrow('limite di richieste');
+    expect(Object.keys(s.errori)).toHaveLength(0);
+    expect(await acquisisciBlocchiAlpaca(assets, s, ...periodo, Infinity, { prezzi, checkpoint: async () => {}, stop: () => false, progresso: vi.fn() })).toBe('completo');
+    expect(Object.keys(s.serie)).toHaveLength(2101);
   });
 });

@@ -9,7 +9,7 @@ import { STRATEGIE } from '@/lib/strategies';
 import { getUniversoAutonomo, getUniversoNasdaq, getUniversoIbrido, getBloccoAutonomo, getPrezziAutonomi, getCambiAutonomi, getDiagnosticaAlpaca, apriRunIA, getStatoRunIA, eseguiScreeningIA, eseguiComitatoIA, getEvidenzeCandidato } from '@/lib/backtest/autonomo.functions';
 import { preparaAutonomo, simulaAutonomo, type EsitoAutonomo, type DatiAutonomi, type ParametriAutonomi, type Copertura } from '@/lib/backtest/autonomo';
 import { blocchi, verificaSerie, type AssetAutonomo, type UniversoAutonomo } from '@/lib/backtest/universo-autonomo';
-import { checkpointAutonomo } from '@/lib/backtest/checkpoint-autonomo';
+import { caricaCheckpoint, salvaCheckpoint } from '@/lib/backtest/checkpoint-autonomo';
 import { acquisisciBlocchiAlpaca, type StatoAcquisizione } from '@/lib/backtest/acquisizione-ibrida';
 import { eleggibiliScreening, candidatiComitato, comitatoDaRitentare, statoIA, sezioniDiagnostica, pannelloStatoDiagnostica, conDiagnosi, type StatoIA, type EsitoComitatoUI } from '@/lib/backtest/ia-autonoma';
 
@@ -38,15 +38,16 @@ export function BacktestAutonomo() {
   const [esito, setEsito] = useState<EsitoAutonomo | null>(null), [esitoIA, setEsitoIA] = useState<EsitoAutonomo | null>(null), [diag, setDiag] = useState<Diagnostica | null>(null), [salvati, setSalvati] = useState<Salvataggio[]>([]);
   const stop = useRef(false);
   const inCorso = useRef<string[] | undefined>(undefined);
+  const persistite = useRef<Set<string>>(new Set());
   const storage = `althea-autonomo-v2-${utente?.id ?? 'locale'}`;
   const chiave = JSON.stringify({ v: 3, fonte, dal: p.dal, al: p.al });
 
   useEffect(() => { if (!caricata) return; try { const v = JSON.parse(localStorage.getItem(storage) ?? '[]'); setSalvati(Array.isArray(v) ? v : []); } catch { setErrore('Salvataggi non leggibili.'); } }, [storage, caricata]);
   // Resume the owner-scoped checkpoint for this source/period after a reload.
-  useEffect(() => { if (!utente) return; let vivo = true; inCorso.current = undefined; checkpointAutonomo<Checkpoint>(utente.id, chiave).then(c => { if (!vivo || !c) return; inCorso.current = c.inCorso; setD(c.dati); setUniverso(c.universo ?? null); setIa(c.ia ?? iaVuota()); setCopertura(preparaAutonomo(p, elaborati(c.dati)).copertura); if (c.errore) setErrore(c.errore); if (c.ia?.runId) fn.statoRun({ data: { runId: c.ia.runId } }).then(r => { if (vivo) setRun(r); }).catch(() => setRun(null)); setStato('Checkpoint ripreso da questo dispositivo: lo stato del budget IA resta quello del server.'); }).catch(() => setErrore('Archivio locale non disponibile.')); return () => { vivo = false; }; // eslint-disable-next-line react-hooks/exhaustive-deps
+  useEffect(() => { if (!utente) return; let vivo = true; inCorso.current = undefined; persistite.current = new Set(); caricaCheckpoint<Checkpoint>(utente.id, chiave).then(r => { if (!vivo || !r) return; const c = r.valore; persistite.current = r.persistite; inCorso.current = undefined; setD(c.dati); setUniverso(c.universo ?? null); setIa(c.ia ?? iaVuota()); setCopertura(preparaAutonomo(p, elaborati(c.dati)).copertura); if (c.errore) setErrore(c.errore); if (c.ia?.runId) fn.statoRun({ data: { runId: c.ia.runId } }).then(r => { if (vivo) setRun(r); }).catch(() => setRun(null)); setStato('Checkpoint ripreso da questo dispositivo: lo stato del budget IA resta quello del server.'); }).catch(() => setErrore('Archivio locale non disponibile.')); return () => { vivo = false; }; // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [utente?.id, chiave]);
 
-  const salvaCk = async (dati: DatiAutonomi, statoIa: StatoIA, err = '', catalogo = universo) => { if (utente) await checkpointAutonomo<Checkpoint>(utente.id, chiave, { dati, ia: statoIa, errore: err, inCorso: inCorso.current, universo: catalogo }); };
+  const salvaCk = async (dati: DatiAutonomi, statoIa: StatoIA, err = '', catalogo = universo) => { if (utente) await salvaCheckpoint<Checkpoint>(utente.id, chiave, { dati, ia: statoIa, errore: err, inCorso: inCorso.current, universo: catalogo }, persistite.current); };
   const filtra = (s: AssetAutonomo) => classe === 'tutte' || s.classe === classe;
 
   async function caricaUniverso(): Promise<Universo> {
@@ -70,16 +71,18 @@ export function BacktestAutonomo() {
       const scelti = simboli.toUpperCase().split(/[\s,;]+/).filter(Boolean);
       const ignoti = scelti.filter(t => !assets.some(s => s.ticker === t));
       if (ignoti.length) dati.avvisi = [...dati.avvisi.filter(a => !a.startsWith('Simboli non presenti')), `Simboli non presenti nell’universo classificato (esclusi): ${ignoti.join(', ')}.`];
-      const daFare = assets.filter(s => (!scelti.length || scelti.includes(s.ticker)) && !dati.serie[s.ticker] && !dati.errori[s.ticker]).slice(0, Math.max(1, limite));
+      const pendentiTutti = assets.filter(s => (!scelti.length || scelti.includes(s.ticker)) && !dati.serie[s.ticker] && !dati.errori[s.ticker]);
+      const daFare = fonte === 'ibrida' ? pendentiTutti : pendentiTutti.slice(0, Math.max(1, limite));
       if (!daFare.length) setStato('Nessuno strumento da acquisire con il filtro scelto: tutti già elaborati.');
       if (daFare.some(s => s.valuta === 'USD') && !dati.cambi['USD']) { setStato('Cambi storici EUR/USD'); dati.cambi['USD'] = await fn.cambi({ data: { valuta: 'USD', dal: p.dal, al: p.al } }); await salvaCk(dati, ia); }
       if (fonte === 'ibrida') {
         const acquisizione: StatoAcquisizione = { serie: dati.serie, errori: dati.errori, inCorso: inCorso.current };
-        await acquisisciBlocchiAlpaca(daFare, acquisizione, p.dal, p.al, limite, {
+        await acquisisciBlocchiAlpaca(daFare, acquisizione, p.dal, p.al, Infinity, {
+          pausa: () => new Promise(r => setTimeout(r, 400)),
           prezzi: strumenti => fn.blocco({ data: { strumenti, dal: p.dal, al: p.al } }),
           checkpoint: async s => { inCorso.current = s.inCorso; await salvaCk(dati, ia, '', catalogo); setD({ ...dati }); },
           stop: () => stop.current,
-          progresso: (i, totale) => setStato(`Alpaca PAPER/IEX blocco ${i}/${totale}`),
+          progresso: (i, totale, info) => setStato(`Intero universo · Alpaca PAPER/IEX blocco ${i}/${totale} · pendenti ${info?.pendenti ?? '?'}`),
         });
       } else if (fonte === 'alpaca') {
         const bs = blocchi(daFare, 25);
