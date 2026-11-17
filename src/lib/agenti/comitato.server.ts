@@ -8,7 +8,8 @@ import { decisioneFinale, esitoDibattito, indicatoriTecnici, type Analisi, type 
 const MODELLO = "openai/gpt-oss-20b";
 const GATEWAY = "https://api.groq.com/openai/v1";
 const CACHE_ORE = 4;
-export const MAX_ANALISI_PER_CICLO = 2;
+// Una sola analisi nuova per ciclo: mantiene intatto il comitato completo e distribuisce i candidati sui cicli successivi.
+export const MAX_ANALISI_PER_CICLO = 1;
 
 const sAnalisi = z.object({
   voto: z.enum(["favorevole", "contrario", "neutrale", "dati_insufficienti"]),
