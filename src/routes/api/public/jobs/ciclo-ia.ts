@@ -5,7 +5,9 @@ import { authenticateCronRequest } from "@/integrations/supabase/cron-auth";
 // conto PAPER con il motore automatico attivo, anche a sito chiuso.
 // Il lease atomico nel DB impedisce cicli sovrapposti; la scadenza di 120 secondi
 // protegge anche da esecuzioni duplicate o cicli che superano l'intervallo del cron.
-const MAX_CONTI = 25;
+// Un solo conto per invocazione: ogni ciclo include riconciliazione, analisi e verifiche broker.
+ // Il cron gira ogni minuto e riprende dal conto meno recentemente elaborato.
+const MAX_CONTI = 1;
 
 export const Route = createFileRoute("/api/public/jobs/ciclo-ia")({
   server: {
