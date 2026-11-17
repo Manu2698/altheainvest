@@ -29,6 +29,19 @@ function getLegacyJwtRole(value: string): string | null {
   return typeof role === 'string' ? role : null;
 }
 
+function getSafeKeyMetadata(value: string | undefined) {
+  if (value === undefined) return { present: false, length: 0 };
+  return {
+    present: true,
+    type: value.startsWith('sb_secret_') ? 'sb_secret' :
+      value.startsWith('sb_publishable_') ? 'sb_publishable' : 'legacy',
+    length: value.length,
+    hasLeadingOrTrailingWhitespace: value !== value.trim(),
+    containsControlCharacters: /[\\u0000-\\u001f\\u007f]/.test(value),
+    looksLikeSingleMaskPlaceholder: value === '*' || value === '•',
+  };
+}
+
 function getApiKeyShape(value: string) {
   const parts = value.split('.');
   const payload = parts[1] ?? '';
@@ -138,8 +151,17 @@ function createSupabaseAdminClient() {
   // Read the active Worker Preview bindings directly. process.env remains a fallback
   // for local Node-based tests, but must not override the Preview's isolated secrets.
   const runtimeEnv = cloudflareEnv as unknown as Record<string, string | undefined>;
+  const runtimeServiceRoleKey = runtimeEnv['SUPABASE_SERVICE_ROLE_KEY'];
+  const processServiceRoleKey = process.env['SUPABASE_SERVICE_ROLE_KEY'];
   const SUPABASE_URL = runtimeEnv['SUPABASE_URL'] ?? process.env['SUPABASE_URL'];
-  const SUPABASE_SERVICE_ROLE_KEY = runtimeEnv['SUPABASE_SERVICE_ROLE_KEY'] ?? process.env['SUPABASE_SERVICE_ROLE_KEY'];
+  const SUPABASE_SERVICE_ROLE_KEY = runtimeServiceRoleKey ?? processServiceRoleKey;
+
+  // Safe diagnostics to distinguish a truncated Preview binding from a local fallback.
+  console.info('[Supabase admin key source]', JSON.stringify({
+    selected: runtimeServiceRoleKey !== undefined ? 'cloudflare-runtime' : 'process-env-fallback',
+    runtime: getSafeKeyMetadata(runtimeServiceRoleKey),
+    process: getSafeKeyMetadata(processServiceRoleKey),
+  }));
 
   if (!SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY) {
     const missing = [
