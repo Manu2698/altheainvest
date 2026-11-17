@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { eleggibiliScreening, candidatiComitato, comitatoDaRitentare, statoIA, type StatoIA } from './ia-autonoma';
+import { eleggibiliScreening, candidatiComitato, comitatoDaRitentare, statoIA, pannelloStatoDiagnostica, type StatoIA } from './ia-autonoma';
 import { rifiltraInput } from './screening-autonomo';
 import { blocchi, type AssetAutonomo } from './universo-autonomo';
 const barre = Array.from({ length: 60 }, (_, i) => ({ data: new Date(Date.UTC(2025, 0, 1) + i * 86400000).toISOString().slice(0, 10), apertura: 10 + i, chiusura: 10 + i, volume: 100 }));
@@ -38,5 +38,25 @@ describe('screening IA autonomo', () => {
     expect(comitatoDaRitentare({ stato: 'non_eseguibile', motivo: 'notizie assenti' })).toBe(true);
     expect(comitatoDaRitentare({ stato: 'eseguito', approvato: true, azione: 'BUY', motivo: 'ok', chiamate: 9 })).toBe(false);
     expect(comitatoDaRitentare({ stato: 'negata', motivo: 'budget' })).toBe(false);
+  });
+});
+
+describe('stato del pannello diagnostica', () => {
+  it('nessun eleggibile non implica esclusioni né screening disponibile', () => {
+    expect(pannelloStatoDiagnostica(0, 0, 0)).toBe('nessun_eleggibile');
+    expect(pannelloStatoDiagnostica(0, 3, 2)).toBe('nessun_eleggibile');
+  });
+  it('storico eleggibile senza screening resta non avviato', () => {
+    expect(pannelloStatoDiagnostica(40, 0, 0)).toBe('non_avviato');
+  });
+  it('screening parziale resta tale anche con candidati BUY', () => {
+    expect(pannelloStatoDiagnostica(40, 37, 0)).toBe('parziale');
+    expect(pannelloStatoDiagnostica(40, 37, 3)).toBe('parziale');
+  });
+  it('screening completo senza BUY non inventa diagnostiche', () => {
+    expect(pannelloStatoDiagnostica(40, 40, 0)).toBe('senza_buy');
+  });
+  it('screening completo con BUY conserva la disponibilità delle sezioni', () => {
+    expect(pannelloStatoDiagnostica(40, 40, 3)).toBe('con_candidati');
   });
 });

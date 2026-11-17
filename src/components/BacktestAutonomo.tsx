@@ -11,7 +11,7 @@ import { preparaAutonomo, simulaAutonomo, type EsitoAutonomo, type DatiAutonomi,
 import { blocchi, verificaSerie, type AssetAutonomo, type UniversoAutonomo } from '@/lib/backtest/universo-autonomo';
 import { checkpointAutonomo } from '@/lib/backtest/checkpoint-autonomo';
 import { acquisisciBlocchiAlpaca, type StatoAcquisizione } from '@/lib/backtest/acquisizione-ibrida';
-import { eleggibiliScreening, candidatiComitato, comitatoDaRitentare, statoIA, sezioniDiagnostica, conDiagnosi, type StatoIA, type EsitoComitatoUI } from '@/lib/backtest/ia-autonoma';
+import { eleggibiliScreening, candidatiComitato, comitatoDaRitentare, statoIA, sezioniDiagnostica, pannelloStatoDiagnostica, conDiagnosi, type StatoIA, type EsitoComitatoUI } from '@/lib/backtest/ia-autonoma';
 
 type Fonte = 'nasdaq' | 'alpaca' | 'ibrida';
 type Universo = UniversoAutonomo & { esclusiPerMotivo?: Record<string, number> };
@@ -180,6 +180,10 @@ export function BacktestAutonomo() {
   const inclusi = copertura.filter(x => x.incluso).length;
   const eleggibili = eleggibiliScreening(assets.filter(s => copertura.some(c => c.ticker === s.ticker && c.incluso)), d.serie, p.dal);
   const screenati = Object.keys(ia.screening).length, stIA = statoIA(eleggibili.map(i => i.ticker), ia, 3);
+  const valutati = eleggibili.filter(i => !!ia.screening[i.ticker]).length;
+  const screeningResiduo = Math.ceil((eleggibili.length - valutati) / 10);
+  const sezioni = sezioniDiagnostica(ia);
+  const statoDiagnostica = pannelloStatoDiagnostica(eleggibili.length, valutati, sezioni.length);
   const perClasse = (c: string) => assets.filter(s => s.classe === c).length;
 
   return <section className="border-b border-border pb-8 mb-8 space-y-5 min-w-0">
@@ -210,6 +214,14 @@ export function BacktestAutonomo() {
     {diag && <div className="border border-border p-3 text-xs space-y-2"><p className="font-semibold">{diag.conclusione}</p><ul className="space-y-1">{diag.controlli.map(c => <li key={c.nome} className={c.ok ? '' : 'text-bear'}>{c.ok ? 'OK' : 'KO'} · {c.nome}: {c.dettaglio}</li>)}</ul><p>{diag.rimedio}</p></div>}
     {stato && <p role="status" className="text-xs">{stato}</p>}{errore && <p role="alert" className="text-sm text-bear break-words">{errore}</p>}
     {ia.messaggi.length > 0 && <ul className="text-xs text-warn space-y-1">{ia.messaggi.map((m, i) => <li key={i}>{m}</li>)}</ul>}
+    <div role="region" aria-labelledby="stato-diagnostica" className="border-t border-border pt-4 space-y-2 text-xs break-words">
+      <h3 id="stato-diagnostica" className="text-sm font-semibold">Stato diagnostica / screening</h3>
+      {statoDiagnostica === 'nessun_eleggibile' && <p>Nessun dato storico eleggibile allo screening. Acquisisci l’universo e lo storico con almeno 20 barre precedenti alla data iniziale. Gli strumenti non ancora acquisiti restano in coda, non sono esclusi.</p>}
+      {statoDiagnostica === 'non_avviato' && <p>Screening IA non ancora eseguito. {eleggibili.length} strumenti eleggibili: imposta un budget IA di almeno {screeningResiduo} chiamate stimate per lo screening, poi usa “Screening IA + comitato”. Per ogni comitato servono fino a 9 chiamate aggiuntive. Nessuna chiamata parte automaticamente.</p>}
+      {statoDiagnostica === 'parziale' && <p>Screening IA parziale: {valutati} di {eleggibili.length} strumenti eleggibili valutati; {eleggibili.length - valutati} ancora da valutare. Screening non completo. Stima residua: {screeningResiduo} chiamate per lo screening, oltre al budget dei comitati. Usa “Screening IA + comitato” per riprendere esplicitamente.</p>}
+      {statoDiagnostica === 'senza_buy' && <p>Screening completato sui {valutati} strumenti eleggibili acquisiti, senza candidati BUY. Non ci sono diagnostiche di comitato da mostrare; questo non certifica la copertura dell’intero universo.</p>}
+      {statoDiagnostica === 'con_candidati' && <p>Screening completato sui {valutati} strumenti eleggibili acquisiti. Le evidenze dei migliori candidati BUY sono riportate sotto; lo stato dei singoli comitati resta distinto dallo screening.</p>}
+    </div>
     {screenati > 0 && <details open className="text-xs"><summary className="font-semibold text-sm cursor-pointer">Screening IA alla data {p.dal} (solo dati precedenti)</summary><div className="max-h-72 overflow-auto mt-2 space-y-1">{Object.values(ia.screening).sort((a, b) => b.priorita - a.priorita).map(v => <p key={v.ticker} className="break-words">{v.ticker} · {v.verdetto} · priorità {v.priorita} · {v.motivazione}{ia.comitati[v.ticker] ? ` · comitato: ${ia.comitati[v.ticker]?.stato === 'eseguito' ? (ia.comitati[v.ticker] as { approvato: boolean }).approvato ? 'APPROVATO' : 'NON APPROVATO' : ia.comitati[v.ticker]?.stato} — ${ia.comitati[v.ticker]?.motivo}` : ''}</p>)}</div></details>}
     {sezioniDiagnostica(ia).map(({ ticker, comitato: c, diagnosi: g, origine }) => { const righe = origine === 'comitato' ? c?.diagnostica ?? [] : g?.diagnostica ?? []; const avvisi = origine === 'comitato' ? c?.avvisi ?? [] : g?.avvisi ?? []; return <details key={ticker} className="text-xs"><summary className="cursor-pointer font-semibold">Evidenze comitato · {ticker} · {c ? c.stato : 'comitato non eseguito'}{origine === 'mancante' ? ' · diagnostica non ancora acquisita' : ''}</summary>{c && <p className="mt-2 break-words">{c.motivo}</p>}{origine === 'verifica' && g && <p className="mt-2 break-words">Verifica evidenze del {g.acquisitaIl.slice(0, 16).replace('T', ' ')} UTC (senza chiamate IA) · {g.validi} evidenze valide · {g.mancante ? `requisito mancante: ${g.mancante}` : 'requisiti di classe soddisfatti'}</p>}{righe.length ? <ul className="mt-2 space-y-2">{righe.map((e, i) => <li key={i} className="break-words">{e.fonte} · {e.stato} · HTTP {e.http ?? '—'} · {e.valide} valide / {e.ricevute} ricevute · {e.pagine} pagine · {e.motivo}</li>)}</ul> : <p className="mt-2">Diagnostica non ancora acquisita.</p>}{avvisi.map((a, i) => <p key={i} className="mt-1 break-words text-warn">{a}</p>)}{origine === 'mancante' && <Button size="sm" variant="outline" className="mt-2" disabled={busy || !autenticato} onClick={() => verificaEvidenze(ticker)}>Verifica evidenze (senza chiamate IA)</Button>}{verifica[ticker] && <p className="mt-1 break-words text-warn">{verifica[ticker]}</p>}</details>; })}
     <p className="text-xs text-muted-foreground">Checkpoint dei dati su questo dispositivo; budget, idempotenza e blocchi IA sono registrati dal server. Universo corrente (survivorship bias), dividendi e conoscenza pregressa del modello non eliminati.</p>
