@@ -51,7 +51,7 @@ export function indicatoriTecnici(chiusure: number[]) {
 export function esitoDibattito(turni: Turno[], proposta: "BUY" | "SELL"): "BUY" | "SELL" | "HOLD" {
   const ultimoBull = [...turni].reverse().find((t) => t.agente === "bull");
   const ultimoBear = [...turni].reverse().find((t) => t.agente === "bear");
-  if (!ultimoBull || !ultimoBear || turni.length < 4) return "HOLD";
+  if (!ultimoBull || !ultimoBear || turni.length < 2) return "HOLD";
   // bull.conclusione = la tesi regge; bear.conclusione = obiezioni decisive.
   if (ultimoBull.posizione === proposta && ultimoBull.conclusione && !ultimoBear.conclusione) return proposta;
   return "HOLD";
