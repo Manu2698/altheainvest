@@ -211,9 +211,11 @@ export async function eseguiCiclo(
     const snapshot = await riconciliaAlpacaPersistente(userId, input.reale, lease);
     if (snapshot.stato !== "riconciliato") return {ok:false,messaggio:`Nessun ordine inviato: ${snapshot.motivo}`,mercatoAperto:false,decisioni:[],eseguiti:0};
     const esito = await eseguiCicloInterno(userId, input, lease);
-    if (p === "alpaca") {
+    // La riconciliazione completa post-ciclo serve solo se è stato accettato almeno un ordine.
+    // I cicli senza eseguiti evitano una seconda scansione completa di ordini e fill ogni minuto.
+    if (p === "alpaca" && esito.eseguiti > 0) {
       try { await riconciliaAlpacaPersistente(userId, input.reale, lease); }
-      catch { esito.messaggio += " Riconciliazione incompleta: rendimento non definitivo."; }
+      catch { esito.messaggio += " Riconciliazione post-ordine incompleta: rendimento non definitivo."; }
     }
     return esito;
   });
