@@ -129,7 +129,7 @@ export async function riconciliaAlpacaPersistente(userId: string, reale: boolean
 
     const { data: registrati, error } = await client.from("registro_ordini").select("*").eq("user_id", userId).eq("piattaforma", "alpaca").eq("ambiente", ambiente).eq("conto_id", contoId);
     if (error) throw error;
-    const aggiornamentiRegistro: Record<string, unknown>[] = [];
+    const aggiornamentiRegistro: NonNullable<typeof registrati> = [];
     for (const o of registrati ?? []) {
       if (o.stato === "non_inviato" || o.stato === "rifiutato_http") continue;
       let broker = ordini.find(b => String(b["id"]) === o.broker_id || String(b["client_order_id"]) === o.client_id);
@@ -138,7 +138,7 @@ export async function riconciliaAlpacaPersistente(userId: string, reale: boolean
         catch {
           completo = false;
           aggiornamentiRegistro.push({
-            id: o.id,
+            ...o,
             riconciliato_il: null,
             riconciliazione_motivo: "Esito non determinabile: solo recupero con lo stesso ID, nessun reinvio. Se il broker non trova l’ordine occorre verifica manuale, non sblocco automatico.",
           });
@@ -152,7 +152,7 @@ export async function riconciliaAlpacaPersistente(userId: string, reale: boolean
       const confermato = verificaEseguito(qty, Number.isFinite(numero(broker["filled_avg_price"])) ? numero(broker["filled_avg_price"]) : null, fillsOrdine.map(fillDa));
       if (!confermato) completo = false;
       aggiornamentiRegistro.push({
-        id: o.id,
+        ...o,
         broker_id: String(broker["id"]),
         stato: String(broker["status"]),
         quantita_eseguita: Number.isFinite(qty) ? qty : 0,
