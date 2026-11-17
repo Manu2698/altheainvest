@@ -11,15 +11,36 @@ function isNewSupabaseApiKey(value: string): boolean {
   return value.startsWith('sb_publishable_') || value.startsWith('sb_secret_');
 }
 
-function getLegacyJwtRole(value: string): string | null {
+function getLegacyJwtPayload(value: string): Record<string, unknown> | null {
   const payload = value.split('.')[1];
   if (!payload) return null;
   try {
-    const decoded = JSON.parse(atob(payload.replace(/-/g, '+').replace(/_/g, '/')));
-    return typeof decoded.role === 'string' ? decoded.role : null;
+    const base64 = payload.replace(/-/g, '+').replace(/_/g, '/');
+    const padded = base64.padEnd(Math.ceil(base64.length / 4) * 4, '=');
+    const decoded = JSON.parse(atob(padded));
+    return decoded && typeof decoded === 'object' ? decoded as Record<string, unknown> : null;
   } catch {
     return null;
   }
+}
+
+function getLegacyJwtRole(value: string): string | null {
+  const role = getLegacyJwtPayload(value)?.role;
+  return typeof role === 'string' ? role : null;
+}
+
+function getApiKeyShape(value: string) {
+  const parts = value.split('.');
+  const payload = parts[1] ?? '';
+  return {
+    type: value.startsWith('sb_secret_') ? 'sb_secret' :
+      value.startsWith('sb_publishable_') ? 'sb_publishable' : 'legacy',
+    length: value.length,
+    jwtSegments: parts.length,
+    payloadLength: payload.length,
+    payloadBase64Remainder: payload.length % 4,
+    role: getLegacyJwtRole(value),
+  };
 }
 
 function createSupabaseFetch(supabaseKey: string): typeof fetch {
@@ -84,12 +105,13 @@ function createSupabaseFetch(supabaseKey: string): typeof fetch {
         if (path === '/rest/v1/automazioni_conti') {
           try { requestQuery = new URL(url).search; } catch { requestQuery = undefined; }
         }
+        // Safe diagnostic only: never log the key, its JWT payload, or any header value.
+        console.error('[Supabase key shape]', JSON.stringify(getApiKeyShape(supabaseKey)));
         console.error('[Supabase admin fetch] HTTP response', JSON.stringify({
           method, path, requestHost, status: response.status, statusText: response.statusText, diagnostic,
           responseHeaders,
           requestAuth: !authHeader ? 'absent' : authHeader.startsWith('Bearer ') ? 'bearer' : 'other',
-          apiKeyType: supabaseKey.startsWith('sb_secret_') ? 'sb_secret' :
-            supabaseKey.startsWith('sb_publishable_') ? 'sb_publishable' : 'legacy',
+          apiKeyType: getApiKeyShape(supabaseKey).type,
           apiKeyRole: getLegacyJwtRole(supabaseKey),
         }));
         if (requestQuery) {
