@@ -47,7 +47,7 @@ export async function serieStorica(
 
   const richieste: Promise<void>[] = [];
   // Alpaca restituisce un elenco vuoto se non si specifica una finestra temporale.
-  const inizio = new Date(Date.now() - 120 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
+  const inizio = new Date(Date.now() - 60 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
 
   const controlla = async (r: Response, origine: string) => {
     if (r.ok) return r.json();
@@ -265,7 +265,8 @@ async function eseguiCicloInterno(
 
   // L'IA sceglie da sola su cosa investire analizzando il mercato.
   const { selezionaUniverso } = await import("./selezione.server");
-  const auto = await selezionaUniverso(headers, reale, input.strategia);
+  const ultimiGiorni: Record<string, string> = {};
+  const auto = await selezionaUniverso(headers, reale, input.strategia, ultimiGiorni);
   const universo = (auto.universo.length ? auto.universo : strategia.universo)
     .map((t) => t.toUpperCase().trim())
     .filter(Boolean)
@@ -324,11 +325,12 @@ async function eseguiCicloInterno(
 
 
   try {
-    const ultimiGiorni: Record<string, string> = {};
-    const [clockRes, posRes, storico, apertiRes] = await Promise.all([
+    // Riutilizza le barre già scaricate per l'intero pool durante la selezione:
+    // evita una seconda scansione storica degli stessi simboli nello stesso ciclo.
+    const storico = auto.storico;
+    const [clockRes, posRes, apertiRes] = await Promise.all([
       fetch(`${url}/v2/clock`, { headers }),
       fetch(`${url}/v2/positions`, { headers }),
-      serieStorica(universo, headers, ultimiGiorni),
       fetch(`${url}/v2/orders?status=open&limit=500`, { headers }).catch(() => null),
     ]);
     // Ordini ancora aperti presso il broker: niente nuovi ordini sullo stesso titolo (anti-duplicati).
