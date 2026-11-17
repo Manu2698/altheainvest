@@ -52,7 +52,8 @@ export async function riconciliaAlpacaPersistente(userId: string, reale: boolean
   const api = reale ? "https://api.alpaca.markets" : "https://paper-api.alpaca.markets";
   const iniziato = new Date().toISOString();
   const leggi = async (path: string) => {
-    await verificaLease(lease);
+    // Le letture paginated non rinnovano il lease a ogni pagina: il lock viene
+    // verificato ai confini del processo e prima di ogni invio ordine.
     const r = await fetch(`${api}${path}`, { headers: cred.headers, signal: AbortSignal.timeout(15000) });
     if (!r.ok) throw new Error("Dati del broker non disponibili per la riconciliazione.");
     return r.json();
@@ -105,40 +106,89 @@ export async function riconciliaAlpacaPersistente(userId: string, reale: boolean
     if (!h.timestamp || !h.equity || h.timestamp.length !== h.equity.length) completo = false;
     storico = (h.timestamp ?? []).map((t, idx) => ({ giorno: new Date(t * 1000).toISOString().slice(0,10), valore: numero(h.equity?.[idx]) }));
     if (storico.some(p => !Number.isFinite(p.valore))) completo = false;
-    // Importa anche gli ordini broker precedenti senza inventare la loro strategia.
-    for (const o of [...new Map(ordini.map(o => [String(o["id"]), o])).values()]) {
-      if (!o["id"] || !o["created_at"] || !o["symbol"]) { completo = false; continue; }
-      const { error: importError } = await client.from("registro_ordini").upsert({ user_id: userId, piattaforma: "alpaca", ambiente, conto_id: contoId, broker_id: String(o["id"]), client_id: String(o["client_order_id"] ?? `broker-${o["id"]}`), ticker: String(o["symbol"]), lato: String(o["side"]), strategia: "non_attribuita", stato: String(o["status"]), created_at: String(o["created_at"]) }, { onConflict: "user_id,piattaforma,ambiente,conto_id,client_id", ignoreDuplicates: true });
+    // Importa gli ordini storici in un'unica richiesta PostgREST, senza inventare la strategia.
+    const ordiniUnici = [...new Map(ordini.map(o => [String(o["id"]), o])).values()];
+    const ordiniImportabili = ordiniUnici.flatMap(o => {
+      if (!o["id"] || !o["created_at"] || !o["symbol"]) { completo = false; return []; }
+      return [{
+        user_id: userId, piattaforma: "alpaca", ambiente, conto_id: contoId,
+        broker_id: String(o["id"]),
+        client_id: String(o["client_order_id"] ?? `broker-${o["id"]}`),
+        ticker: String(o["symbol"]), lato: String(o["side"]),
+        strategia: "non_attribuita", stato: String(o["status"]),
+        created_at: String(o["created_at"]),
+      }];
+    });
+    if (ordiniImportabili.length) {
+      const { error: importError } = await client.from("registro_ordini").upsert(
+        ordiniImportabili,
+        { onConflict: "user_id,piattaforma,ambiente,conto_id,client_id", ignoreDuplicates: true },
+      );
       if (importError) throw importError;
     }
+
     const { data: registrati, error } = await client.from("registro_ordini").select("*").eq("user_id", userId).eq("piattaforma", "alpaca").eq("ambiente", ambiente).eq("conto_id", contoId);
     if (error) throw error;
+    const aggiornamentiRegistro: Record<string, unknown>[] = [];
     for (const o of registrati ?? []) {
-      await verificaLease(lease);
       if (o.stato === "non_inviato" || o.stato === "rifiutato_http") continue;
       let broker = ordini.find(b => String(b["id"]) === o.broker_id || String(b["client_order_id"]) === o.client_id);
       if (!broker) {
         try { broker = await leggi(o.broker_id ? `/v2/orders/${encodeURIComponent(o.broker_id)}` : `/v2/orders:by_client_order_id?client_order_id=${encodeURIComponent(o.client_id)}`); }
         catch {
           completo = false;
-          await client.from("registro_ordini").update({ riconciliato_il:null, riconciliazione_motivo:"Esito non determinabile: solo recupero con lo stesso ID, nessun reinvio. Se il broker non trova l’ordine occorre verifica manuale, non sblocco automatico." }).eq("id",o.id);
+          aggiornamentiRegistro.push({
+            id: o.id,
+            riconciliato_il: null,
+            riconciliazione_motivo: "Esito non determinabile: solo recupero con lo stesso ID, nessun reinvio. Se il broker non trova l’ordine occorre verifica manuale, non sblocco automatico.",
+          });
           continue;
         }
       }
       if (!broker) { completo = false; continue; }
       ordini.push(broker);
       const qty = numero(broker["filled_qty"]);
-      const fills = [...new Map(attivita.filter(a => a["activity_type"] === "FILL" && String(a["order_id"]) === String(broker["id"])).map(a => [String(a["id"]), a])).values()];
-      const confermato = verificaEseguito(qty, Number.isFinite(numero(broker["filled_avg_price"])) ? numero(broker["filled_avg_price"]) : null, fills.map(fillDa));
+      const fillsOrdine = [...new Map(attivita.filter(a => a["activity_type"] === "FILL" && String(a["order_id"]) === String(broker["id"])).map(a => [String(a["id"]), a])).values()];
+      const confermato = verificaEseguito(qty, Number.isFinite(numero(broker["filled_avg_price"])) ? numero(broker["filled_avg_price"]) : null, fillsOrdine.map(fillDa));
       if (!confermato) completo = false;
-      const { error: updateError } = await client.from("registro_ordini").update({ broker_id: String(broker["id"]), stato: String(broker["status"]), quantita_eseguita: Number.isFinite(qty) ? qty : 0, prezzo_medio: Number.isFinite(numero(broker["filled_avg_price"])) ? numero(broker["filled_avg_price"]) : null, eseguito_il: broker["filled_at"] ? String(broker["filled_at"]) : null, broker_creato_il: broker["created_at"] ? String(broker["created_at"]) : null, broker_aggiornato_il: broker["updated_at"] ? String(broker["updated_at"]) : null, annullato_il: broker["canceled_at"] ? String(broker["canceled_at"]) : null, riconciliazione_motivo: confermato ? null : "Quantità o prezzo delle esecuzioni non coincidono con il broker: titolo bloccato.", riconciliato_il: confermato ? new Date().toISOString() : null, updated_at: new Date().toISOString() }).eq("id", o.id);
+      aggiornamentiRegistro.push({
+        id: o.id,
+        broker_id: String(broker["id"]),
+        stato: String(broker["status"]),
+        quantita_eseguita: Number.isFinite(qty) ? qty : 0,
+        prezzo_medio: Number.isFinite(numero(broker["filled_avg_price"])) ? numero(broker["filled_avg_price"]) : null,
+        eseguito_il: broker["filled_at"] ? String(broker["filled_at"]) : null,
+        broker_creato_il: broker["created_at"] ? String(broker["created_at"]) : null,
+        broker_aggiornato_il: broker["updated_at"] ? String(broker["updated_at"]) : null,
+        annullato_il: broker["canceled_at"] ? String(broker["canceled_at"]) : null,
+        riconciliazione_motivo: confermato ? null : "Quantità o prezzo delle esecuzioni non coincidono con il broker: titolo bloccato.",
+        riconciliato_il: confermato ? new Date().toISOString() : null,
+        updated_at: new Date().toISOString(),
+      });
+    }
+    // Aggiornamenti per ID in batch: evita una richiesta e una verifica lease per ogni ordine storico.
+    if (aggiornamentiRegistro.length) {
+      const { error: updateError } = await client.from("registro_ordini").upsert(aggiornamentiRegistro, { onConflict: "id" });
       if (updateError) throw updateError;
     }
+
     const fills = [...new Map(attivita.filter(a => a["activity_type"] === "FILL").map(a => [String(a["id"]), a])).values()];
-    for (const f of fills) {
-      if (!f["id"] || !f["order_id"] || numero(f["qty"]) <= 0 || numero(f["price"]) <= 0 || !Number.isFinite(numero(f["qty"])) || !Number.isFinite(numero(f["price"])) || !f["transaction_time"]) { completo = false; continue; }
-      const { error } = await client.from("esecuzioni_broker").upsert({ user_id: userId, piattaforma: "alpaca", ambiente, conto_id: contoId, broker_fill_id: String(f["id"]), broker_order_id: String(f["order_id"]), ticker: String(f["symbol"]), lato: String(f["side"]), quantita: numero(f["qty"]), prezzo: numero(f["price"]), eseguito_il: String(f["transaction_time"]) }, { onConflict: "user_id,piattaforma,ambiente,conto_id,broker_fill_id" });
-      if (error) throw error;
+    const fillsValidi = fills.flatMap(f => {
+      if (!f["id"] || !f["order_id"] || numero(f["qty"]) <= 0 || numero(f["price"]) <= 0 || !Number.isFinite(numero(f["qty"])) || !Number.isFinite(numero(f["price"])) || !f["transaction_time"]) { completo = false; return []; }
+      return [{
+        user_id: userId, piattaforma: "alpaca", ambiente, conto_id: contoId,
+        broker_fill_id: String(f["id"]), broker_order_id: String(f["order_id"]),
+        ticker: String(f["symbol"]), lato: String(f["side"]),
+        quantita: numero(f["qty"]), prezzo: numero(f["price"]),
+        eseguito_il: String(f["transaction_time"]),
+      }];
+    });
+    if (fillsValidi.length) {
+      const { error: fillError } = await client.from("esecuzioni_broker").upsert(
+        fillsValidi,
+        { onConflict: "user_id,piattaforma,ambiente,conto_id,broker_fill_id" },
+      );
+      if (fillError) throw fillError;
     }
     const fineOrdini = await leggi("/v2/orders?status=all&limit=500&direction=desc") as Record<string, unknown>[];
     const fingerprint = (rows: Record<string, unknown>[]) => [...new Map(rows.map(o => [String(o["id"]), `${o["id"]}|${o["status"]}|${o["filled_qty"]}|${o["filled_avg_price"]}`])).values()].sort().join(";");
