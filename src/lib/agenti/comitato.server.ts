@@ -85,6 +85,9 @@ export async function valutaCandidato(c: Contesto): Promise<{ procedi: boolean; 
       const r = await generateText({
         model: provider.chat(MODELLO), instructions: `${sistema}\n${REGOLE}`, prompt: JSON.stringify(input),
         output: Output.object({ schema }),
+        // I retry automatici moltiplicano le subrequest e possono esaurire il budget Worker.
+        // Un errore del provider resta un dato insufficiente: il comitato applica HOLD.
+        maxRetries: 0,
       });
       return r.output as T;
     } catch (e) {
@@ -107,11 +110,11 @@ export async function valutaCandidato(c: Contesto): Promise<{ procedi: boolean; 
   ]);
   const analisti = { fondamentale: af, tecnico: at, news: an };
 
-  // 2. Dual Risk Debate: 2 turni, Bull e Bear in parallelo per turno, con risposta alle obiezioni.
+  // 2. Dual Risk Debate: un turno completo, Bull e Bear in parallelo.
   const turni: Turno[] = [];
   const bullSys = "Sei il Bull Analyst: sostieni la proposta BUY con gli elementi favorevoli verificabili. 'conclusione' = true solo se la tesi regge alle obiezioni.";
   const bearSys = "Sei il Bear Analyst: contesta la tesi cercando rischi, debolezze e motivi per non procedere. 'conclusione' = true solo se hai obiezioni decisive basate sui dati.";
-  for (const n of [1, 2]) {
+  for (const n of [1]) {
     const ctx = { dati, analisti, turniPrecedenti: turni, turno: n };
     const [b, r] = await Promise.all([agente(`bull${n}`, bullSys, ctx, sTurno), agente(`bear${n}`, bearSys, ctx, sTurno)]);
     if (b) turni.push({ ...b, agente: "bull", turno: n });
