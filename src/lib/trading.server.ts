@@ -226,7 +226,7 @@ async function eseguiCicloInterno(
     };
   }
 
-  if (!universo.length || capitale <= 0) {
+  if (!universo.length || (capitale <= 0 && !drawdownMensileBloccato)) {
     return {
       ok: false,
       messaggio: "Imposta il capitale prima di avviare il motore.",
