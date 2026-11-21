@@ -2,6 +2,7 @@ import { credenzialiUtente, logServer } from "./alpaca.server";
 import { getStrategia, type StrategyId } from "./strategies";
 import type { LeaseConto } from "./riconciliazione.server";
 import { capitalePendenti } from "./esecuzioni";
+import { valutaDrawdownMensile } from "./protezioni";
 import type { DecisioneIA, EsitoCiclo, OrdineBroker } from "./trading.types";
 
 const base = (reale: boolean) =>
@@ -318,16 +319,23 @@ async function eseguiCicloInterno(
         if (erroreMese) {
           logServer("trading.drawdown_mensile.lettura", erroreMese, { reale });
         } else {
-          const equity = Number(a["equity"]);
-          const picco = Math.max(equity, statoMese?.picco_equity == null ? equity : Number(statoMese.picco_equity));
-          drawdownMensileBloccato = Boolean(statoMese?.bloccato) || equity <= picco * 0.8;
-          const { error: erroreSalvataggio } = await supabaseAdmin.from("stato_drawdown_mensile").upsert({
-            user_id: userId, piattaforma: "alpaca", ambiente: reale ? "reale" : "paper",
-            conto_id: contoId, mese: partiMese, picco_equity: picco,
-            bloccato: drawdownMensileBloccato, aggiornato_al: new Date().toISOString(),
-          }, { onConflict: "user_id,piattaforma,ambiente,conto_id,mese" });
-          if (erroreSalvataggio) logServer("trading.drawdown_mensile.scrittura", erroreSalvataggio, { reale });
-          else drawdownMensileVerificato = true;
+          const valutazione = valutaDrawdownMensile(
+            Number(a["equity"]),
+            statoMese?.picco_equity == null ? null : Number(statoMese.picco_equity),
+            Boolean(statoMese?.bloccato),
+          );
+          if (!valutazione) {
+            logServer("trading.drawdown_mensile.dati", new Error("Equity o picco mensile non valido."), { reale });
+          } else {
+            drawdownMensileBloccato = valutazione.bloccato;
+            const { error: erroreSalvataggio } = await supabaseAdmin.from("stato_drawdown_mensile").upsert({
+              user_id: userId, piattaforma: "alpaca", ambiente: reale ? "reale" : "paper",
+              conto_id: contoId, mese: partiMese, picco_equity: valutazione.piccoEquity,
+              bloccato: drawdownMensileBloccato, aggiornato_al: new Date().toISOString(),
+            }, { onConflict: "user_id,piattaforma,ambiente,conto_id,mese" });
+            if (erroreSalvataggio) logServer("trading.drawdown_mensile.scrittura", erroreSalvataggio, { reale });
+            else drawdownMensileVerificato = true;
+          }
         }
       }
       // Perdita della giornata: valore a chiusura di ieri meno valore attuale.
@@ -342,7 +350,7 @@ async function eseguiCicloInterno(
   // Limite di perdita giornaliera: se raggiunto, l'IA si ferma prima di operare.
   const limite = fondi?.perdita_max_giornaliera == null ? null : Number(fondi.perdita_max_giornaliera);
   if (limite != null && (!Number.isFinite(limite) || limite < 0)) throw new Error("Limite giornaliero incoerente: nessun ordine.");
-  if (limite && limite > 0 && perditaOggi != null && perditaOggi >= limite) {
+  if (limite && limite > 0 && perditaOggi != null && perditaOggi >= limite && !drawdownMensileBloccato) {
     return {
       ok: false,
       messaggio: `Trading sospeso: perdita di oggi ${perditaOggi.toFixed(2)} $ ha raggiunto il limite giornaliero di ${limite.toFixed(2)} $.`,
