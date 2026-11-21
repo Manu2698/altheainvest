@@ -5,7 +5,7 @@ import { problemaAccumulo, valutaDrawdownMensile } from "./protezioni";
 
 afterEach(() => vi.unstubAllGlobals());
 describe("accumulo aggressivo su nuovo trigger tecnico", () => {
-  it("vieta di ricomprare sul ribasso una posizione già detenuta", () => {
+  it("consente un nuovo accumulo quando il trigger aggressivo è completo", () => {
     const posizione = { ticker: "TEST", valore: 1, pnlPct: -2 };
     const serie = [...Array(19).fill(10), 9];
     expect(decide("aggressivo", "TEST", serie, posizione, 10).azione).toBe("compra");
