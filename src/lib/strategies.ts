@@ -62,7 +62,7 @@ export const STRATEGIE: Strategy[] = [
       "Opera solo su titoli estremamente volatili, ma con metodo: accumula sui ribassi estremi e lascia correre i rialzi. Punta a +15%, attiva una protezione dinamica del profitto dopo +5% e mantiene uno stop iniziale fisso. Nessun tetto limita i guadagni se il trend continua.",
     rischio: 9,
     rendimentoAtteso: "+20 / +45% annuo",
-    drawdownMax: "-38%",
+    drawdownMax: "-20% mensile",
     orizzonte: "giorni / settimane",
     universo: ["NVDA", "TSLA", "PLTR", "COIN", "BTC", "SOL"],
     regole: [
