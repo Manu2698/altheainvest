@@ -170,7 +170,9 @@ export function decide(
       motivo: `Presa di profitto a +${pnl.toFixed(1)}% prima del rientro.`,
     };
   if (posseduto > 0 && pnl <= -7)
-    return { azione: "vendi", importo: posseduto, motivo: `Taglio perdita a ${pnl.toFixed(1)}%.` };
+    return { azione: "vendi", importo: posseduto, motivo: `Stop loss fisso della strategia aggressiva a -7% (attuale ${pnl.toFixed(1)}%).` };
+  if (posseduto > 0 && pnl > 0 && ultimo < sma10)
+    return { azione: "vendi", importo: posseduto, motivo: "Momentum del rimbalzo esaurito: prezzo tornato sotto la media 10g, chiusura della posizione." };
   if (rsi14 != null && bandaInferiore2σ != null && rsi14 < 30 && ultimo <= bandaInferiore2σ && mancante > quotaTarget * 0.2)
     return {
       azione: "compra",
