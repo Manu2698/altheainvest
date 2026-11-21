@@ -293,7 +293,16 @@ async function eseguiCicloInterno(
         logServer("trading.trailing.lettura", erroreStati, { reale });
       } else {
         const picchi = new Map<string, number>();
-        for (const r of stati ?? []) picchi.set(r.ticker, Number(r.picco_pnl_pct));
+        for (const r of stati ?? []) {
+          picchi.set(r.ticker, Number(r.picco_pnl_pct));
+          // Una posizione chiusa non deve trasferire il vecchio massimo a un eventuale nuovo ingresso.
+          if (!posizioni.has(r.ticker)) {
+            const { error } = await supabaseAdmin.from("stato_trailing_aggressivo").delete()
+              .eq("user_id", userId).eq("piattaforma", "alpaca")
+              .eq("ambiente", reale ? "reale" : "paper").eq("conto_id", contoId).eq("ticker", r.ticker);
+            if (error) logServer("trading.trailing.reset", error, { ticker: r.ticker, reale });
+          }
+        }
         for (const [ticker, p] of posizioni) {
           const piccoPrecedente = picchi.get(ticker);
           const picco = Math.max(p.pnlPct, Number.isFinite(piccoPrecedente) ? piccoPrecedente! : p.pnlPct);
@@ -321,13 +330,6 @@ async function eseguiCicloInterno(
     let comitatoStop: string | null = null;
 
     for (const ticker of universo) {
-      const tickerStato = ticker.replace("/", "").toUpperCase();
-      if (input.strategia === "aggressivo" && contoId && posRes.ok && !posizioni.has(tickerStato)) {
-        const { error } = await supabaseAdmin.from("stato_trailing_aggressivo").delete()
-          .eq("user_id", userId).eq("piattaforma", "alpaca")
-          .eq("ambiente", reale ? "reale" : "paper").eq("conto_id", contoId).eq("ticker", tickerStato);
-        if (error) logServer("trading.trailing.reset", error, { ticker, reale });
-      }
       const chiusure = storico[ticker] ?? storico[ticker.replace("/", "")] ?? [];
       let scelta = applicaLezioni(
         decide(input.strategia, ticker, chiusure, posizioni.get(ticker), quota),
