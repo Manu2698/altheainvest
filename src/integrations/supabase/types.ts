@@ -805,6 +805,69 @@ export type Database = {
         }
         Relationships: []
       }
+      stato_drawdown_mensile: {
+        Row: {
+          user_id: string
+          piattaforma: string
+          ambiente: string
+          conto_id: string
+          mese: string
+          picco_equity: number
+          bloccato: boolean
+          aggiornato_al: string
+        }
+        Insert: {
+          user_id: string
+          piattaforma?: string
+          ambiente: string
+          conto_id: string
+          mese: string
+          picco_equity: number
+          bloccato?: boolean
+          aggiornato_al?: string
+        }
+        Update: {
+          user_id?: string
+          piattaforma?: string
+          ambiente?: string
+          conto_id?: string
+          mese?: string
+          picco_equity?: number
+          bloccato?: boolean
+          aggiornato_al?: string
+        }
+        Relationships: []
+      }
+      stato_trailing_aggressivo: {
+        Row: {
+          user_id: string
+          piattaforma: string
+          ambiente: string
+          conto_id: string
+          ticker: string
+          picco_pnl_pct: number
+          aggiornato_al: string
+        }
+        Insert: {
+          user_id: string
+          piattaforma?: string
+          ambiente: string
+          conto_id: string
+          ticker: string
+          picco_pnl_pct: number
+          aggiornato_al?: string
+        }
+        Update: {
+          user_id?: string
+          piattaforma?: string
+          ambiente?: string
+          conto_id?: string
+          ticker?: string
+          picco_pnl_pct?: number
+          aggiornato_al?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never

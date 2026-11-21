@@ -128,22 +128,24 @@ export function applicaLezioni(
 ): Scelta {
   const pos = posizione && posizione.valore > 0 ? posizione : undefined;
   if (pos && scelta.azione !== "vendi") {
-    const stop = (STOP[strategia] ?? -8) * l.fattoreStop;
+    // Per Aggressivo lo stop -7% è una regola esplicita della strategia: l'apprendimento
+    // non può restringerlo né modificarlo silenziosamente.
+    const stop = strategia === "aggressivo" ? STOP["aggressivo"]! : (STOP[strategia] ?? -8) * l.fattoreStop;
     if (pos.pnlPct <= stop)
       return { azione: "vendi", importo: pos.valore, motivo: `Stop appreso a ${stop.toFixed(1)}% (perdite passate): taglio a ${pos.pnlPct.toFixed(1)}%.` };
-    if (l.bloccati.has(ticker) && pos.pnlPct > 0)
+    if (strategia !== "aggressivo" && l.bloccati.has(ticker) && pos.pnlPct > 0)
       return { azione: "vendi", importo: pos.valore, motivo: `Titolo con perdite ripetute: l'IA incassa subito +${pos.pnlPct.toFixed(1)}%.` };
-    if (l.guadagnoMedio != null && l.vendite >= MIN_CAMPIONE && l.tassoVincite < 0.5 && pos.pnlPct >= Math.max(2, l.guadagnoMedio))
+    if (strategia !== "aggressivo" && l.guadagnoMedio != null && l.vendite >= MIN_CAMPIONE && l.tassoVincite < 0.5 && pos.pnlPct >= Math.max(2, l.guadagnoMedio))
       return { azione: "vendi", importo: pos.valore, motivo: `Presa di profitto appresa a +${pos.pnlPct.toFixed(1)}% (media vincite ${l.guadagnoMedio.toFixed(1)}%).` };
   }
   if (scelta.azione === "compra") {
-    if (l.bloccati.has(ticker))
+    if (strategia !== "aggressivo" && l.bloccati.has(ticker))
       return { azione: "attendi", importo: 0, motivo: "Escluso dall'apprendimento: questo titolo ha fatto perdere più volte." };
     const segnale = segnaleDi(scelta.motivo);
     if (segnale && l.segnaliPerdenti.has(segnale))
       return { azione: "attendi", importo: 0, motivo: `Segnale "${segnale}" scartato: in passato ha fatto perdere.` };
     // Una riduzione di rischio appresa non può essere annullata da un aumento; gli aumenti non si cumulano.
-    let fattore = l.fattoreQuota;
+    let fattore = strategia === "aggressivo" ? 1 : l.fattoreQuota;
     if (fattore >= 1 && l.aumentiValidati) {
       if (l.favoriti.has(ticker)) fattore = Math.max(fattore, 1.2);
       if (segnale && l.segnaliVincenti.has(segnale)) fattore = Math.max(fattore, 1.3);

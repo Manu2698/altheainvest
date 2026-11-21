@@ -91,17 +91,18 @@ export async function selezionaUniverso(
   headers: Headers,
   reale: boolean,
   strategia: StrategyId,
-): Promise<{ universo: string[]; motivo: string }> {
+  ultimiGiorni: Record<string, string>,
+): Promise<{ universo: string[]; motivo: string; storico: Record<string, number[]> }> {
   const pool = await candidati(headers, reale);
-  if (!pool.length) return { universo: [], motivo: "Nessuno strumento disponibile dal broker." };
+  if (!pool.length) return { universo: [], motivo: "Nessuno strumento disponibile dal broker.", storico: {} };
 
-  const storico = await serieStorica(pool, headers);
+  const storico = await serieStorica(pool, headers, ultimiGiorni);
   const misure = pool
     .map((t) => misura(t, storico[t] ?? storico[t.replace("/", "")] ?? []))
     .filter((c): c is Candidato => Boolean(c));
 
   if (!misure.length) {
-    return { universo: [], motivo: "Dati di mercato non disponibili per la selezione." };
+    return { universo: [], motivo: "Dati di mercato non disponibili per la selezione.", storico };
   }
 
   let scelti: Candidato[];
@@ -127,13 +128,16 @@ export async function selezionaUniverso(
     motivo = "strumenti con i movimenti più ampi";
   }
 
-  if (!scelti.length) {
+  if (!scelti.length && strategia !== "aggressivo") {
     scelti = [...misure].sort((a, b) => b.momentum - a.momentum).slice(0, 6);
     motivo = "migliori andamenti disponibili";
+  } else if (!scelti.length) {
+    motivo = "nessuno strumento raggiunge la volatilità minima prevista dal profilo aggressivo";
   }
 
   return {
     universo: scelti.map((c) => c.ticker),
     motivo: `Selezione automatica su ${misure.length} strumenti analizzati: ${motivo}.`,
+    storico,
   };
 }

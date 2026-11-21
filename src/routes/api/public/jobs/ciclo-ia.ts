@@ -1,11 +1,13 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { authenticateCronRequest } from "@/integrations/supabase/cron-auth";
 
-// Chiamato ogni minuto dallo scheduler del database: fa girare l'IA per ogni
-// conto (piattaforma + ambiente) con il motore automatico attivo, anche a sito chiuso.
-// Ogni conto viene elaborato al massimo una volta ogni 55 secondi (lease nel DB),
-// quindi chiamate ripetute non possono far operare l'IA più spesso del previsto.
-const MAX_CONTI = 25;
+// Chiamato ogni minuto dallo scheduler Cloudflare dedicato alla Preview: fa girare l'IA per ogni
+// conto PAPER con il motore automatico attivo, anche a sito chiuso.
+// Il lease atomico nel DB impedisce cicli sovrapposti; la scadenza di 120 secondi
+// protegge anche da esecuzioni duplicate o cicli che superano l'intervallo del cron.
+// Un solo conto per invocazione: ogni ciclo include riconciliazione, analisi e verifiche broker.
+ // Il cron gira ogni minuto e riprende dal conto meno recentemente elaborato.
+const MAX_CONTI = 1;
 
 export const Route = createFileRoute("/api/public/jobs/ciclo-ia")({
   server: {
@@ -16,39 +18,81 @@ export const Route = createFileRoute("/api/public/jobs/ciclo-ia")({
         if (authFailure) return authFailure;
         const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
         const { eseguiCiclo } = await import("@/lib/trading.server");
-        const adesso = new Date();
-        const soglia = new Date(adesso.getTime() - 55_000).toISOString();
+        const adesso = new Date().toISOString();
 
-        const { data: righe } = await supabaseAdmin
-          .from("automazioni_conti")
-          .select("*")
-          .eq("attivo", true)
-          .or(`ultimo_ciclo.is.null,ultimo_ciclo.lt.${soglia}`)
-          .or(`bloccato_fino.is.null,bloccato_fino.lt.${adesso.toISOString()}`)
-          .order("ultimo_ciclo", { ascending: true, nullsFirst: true })
-          .limit(MAX_CONTI);
+        // Evita il filtro PostgREST .or(...): i due casi sono equivalenti ma più affidabili
+        // come query distinte, soprattutto con timestamp timestamptz.
+        const [senzaLease, leaseScaduti] = await Promise.all([
+          supabaseAdmin
+            .from("automazioni_conti")
+            .select("*")
+            .eq("attivo", true)
+            .eq("ambiente", "paper")
+            .is("bloccato_fino", null)
+            .order("ultimo_ciclo", { ascending: true, nullsFirst: true })
+            .limit(MAX_CONTI),
+          supabaseAdmin
+            .from("automazioni_conti")
+            .select("*")
+            .eq("attivo", true)
+            .eq("ambiente", "paper")
+            .lt("bloccato_fino", adesso)
+            .order("ultimo_ciclo", { ascending: true, nullsFirst: true })
+            .limit(MAX_CONTI),
+        ]);
+
+        if (senzaLease.error || leaseScaduti.error) {
+          console.error("[Althea cron] lettura PAPER fallita", JSON.stringify({
+            senzaLease: senzaLease.error?.code ?? null,
+            leaseScaduti: leaseScaduti.error?.code ?? null,
+            senzaLeaseMessage: senzaLease.error?.message ?? null,
+            leaseScadutiMessage: leaseScaduti.error?.message ?? null,
+          }));
+          return Response.json({ errore: "Lettura delle automazioni non riuscita." }, { status: 500 });
+        }
+
+        const righe = [...(senzaLease.data ?? []), ...(leaseScaduti.data ?? [])]
+          .sort((a, b) => {
+            if (a.ultimo_ciclo == null) return b.ultimo_ciclo == null ? 0 : -1;
+            if (b.ultimo_ciclo == null) return 1;
+            return new Date(a.ultimo_ciclo).getTime() - new Date(b.ultimo_ciclo).getTime();
+          })
+          .slice(0, MAX_CONTI);
 
         let elaborati = 0;
-        for (const r of righe ?? []) {
-          // Acquisizione atomica del lease: se un'altra esecuzione l'ha già preso, salta.
-          const { data: preso } = await supabaseAdmin
+        for (const r of righe) {
+          // Acquisizione atomica: prima prova un lease libero, poi uno scaduto.
+          const leaseNow = new Date().toISOString();
+          const leaseUpdate = {
+            bloccato_fino: new Date(Date.now() + 120_000).toISOString(),
+            ultimo_ciclo: leaseNow,
+          };
+          const baseLease = () => supabaseAdmin
             .from("automazioni_conti")
-            .update({
-              bloccato_fino: new Date(Date.now() + 120_000).toISOString(),
-              ultimo_ciclo: new Date().toISOString(),
-            })
+            .update(leaseUpdate)
             .eq("user_id", r.user_id)
             .eq("piattaforma", r.piattaforma)
-            .eq("ambiente", r.ambiente)
-            .eq("attivo", true)
-            .or(`ultimo_ciclo.is.null,ultimo_ciclo.lt.${soglia}`)
-            .select("user_id");
+            .eq("ambiente", "paper")
+            .eq("attivo", true);
+
+          const libero = await baseLease().is("bloccato_fino", null).select("user_id");
+          if (libero.error) {
+            return Response.json({ errore: "Acquisizione del lease non riuscita." }, { status: 500 });
+          }
+          let preso = libero.data;
+          if (!preso?.length) {
+            const scaduto = await baseLease().lt("bloccato_fino", leaseNow).select("user_id");
+            if (scaduto.error) {
+              return Response.json({ errore: "Acquisizione del lease non riuscita." }, { status: 500 });
+            }
+            preso = scaduto.data;
+          }
           if (!preso?.length) continue;
 
           let esito;
           try {
             esito = await eseguiCiclo(r.user_id, {
-              reale: r.ambiente === "reale",
+              reale: false,
               strategia: r.strategia as "conservativo" | "medio" | "aggressivo",
               capitale: Number(r.capitale),
               modalita: r.modalita === "conto" ? "conto" : "limite",
@@ -66,7 +110,7 @@ export const Route = createFileRoute("/api/public/jobs/ciclo-ia")({
             };
           }
           const blocco = "bloccoPerdita" in esito && esito.bloccoPerdita;
-          await supabaseAdmin
+          const { error: erroreEsito } = await supabaseAdmin
             .from("automazioni_conti")
             .update({
               ultimo_esito: JSON.parse(JSON.stringify(esito)),
@@ -78,7 +122,10 @@ export const Route = createFileRoute("/api/public/jobs/ciclo-ia")({
             })
             .eq("user_id", r.user_id)
             .eq("piattaforma", r.piattaforma)
-            .eq("ambiente", r.ambiente);
+            .eq("ambiente", "paper");
+          if (erroreEsito) {
+            return Response.json({ errore: "Salvataggio dell'esito non riuscito." }, { status: 500 });
+          }
           elaborati++;
         }
         return Response.json({ elaborati });

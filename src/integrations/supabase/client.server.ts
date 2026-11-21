@@ -11,6 +11,51 @@ function isNewSupabaseApiKey(value: string): boolean {
   return value.startsWith('sb_publishable_') || value.startsWith('sb_secret_');
 }
 
+function getLegacyJwtPayload(value: string): Record<string, unknown> | null {
+  const payload = value.split('.')[1];
+  if (!payload) return null;
+  try {
+    const base64 = payload.replace(/-/g, '+').replace(/_/g, '/');
+    const padded = base64.padEnd(Math.ceil(base64.length / 4) * 4, '=');
+    const decoded = JSON.parse(atob(padded));
+    return decoded && typeof decoded === 'object' ? decoded as Record<string, unknown> : null;
+  } catch {
+    return null;
+  }
+}
+
+function getLegacyJwtRole(value: string): string | null {
+  const role = getLegacyJwtPayload(value)?.role;
+  return typeof role === 'string' ? role : null;
+}
+
+function getSafeKeyMetadata(value: string | undefined) {
+  if (value === undefined) return { present: false, length: 0 };
+  return {
+    present: true,
+    type: value.startsWith('sb_secret_') ? 'sb_secret' :
+      value.startsWith('sb_publishable_') ? 'sb_publishable' : 'legacy',
+    length: value.length,
+    hasLeadingOrTrailingWhitespace: value !== value.trim(),
+    containsControlCharacters: /[\\u0000-\\u001f\\u007f]/.test(value),
+    looksLikeSingleMaskPlaceholder: value === '*' || value === '•',
+  };
+}
+
+function getApiKeyShape(value: string) {
+  const parts = value.split('.');
+  const payload = parts[1] ?? '';
+  return {
+    type: value.startsWith('sb_secret_') ? 'sb_secret' :
+      value.startsWith('sb_publishable_') ? 'sb_publishable' : 'legacy',
+    length: value.length,
+    jwtSegments: parts.length,
+    payloadLength: payload.length,
+    payloadBase64Remainder: payload.length % 4,
+    role: getLegacyJwtRole(value),
+  };
+}
+
 function createSupabaseFetch(supabaseKey: string): typeof fetch {
   return async (input, init) => {
     const headers = new Headers(
@@ -31,8 +76,11 @@ function createSupabaseFetch(supabaseKey: string): typeof fetch {
     const url = input instanceof Request ? input.url : String(input);
     const method = init?.method ?? (input instanceof Request ? input.method : 'GET');
     let path = 'unknown';
+    let requestHost = 'unknown';
     try {
-      path = new URL(url).pathname;
+      const parsedUrl = new URL(url);
+      path = parsedUrl.pathname;
+      requestHost = parsedUrl.host;
     } catch {
       // Never log query strings, headers, or request bodies.
     }
@@ -50,7 +98,12 @@ function createSupabaseFetch(supabaseKey: string): typeof fetch {
             }).map((key) => [key, body[key]]),
           );
         } catch {
-          diagnostic = 'non-json error response';
+          try {
+            const raw = await response.clone().text();
+            diagnostic = { kind: 'non-json error response', body: raw.slice(0, 500) };
+          } catch {
+            diagnostic = 'non-json error response';
+          }
         }
         const responseHeaders = Object.fromEntries(
           ['content-type', 'content-length', 'server', 'cf-ray', 'cf-cache-status', 'via',
@@ -61,13 +114,22 @@ function createSupabaseFetch(supabaseKey: string): typeof fetch {
             }),
         );
         const authHeader = headers.get('Authorization');
+        let requestQuery: string | undefined;
+        if (path === '/rest/v1/automazioni_conti') {
+          try { requestQuery = new URL(url).search; } catch { requestQuery = undefined; }
+        }
+        // Safe diagnostic only: never log the key, its JWT payload, or any header value.
+        console.error('[Supabase key shape]', JSON.stringify(getApiKeyShape(supabaseKey)));
         console.error('[Supabase admin fetch] HTTP response', JSON.stringify({
-          method, path, status: response.status, statusText: response.statusText, diagnostic,
+          method, path, requestHost, status: response.status, statusText: response.statusText, diagnostic,
           responseHeaders,
           requestAuth: !authHeader ? 'absent' : authHeader.startsWith('Bearer ') ? 'bearer' : 'other',
-          apiKeyType: supabaseKey.startsWith('sb_secret_') ? 'sb_secret' :
-            supabaseKey.startsWith('sb_publishable_') ? 'sb_publishable' : 'legacy',
+          apiKeyType: getApiKeyShape(supabaseKey).type,
+          apiKeyRole: getLegacyJwtRole(supabaseKey),
         }));
+        if (requestQuery) {
+          console.error('[Supabase admin fetch] automazioni_conti request query', requestQuery);
+        }
       }
       return response;
     } catch (error) {
@@ -89,8 +151,17 @@ function createSupabaseAdminClient() {
   // Read the active Worker Preview bindings directly. process.env remains a fallback
   // for local Node-based tests, but must not override the Preview's isolated secrets.
   const runtimeEnv = cloudflareEnv as unknown as Record<string, string | undefined>;
+  const runtimeServiceRoleKey = runtimeEnv['SUPABASE_SERVICE_ROLE_KEY'];
+  const processServiceRoleKey = process.env['SUPABASE_SERVICE_ROLE_KEY'];
   const SUPABASE_URL = runtimeEnv['SUPABASE_URL'] ?? process.env['SUPABASE_URL'];
-  const SUPABASE_SERVICE_ROLE_KEY = runtimeEnv['SUPABASE_SERVICE_ROLE_KEY'] ?? process.env['SUPABASE_SERVICE_ROLE_KEY'];
+  const SUPABASE_SERVICE_ROLE_KEY = runtimeServiceRoleKey ?? processServiceRoleKey;
+
+  // Safe diagnostics to distinguish a truncated Preview binding from a local fallback.
+  console.info('[Supabase admin key source]', JSON.stringify({
+    selected: runtimeServiceRoleKey !== undefined ? 'cloudflare-runtime' : 'process-env-fallback',
+    runtime: getSafeKeyMetadata(runtimeServiceRoleKey),
+    process: getSafeKeyMetadata(processServiceRoleKey),
+  }));
 
   if (!SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY) {
     const missing = [

@@ -57,17 +57,17 @@ export const STRATEGIE: Strategy[] = [
   {
     id: "aggressivo",
     nome: "Aggressivo",
-    claim: "Compra sui ribassi, vende prima del ritorno",
+    claim: "Compra sui ribassi, lascia correre i rialzi",
     descrizione:
-      "Opera solo su titoli estremamente volatili, ma con metodo: l'IA accumula quando il prezzo è sceso in modo eccessivo rispetto alla sua media e liquida sul rimbalzo, prima che il movimento si esaurisca. Nessuna posizione resta aperta oltre il necessario.",
+      "Opera solo su titoli estremamente volatili, ma con metodo: accumula sui ribassi estremi e lascia correre i rialzi. Punta a +15%, attiva una protezione dinamica del profitto dopo +5% e mantiene uno stop iniziale fisso. Nessun tetto limita i guadagni se il trend continua.",
     rischio: 9,
     rendimentoAtteso: "+20 / +45% annuo",
-    drawdownMax: "-38%",
+    drawdownMax: "-20% mensile",
     orizzonte: "giorni / settimane",
     universo: ["NVDA", "TSLA", "PLTR", "COIN", "BTC", "SOL"],
     regole: [
       "Ingresso quando RSI < 30 e il prezzo è sotto -2 deviazioni standard",
-      "Uscita automatica sul rimbalzo target o all'esaurirsi del momentum",
+      "Obiettivo di profitto +15%, senza tetto massimo: trailing stop dal picco +5%, distanza 5 punti e profitto minimo protetto +2%",
       "Stop loss fisso al -7%, chiusura totale se il drawdown mensile supera il 20%",
     ],
     volatilita: 0.021,

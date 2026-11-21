@@ -16,6 +16,9 @@ export function problemaAccumulo(
   if (!posizione) return null;
   if (!Number.isFinite(posizione.valore) || !Number.isFinite(posizione.pnlPct))
     return "Posizione non verificabile: nessun acquisto aggiuntivo.";
+  // Il profilo aggressivo può accumulare su un nuovo trigger tecnico, ma decide() limita
+  // ogni ingresso alla quota target residua e il motore applica comunque i tetti di capitale.
+  if (strategia === "aggressivo") return null;
   if (posizione.valore <= 0) return null;
   const ultimi = chiusure.slice(-20);
   const prezzo = ultimi.at(-1);
@@ -73,4 +76,19 @@ export function problemaDati(chiusure: number[], ultimoGiorno: string | undefine
 /** Simboli con ordini ancora aperti presso il broker, normalizzati (BTC/USD → BTCUSD). */
 export function simboliAperti(ordini: { symbol?: unknown }[]): Set<string> {
   return new Set(ordini.map((o) => String(o.symbol ?? "").replace("/", "").toUpperCase()).filter(Boolean));
+}
+
+
+/** Aggiorna il massimo equity del mese e blocca definitivamente il mese al drawdown soglia. */
+export function valutaDrawdownMensile(
+  equity: number,
+  piccoPrecedente: number | null,
+  bloccatoPrecedente: boolean,
+  sogliaPercentuale = 20,
+): { piccoEquity: number; drawdownPercentuale: number; bloccato: boolean } | null {
+  if (!Number.isFinite(equity) || equity <= 0 || (piccoPrecedente != null && (!Number.isFinite(piccoPrecedente) || piccoPrecedente <= 0))
+    || !Number.isFinite(sogliaPercentuale) || sogliaPercentuale <= 0 || sogliaPercentuale >= 100) return null;
+  const piccoEquity = Math.max(equity, piccoPrecedente ?? equity);
+  const drawdownPercentuale = (piccoEquity - equity) / piccoEquity * 100;
+  return { piccoEquity, drawdownPercentuale, bloccato: bloccatoPrecedente || drawdownPercentuale >= sogliaPercentuale };
 }

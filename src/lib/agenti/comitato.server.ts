@@ -8,7 +8,8 @@ import { decisioneFinale, esitoDibattito, indicatoriTecnici, type Analisi, type 
 const MODELLO = "openai/gpt-oss-20b";
 const GATEWAY = "https://api.groq.com/openai/v1";
 const CACHE_ORE = 4;
-export const MAX_ANALISI_PER_CICLO = 2;
+// Una sola analisi nuova per ciclo: mantiene intatto il comitato completo e distribuisce i candidati sui cicli successivi.
+export const MAX_ANALISI_PER_CICLO = 1;
 
 const sAnalisi = z.object({
   voto: z.enum(["favorevole", "contrario", "neutrale", "dati_insufficienti"]),
@@ -69,7 +70,7 @@ async function notizie(ticker: string, headers: Record<string, string>) {
 export async function valutaCandidato(c: Contesto): Promise<{ procedi: boolean; importo: number; motivo: string; cache: boolean }> {
   const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
   const dal = new Date(Date.now() - CACHE_ORE * 3600_000).toISOString();
-  const { data: prec } = await supabaseAdmin.from("analisi_comitato").select("decisione, motivo, agenti").eq("user_id", c.userId).eq("ambiente", c.ambiente).eq("ticker", c.ticker).eq("proposta", "BUY").is("errore", null).gte("created_at", dal).order("created_at", { ascending: false }).limit(1).maybeSingle();
+  const { data: prec } = await supabaseAdmin.from("analisi_comitato").select("decisione, motivo, agenti").eq("user_id", c.userId).eq("ambiente", c.ambiente).eq("ticker", c.ticker).eq("strategia", c.strategia).eq("proposta", "BUY").is("errore", null).gte("created_at", dal).order("created_at", { ascending: false }).limit(1).maybeSingle();
   if (prec) {
     const fattore = Number((prec.agenti as { fattoreFinale?: number } | null)?.fattoreFinale ?? 0);
     const importo = prec.decisione === "BUY" ? Math.floor(c.importo * Math.max(0, Math.min(1, fattore)) * 100) / 100 : 0;
@@ -84,6 +85,9 @@ export async function valutaCandidato(c: Contesto): Promise<{ procedi: boolean; 
       const r = await generateText({
         model: provider.chat(MODELLO), instructions: `${sistema}\n${REGOLE}`, prompt: JSON.stringify(input),
         output: Output.object({ schema }),
+        // I retry automatici moltiplicano le subrequest e possono esaurire il budget Worker.
+        // Un errore del provider resta un dato insufficiente: il comitato applica HOLD.
+        maxRetries: 0,
       });
       return r.output as T;
     } catch (e) {
@@ -96,21 +100,34 @@ export async function valutaCandidato(c: Contesto): Promise<{ procedi: boolean; 
 
   const tecnici = indicatoriTecnici(c.chiusure);
   const [fond, news] = await Promise.all([fondamentali(c.ticker, c.cripto), notizie(c.ticker, c.alpacaHeaders)]);
-  const dati = { ticker: c.ticker, strategia: c.strategia, propostaMotore: { azione: "BUY", importoUSD: c.importo, motivo: c.motivo }, tecnici, fondamentali: fond, notizie: news, posizioneAttuale: c.posizione ?? null, conto: c.conto };
+  const profiloAggressivo = c.strategia === "aggressivo";
+  const dati = { ticker: c.ticker, strategia: c.strategia, regoleStrategia: profiloAggressivo
+    ? ["RSI14 < 30", "prezzo <= media20 - 2 deviazioni standard", "obiettivo di profitto +15% (non è un tetto di uscita)", "trailing stop persistente: si attiva dopo un picco di +5%, distanza di 5 punti e profitto minimo protetto +2%", "stop loss iniziale fisso -7%", "drawdown mensile massimo 20% dal massimo equity del mese: blocco fino al mese successivo e liquidazione totale"]
+    : [], propostaMotore: { azione: "BUY", importoUSD: c.importo, motivo: c.motivo }, tecnici, fondamentali: fond, notizie: news, posizioneAttuale: c.posizione ?? null, conto: c.conto };
 
   // 1. Tre analisti in parallelo sugli stessi dati condivisi.
   const [af, at, an] = await Promise.all([
-    agente("fondamentale", "Sei l'Analista fondamentale: valuta solidità, bilanci, crescita e valutazione. Se fondamentali.disponibile è false vota dati_insufficienti.", { ticker: c.ticker, fondamentali: fond }, sAnalisi),
-    agente("tecnico", "Sei l'Analista tecnico: valuta trend, indicatori (SMA, RSI, momentum, volatilità), supporti e resistenze dai dati forniti.", { ticker: c.ticker, tecnici, propostaMotore: dati.propostaMotore }, sAnalisi),
-    agente("news", "Sei l'Analista news e sentiment: valuta notizie, eventi e sentiment. Se notizie.disponibile è false vota dati_insufficienti.", { ticker: c.ticker, notizie: news }, sAnalisi),
+    agente("fondamentale", profiloAggressivo
+      ? "Sei l'Analista fondamentale. Fornisci contesto se i dati esistono; se mancano, dichiara dati_insufficienti senza trasformare l'assenza di bilanci in un veto. La strategia è aggressiva e contrarian sui ribassi estremi."
+      : "Sei l'Analista fondamentale: valuta solidità, bilanci, crescita e valutazione. Se fondamentali.disponibile è false vota dati_insufficienti.", { ticker: c.ticker, fondamentali: fond }, sAnalisi),
+    agente("tecnico", profiloAggressivo
+      ? "Sei l'Analista tecnico della strategia AGGRESSIVA. Verifica in modo esplicito RSI14 < 30 e prezzo <= media20 - 2 deviazioni standard. Un trend ribassista, volatilità elevata o ipervenduto NON sono da soli motivi per votare contrario: sono il contesto previsto dalla strategia contrarian. Vota favorevole se i due trigger sono verificati e i dati sono coerenti; contrario solo se i trigger falliscono o i dati sono inaffidabili."
+      : "Sei l'Analista tecnico: valuta trend, indicatori (SMA, RSI, momentum, volatilità), supporti e resistenze dai dati forniti.", { ticker: c.ticker, tecnici, propostaMotore: dati.propostaMotore }, sAnalisi),
+    agente("news", profiloAggressivo
+      ? "Sei l'Analista news e sentiment. Se le notizie mancano, dichiara dati_insufficienti; non convertire l'assenza di notizie in un veto automatico. Segnala solo eventi verificabili che rendono il titolo non negoziabile o il dato inaffidabile."
+      : "Sei l'Analista news e sentiment: valuta notizie, eventi e sentiment. Se notizie.disponibile è false vota dati_insufficienti.", { ticker: c.ticker, notizie: news }, sAnalisi),
   ]);
   const analisti = { fondamentale: af, tecnico: at, news: an };
 
-  // 2. Dual Risk Debate: 2 turni, Bull e Bear in parallelo per turno, con risposta alle obiezioni.
+  // 2. Dual Risk Debate: un turno completo, Bull e Bear in parallelo.
   const turni: Turno[] = [];
-  const bullSys = "Sei il Bull Analyst: sostieni la proposta BUY con gli elementi favorevoli verificabili. 'conclusione' = true solo se la tesi regge alle obiezioni.";
-  const bearSys = "Sei il Bear Analyst: contesta la tesi cercando rischi, debolezze e motivi per non procedere. 'conclusione' = true solo se hai obiezioni decisive basate sui dati.";
-  for (const n of [1, 2]) {
+  const bullSys = profiloAggressivo
+    ? "Sei il Bull Analyst della strategia AGGRESSIVA: valuta se i trigger contrarian RSI<30 e prezzo sotto -2σ sono presenti. Il ribasso è l'opportunità cercata, non un'obiezione. Sostieni BUY quando i trigger e i dati sono validi. 'conclusione'=true solo se la tesi regge."
+    : "Sei il Bull Analyst: sostieni la proposta BUY con gli elementi favorevoli verificabili. 'conclusione' = true solo se la tesi regge alle obiezioni.";
+  const bearSys = profiloAggressivo
+    ? "Sei il Bear Analyst della strategia AGGRESSIVA: cerca solo rischi concreti e verificabili (dati corrotti, evento societario distruttivo, liquidità/esecuzione, esposizione eccessiva). Non usare trend negativo, RSI basso o volatilità elevata come obiezioni decisive: sono caratteristiche previste dalla strategia. 'conclusione'=true solo per un rischio concreto che invalida l'operazione."
+    : "Sei il Bear Analyst: contesta la tesi cercando rischi, debolezze e motivi per non procedere. 'conclusione' = true solo se hai obiezioni decisive basate sui dati.";
+  for (const n of [1]) {
     const ctx = { dati, analisti, turniPrecedenti: turni, turno: n };
     const [b, r] = await Promise.all([agente(`bull${n}`, bullSys, ctx, sTurno), agente(`bear${n}`, bearSys, ctx, sTurno)]);
     if (b) turni.push({ ...b, agente: "bull", turno: n });
@@ -120,19 +137,24 @@ export async function valutaCandidato(c: Contesto): Promise<{ procedi: boolean; 
   const esito = esitoDibattito(turni, "BUY");
 
   // 3. Risk Manager indipendente (veto assoluto), 4. Coordinatore.
-  const rischio = await agente<Rischio>("risk", "Sei il Risk Manager: valuta in modo indipendente rischio, volatilità, esposizione, dimensione della posizione e protezione del capitale. Metti veto=true se il rischio non è accettabile o i dati sono incoerenti. fattoreMassimo tra 0 e 1 = quota massima dell'importo proposto.", { dati, analisti, dibattito: { turni, esito } }, sRischio);
+  const rischio = await agente<Rischio>("risk", profiloAggressivo
+    ? "Sei il Risk Manager di una strategia AGGRESSIVA (rischio dichiarato 9/10, drawdown strutturale dichiarato 38%, con stop operativo mensile tassativo al 20% dal massimo equity del mese). NON applicare criteri conservativi: trend ribassista, RSI basso e volatilità elevata sono attesi e non giustificano da soli veto o riduzione. Metti veto=true solo per dati incoerenti/non verificabili, ordine non eseguibile, violazione dei limiti di capitale/esposizione o rischio di perdita oltre i limiti configurati. Rispetta comunque il limite giornaliero e il capitale disponibile. fattoreMassimo tra 0 e 1."
+    : "Sei il Risk Manager: valuta in modo indipendente rischio, volatilità, esposizione, dimensione della posizione e protezione del capitale. Metti veto=true se il rischio non è accettabile o i dati sono incoerenti. fattoreMassimo tra 0 e 1 = quota massima dell'importo proposto.", { dati, analisti, dibattito: { turni, esito } }, sRischio);
   const coord = rischio && !rischio.veto
-    ? await agente<Coordinatore>("coordinatore", "Sei il Coordinatore: confronta analisti, dibattito e Risk Manager, individua contraddizioni e decidi 'procedi' o 'attendi'. fattore tra 0 e 1 riduce l'importo. Con dati insufficienti o dibattito HOLD scegli attendi.", { dati, analisti, dibattito: { turni, esito }, rischio }, sCoord)
+    ? await agente<Coordinatore>("coordinatore", profiloAggressivo
+      ? "Sei il Coordinatore della strategia AGGRESSIVA. Verifica la coerenza con i trigger RSI<30 e prezzo sotto -2σ. Non trasformare volatilità o trend negativo, già previsti, in prudenza generica. Se il tecnico conferma i trigger, il dibattito sostiene BUY e il Risk Manager non pone veto concreto, scegli procedi. Fattore normalmente vicino a 1; riduci solo per un limite quantitativo reale."
+      : "Sei il Coordinatore: confronta analisti, dibattito e Risk Manager, individua contraddizioni e decidi 'procedi' o 'attendi'. fattore tra 0 e 1 riduce l'importo. Con dati insufficienti o dibattito HOLD scegli attendi.", { dati, analisti, dibattito: { turni, esito }, rischio }, sCoord)
     : null;
 
-  const finale = decisioneFinale({ proposta: "BUY", importo: c.importo, analisti: [af, at, an] as (Analisi | null)[], dibattito: esito, rischio, coordinatore: coord });
+  const finale = decisioneFinale({ proposta: "BUY", importo: c.importo, analisti: [af, at, an] as (Analisi | null)[], dibattito: esito, rischio, coordinatore: coord, strategia: c.strategia });
   const fattoreFinale = c.importo > 0 ? finale.importo / c.importo : 0;
   await supabaseAdmin.from("analisi_comitato").insert({
     user_id: c.userId, conto_id: c.contoId, ambiente: c.ambiente, strategia: c.strategia, ticker: c.ticker,
     proposta: "BUY", decisione: finale.procedi ? "BUY" : "HOLD", veto: Boolean(rischio?.veto), esito_dibattito: esito, motivo: finale.motivo,
     agenti: JSON.parse(JSON.stringify({ ...analisti, rischio, coordinatore: coord, fattoreFinale })),
     dibattito: JSON.parse(JSON.stringify(turni)), dati: JSON.parse(JSON.stringify(dati)),
-    errore: [af, at, an, rischio].some((x) => !x) ? "Uno o più agenti non hanno risposto: HOLD." : null,
+    errore: (profiloAggressivo ? [at, rischio] : [af, at, an, rischio]).some((x) => !x)
+      ? "Uno o più agenti essenziali per il profilo selezionato non hanno risposto: HOLD." : null,
   });
   return { ...finale, motivo: `Comitato: ${finale.motivo}`, cache: false };
 }

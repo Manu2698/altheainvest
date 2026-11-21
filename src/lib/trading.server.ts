@@ -2,6 +2,11 @@ import { credenzialiUtente, logServer } from "./alpaca.server";
 import { getStrategia, type StrategyId } from "./strategies";
 import type { LeaseConto } from "./riconciliazione.server";
 import { capitalePendenti } from "./esecuzioni";
+import { valutaDrawdownMensile } from "./protezioni";
+import { decide, decisioneDrawdownMensile } from "./trading.logic";
+export { decide };
+import { serieStorica } from "./market-data";
+export { serieStorica } from "./market-data";
 import type { DecisioneIA, EsitoCiclo, OrdineBroker } from "./trading.types";
 
 const base = (reale: boolean) =>
@@ -15,154 +20,9 @@ const num = (v: unknown) => {
 const isCripto = (t: string) => t.includes("/") || /^[A-Z]{2,6}USD$/.test(t);
 const paioCripto = (t: string) => (t.includes("/") ? t : t.replace(/USD$/, "/USD"));
 
-/** Ultimi prezzi giornalieri per ticker (azioni via IEX, cripto via endpoint dedicato). */
-export async function serieStorica(
-  tickers: string[],
-  headers: Record<string, string>,
-  /** Se fornito, riceve la data dell'ultima barra per ticker (controllo dati obsoleti). */
-  ultimi?: Record<string, string>,
-): Promise<Record<string, number[]>> {
-  const azioni = tickers.filter((t) => !isCripto(t));
-  const cripto = tickers.filter(isCripto);
-  const out: Record<string, number[]> = {};
 
-  const barre: Record<string, {c:number;t:string}[]> = {};
-  const invalida = () => { for (const t of tickers) { delete out[t]; delete out[t.replace("/", "")]; if (ultimi) {delete ultimi[t];delete ultimi[t.replace("/", "")];} } };
-  let fallito = false;
-  const raccogli = (payload: unknown, mappa: (s: string) => string) => {
-    const bars = (payload as {bars?:Record<string,{c:number;t?:string}[]>})?.bars;
-    if (!bars || typeof bars !== "object") throw new Error("Storico incompleto.");
-    for (const [sym,righe] of Object.entries(bars)) {
-      const key=mappa(sym);
-      for (const r of righe) {
-        const prev=barre[key]?.at(-1);
-        if (!r.t || !Number.isFinite(Date.parse(r.t)) || Date.parse(r.t)>Date.now() || !Number.isFinite(Number(r.c)) || Number(r.c)<=0 || (prev && Date.parse(r.t)<=Date.parse(prev.t))) throw new Error("Barre duplicate, future o non confrontabili.");
-        (barre[key] ??= []).push({c:Number(r.c),t:r.t});
-      }
-      out[key]=(barre[key] ?? []).map(r=>r.c);
-      const t=barre[key]?.at(-1)?.t;
-      if (ultimi && t) ultimi[key]=t;
-    }
-  };
+type Posizione = { ticker: string; valore: number; pnlPct: number; piccoPnlPct?: number };
 
-  const richieste: Promise<void>[] = [];
-  // Alpaca restituisce un elenco vuoto se non si specifica una finestra temporale.
-  const inizio = new Date(Date.now() - 120 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
-
-  const controlla = async (r: Response, origine: string) => {
-    if (r.ok) return r.json();
-    logServer(origine, new Error(`HTTP ${r.status}: ${(await r.text()).slice(0, 200)}`));
-    return null;
-  };
-  const pagine = async (url: string, origine: string, mappa: (s: string) => string) => {
-    let token: string | null = null;
-    for (let pagina = 0; pagina < 30; pagina++) {
-      const r = await fetch(`${url}${token ? `&page_token=${encodeURIComponent(token)}` : ""}`, { headers, signal: AbortSignal.timeout(15000) });
-      const j = await controlla(r, origine) as { bars?: Record<string, { c: number; t?: string }[]>; next_page_token?: string | null } | null;
-      if (!j) { fallito=true; invalida(); return; }
-      raccogli(j, mappa);
-      token = j.next_page_token ?? null;
-      if (!token) return;
-    }
-    // Serie troncata: non presentarla al motore come completa.
-    fallito=true; invalida();
-  };
-
-  if (azioni.length) {
-    const url = `https://data.alpaca.markets/v2/stocks/bars?symbols=${encodeURIComponent(
-      azioni.join(","),
-    )}&timeframe=1Day&limit=1000&start=${inizio}&feed=iex&adjustment=split&sort=asc`;
-    richieste.push(
-      pagine(url, "trading.serieStorica.azioni", (s) => s)
-        .catch((e) => { fallito=true; invalida(); logServer("trading.serieStorica.azioni", e); }),
-    );
-  }
-
-  if (cripto.length) {
-    const url = `https://data.alpaca.markets/v1beta3/crypto/us/bars?symbols=${encodeURIComponent(
-      cripto.map(paioCripto).join(","),
-    )}&timeframe=1Day&limit=1000&start=${inizio}&sort=asc`;
-    richieste.push(
-      pagine(url, "trading.serieStorica.cripto", (s) => s.replace("/", ""))
-        .catch((e) => { fallito=true; invalida(); logServer("trading.serieStorica.cripto", e); }),
-    );
-  }
-
-
-  await Promise.all(richieste);
-  if (fallito) invalida();
-  return out;
-}
-
-const media = (v: number[]) => (v.length ? v.reduce((a, b) => a + b, 0) / v.length : 0);
-
-type Posizione = { ticker: string; valore: number; pnlPct: number };
-
-export function decide(
-  strategia: StrategyId,
-  ticker: string,
-  chiusure: number[],
-  posizione: Posizione | undefined,
-  quotaTarget: number,
-): { azione: "compra" | "vendi" | "attendi"; importo: number; motivo: string } {
-  if (chiusure.length < 6) {
-    return { azione: "attendi", importo: 0, motivo: "Storico prezzi insufficiente." };
-  }
-  const ultimo = chiusure.at(-1) ?? 0;
-  const sma10 = media(chiusure.slice(-10));
-  const sma20 = media(chiusure.slice(-20));
-  const scostamento = ((ultimo - sma10) / sma10) * 100;
-  const posseduto = posizione?.valore ?? 0;
-  const mancante = Math.max(0, quotaTarget - posseduto);
-  const pnl = posizione?.pnlPct ?? 0;
-
-  if (strategia === "conservativo") {
-    if (pnl <= -10)
-      return { azione: "vendi", importo: posseduto, motivo: `Stop di protezione a ${pnl.toFixed(1)}%.` };
-    if (mancante > quotaTarget * 0.2)
-      return {
-        azione: "compra",
-        importo: mancante,
-        motivo: `Accumulo graduale verso la quota target (prezzo ${scostamento.toFixed(1)}% dalla media 10g).`,
-      };
-    return { azione: "attendi", importo: 0, motivo: "Posizione già alla quota prevista." };
-  }
-
-  if (strategia === "medio") {
-    if (ultimo > sma20 && mancante > quotaTarget * 0.2)
-      return {
-        azione: "compra",
-        importo: mancante,
-        motivo: "Trend positivo: prezzo sopra la media a 20 giorni.",
-      };
-    if (ultimo < sma20 * 0.97 && posseduto > 0)
-      return {
-        azione: "vendi",
-        importo: posseduto,
-        motivo: "Rottura al ribasso della media a 20 giorni.",
-      };
-    if (pnl <= -8 && posseduto > 0)
-      return { azione: "vendi", importo: posseduto, motivo: `Stop di rischio a ${pnl.toFixed(1)}%.` };
-    return { azione: "attendi", importo: 0, motivo: "Nessun segnale netto sul trend." };
-  }
-
-  // aggressivo: compra sui ribassi, vende sui rimbalzi
-  if (posseduto > 0 && pnl >= 5)
-    return {
-      azione: "vendi",
-      importo: posseduto,
-      motivo: `Presa di profitto a +${pnl.toFixed(1)}% prima del rientro.`,
-    };
-  if (posseduto > 0 && pnl <= -7)
-    return { azione: "vendi", importo: posseduto, motivo: `Taglio perdita a ${pnl.toFixed(1)}%.` };
-  if (scostamento <= -2 && mancante > quotaTarget * 0.2)
-    return {
-      azione: "compra",
-      importo: mancante,
-      motivo: `Ribasso del ${scostamento.toFixed(1)}% sotto la media 10g: entrata sul calo.`,
-    };
-  return { azione: "attendi", importo: 0, motivo: "Prezzo non ancora abbastanza sceso." };
-}
 
 export async function leggiOrdini(
   userId: string,
@@ -211,9 +71,11 @@ export async function eseguiCiclo(
     const snapshot = await riconciliaAlpacaPersistente(userId, input.reale, lease);
     if (snapshot.stato !== "riconciliato") return {ok:false,messaggio:`Nessun ordine inviato: ${snapshot.motivo}`,mercatoAperto:false,decisioni:[],eseguiti:0};
     const esito = await eseguiCicloInterno(userId, input, lease);
-    if (p === "alpaca") {
+    // La riconciliazione completa post-ciclo serve solo se è stato accettato almeno un ordine.
+    // I cicli senza eseguiti evitano una seconda scansione completa di ordini e fill ogni minuto.
+    if (p === "alpaca" && esito.eseguiti > 0) {
       try { await riconciliaAlpacaPersistente(userId, input.reale, lease); }
-      catch { esito.messaggio += " Riconciliazione incompleta: rendimento non definitivo."; }
+      catch { esito.messaggio += " Riconciliazione post-ordine incompleta: rendimento non definitivo."; }
     }
     return esito;
   });
@@ -263,7 +125,8 @@ async function eseguiCicloInterno(
 
   // L'IA sceglie da sola su cosa investire analizzando il mercato.
   const { selezionaUniverso } = await import("./selezione.server");
-  const auto = await selezionaUniverso(headers, reale, input.strategia);
+  const ultimiGiorni: Record<string, string> = {};
+  const auto = await selezionaUniverso(headers, reale, input.strategia, ultimiGiorni);
   const universo = (auto.universo.length ? auto.universo : strategia.universo)
     .map((t) => t.toUpperCase().trim())
     .filter(Boolean)
@@ -275,6 +138,8 @@ async function eseguiCicloInterno(
   let perditaOggi: number | null = null;
   let contoId: string | null = null; // solo per registrare a quale conto appartiene l'ordine
   let contoOk = false;
+  let drawdownMensileBloccato = false;
+  let drawdownMensileVerificato = input.strategia !== "aggressivo";
   try {
     const acc = await fetch(`${url}/v2/account`, { headers });
     if (acc.ok) {
@@ -287,6 +152,57 @@ async function eseguiCicloInterno(
       liquidita = fondiUtilizzabili(num(a["cash"]), num(a["buying_power"]), fondi?.liquidita_limite == null ? null : Number(fondi.liquidita_limite), fondi?.acquisto_limite == null ? null : Number(fondi.acquisto_limite));
       if (fondi?.limiti_conto_id && fondi.limiti_conto_id !== contoId) { contoOk = false; liquidita = 0; }
       if (input.modalita === "conto") capitale = num(a["portfolio_value"] ?? a["equity"]);
+      // Drawdown mensile aggressivo: massimo equity osservato nel mese (fuso Italia).
+      // Al primo ciclo del mese si crea il riferimento; oltre -20% si blocca il mese e si liquidano le posizioni.
+      if (input.strategia === "aggressivo" && contoId && Number.isFinite(Number(a["equity"])) && Number(a["equity"]) > 0) {
+        const partiMese = new Intl.DateTimeFormat("en-CA", { timeZone: "Europe/Rome", year: "numeric", month: "2-digit" }).format(new Date());
+        const { data: statoMese, error: erroreMese } = await supabaseAdmin.from("stato_drawdown_mensile")
+          .select("picco_equity,bloccato").eq("user_id", userId).eq("piattaforma", "alpaca")
+          .eq("ambiente", reale ? "reale" : "paper").eq("conto_id", contoId).eq("mese", partiMese).maybeSingle();
+        if (erroreMese) {
+          logServer("trading.drawdown_mensile.lettura", erroreMese, { reale });
+        } else {
+          let piccoPrecedente = statoMese?.picco_equity == null ? null : Number(statoMese.picco_equity);
+          let storicoMeseVerificato = true;
+          if (piccoPrecedente == null) {
+            // Prima attivazione nel mese: recupera il massimo MTD da Alpaca.
+            try {
+              const storicoEquityRes = await fetch(url + "/v2/account/portfolio/history?period=1M&timeframe=1D&cashflow_types=ALL", { headers, signal: AbortSignal.timeout(15000) });
+              if (!storicoEquityRes.ok) throw new Error("HTTP " + storicoEquityRes.status + " sullo storico equity mensile.");
+              const storicoEquity = await storicoEquityRes.json() as { timestamp?: number[]; equity?: number[] };
+              if (!Array.isArray(storicoEquity.timestamp) || !Array.isArray(storicoEquity.equity) || storicoEquity.timestamp.length !== storicoEquity.equity.length)
+                throw new Error("Storico equity mensile incompleto.");
+              const meseDi = (secondi: number) => {
+                const parti = new Intl.DateTimeFormat("en-US", { timeZone: "Europe/Rome", year: "numeric", month: "2-digit" }).formatToParts(new Date(secondi * 1000));
+                return (parti.find(x => x.type === "year")?.value ?? "") + "-" + (parti.find(x => x.type === "month")?.value ?? "");
+              };
+              const valoriMese = storicoEquity.timestamp.flatMap((ts, i) => {
+                const valore = Number(storicoEquity.equity?.[i]);
+                return Number.isFinite(ts) && meseDi(ts) === partiMese && Number.isFinite(valore) && valore > 0 ? [valore] : [];
+              });
+              piccoPrecedente = valoriMese.length ? Math.max(...valoriMese) : Number(a["equity"]);
+            } catch (erroreStorico) {
+              storicoMeseVerificato = false;
+              logServer("trading.drawdown_mensile.storico", erroreStorico, { reale });
+            }
+          }
+          if (storicoMeseVerificato) {
+            const valutazione = valutaDrawdownMensile(Number(a["equity"]), piccoPrecedente, Boolean(statoMese?.bloccato));
+            if (!valutazione) {
+              logServer("trading.drawdown_mensile.dati", new Error("Equity o picco mensile non valido."), { reale });
+            } else {
+              drawdownMensileBloccato = valutazione.bloccato;
+              const { error: erroreSalvataggio } = await supabaseAdmin.from("stato_drawdown_mensile").upsert({
+                user_id: userId, piattaforma: "alpaca", ambiente: reale ? "reale" : "paper",
+                conto_id: contoId, mese: partiMese, picco_equity: valutazione.piccoEquity,
+                bloccato: drawdownMensileBloccato, aggiornato_al: new Date().toISOString(),
+              }, { onConflict: "user_id,piattaforma,ambiente,conto_id,mese" });
+              if (erroreSalvataggio) logServer("trading.drawdown_mensile.scrittura", erroreSalvataggio, { reale });
+              else drawdownMensileVerificato = true;
+            }
+          }
+        }
+      }
       // Perdita della giornata: valore a chiusura di ieri meno valore attuale.
       if (a["last_equity"] != null && a["equity"] != null && Number.isFinite(Number(a["last_equity"])) && Number.isFinite(Number(a["equity"]))) {
         perditaOggi = num(a["last_equity"]) - num(a["equity"]);
@@ -299,7 +215,7 @@ async function eseguiCicloInterno(
   // Limite di perdita giornaliera: se raggiunto, l'IA si ferma prima di operare.
   const limite = fondi?.perdita_max_giornaliera == null ? null : Number(fondi.perdita_max_giornaliera);
   if (limite != null && (!Number.isFinite(limite) || limite < 0)) throw new Error("Limite giornaliero incoerente: nessun ordine.");
-  if (limite && limite > 0 && perditaOggi != null && perditaOggi >= limite) {
+  if (limite && limite > 0 && perditaOggi != null && perditaOggi >= limite && !drawdownMensileBloccato) {
     return {
       ok: false,
       messaggio: `Trading sospeso: perdita di oggi ${perditaOggi.toFixed(2)} $ ha raggiunto il limite giornaliero di ${limite.toFixed(2)} $.`,
@@ -310,7 +226,7 @@ async function eseguiCicloInterno(
     };
   }
 
-  if (!universo.length || capitale <= 0) {
+  if (!universo.length || (capitale <= 0 && !drawdownMensileBloccato)) {
     return {
       ok: false,
       messaggio: "Imposta il capitale prima di avviare il motore.",
@@ -322,11 +238,12 @@ async function eseguiCicloInterno(
 
 
   try {
-    const ultimiGiorni: Record<string, string> = {};
-    const [clockRes, posRes, storico, apertiRes] = await Promise.all([
+    // Riutilizza le barre già scaricate per l'intero pool durante la selezione:
+    // evita una seconda scansione storica degli stessi simboli nello stesso ciclo.
+    const storico = auto.storico;
+    const [clockRes, posRes, apertiRes] = await Promise.all([
       fetch(`${url}/v2/clock`, { headers }),
       fetch(`${url}/v2/positions`, { headers }),
-      serieStorica(universo, headers, ultimiGiorni),
       fetch(`${url}/v2/orders?status=open&limit=500`, { headers }).catch(() => null),
     ]);
     // Ordini ancora aperti presso il broker: niente nuovi ordini sullo stesso titolo (anti-duplicati).
@@ -363,8 +280,44 @@ async function eseguiCicloInterno(
 
     // Le posizioni già aperte vengono sempre rianalizzate (per poterle vendere).
     for (const t of posizioni.keys()) if (!universo.includes(t)) universo.push(t);
+
+    // Memoria persistente del massimo P&L per il trailing stop aggressivo.
+    // Se la lettura DB fallisce, restano attivi gli stop rigidi ma non si inventa un massimo storico.
+    if (input.strategia === "aggressivo" && contoId && posRes.ok) {
+      const { data: stati, error: erroreStati } = await supabaseAdmin
+        .from("stato_trailing_aggressivo")
+        .select("ticker,picco_pnl_pct")
+        .eq("user_id", userId).eq("piattaforma", "alpaca")
+        .eq("ambiente", reale ? "reale" : "paper").eq("conto_id", contoId);
+      if (erroreStati) {
+        logServer("trading.trailing.lettura", erroreStati, { reale });
+      } else {
+        const picchi = new Map<string, number>();
+        for (const r of stati ?? []) {
+          picchi.set(r.ticker, Number(r.picco_pnl_pct));
+          // Una posizione chiusa non deve trasferire il vecchio massimo a un eventuale nuovo ingresso.
+          if (!posizioni.has(r.ticker)) {
+            const { error } = await supabaseAdmin.from("stato_trailing_aggressivo").delete()
+              .eq("user_id", userId).eq("piattaforma", "alpaca")
+              .eq("ambiente", reale ? "reale" : "paper").eq("conto_id", contoId).eq("ticker", r.ticker);
+            if (error) logServer("trading.trailing.reset", error, { ticker: r.ticker, reale });
+          }
+        }
+        for (const [ticker, p] of posizioni) {
+          const piccoPrecedente = picchi.get(ticker);
+          const picco = Math.max(p.pnlPct, Number.isFinite(piccoPrecedente) ? piccoPrecedente! : p.pnlPct);
+          p.piccoPnlPct = picco;
+          const { error } = await supabaseAdmin.from("stato_trailing_aggressivo").upsert({
+            user_id: userId, piattaforma: "alpaca", ambiente: reale ? "reale" : "paper",
+            conto_id: contoId, ticker, picco_pnl_pct: picco, aggiornato_al: new Date().toISOString(),
+          }, { onConflict: "user_id,piattaforma,ambiente,conto_id,ticker" });
+          if (error) logServer("trading.trailing.scrittura", error, { ticker, reale });
+        }
+      }
+    }
+
     const mancanti = universo.filter((t) => !storico[t]);
-    if (mancanti.length) Object.assign(storico, await serieStorica(mancanti, headers, ultimiGiorni));
+    if (mancanti.length) Object.assign(storico, await serieStorica(mancanti, headers, ultimiGiorni, (origine, errore) => logServer(origine, errore, { reale })));
 
     // Tetto rigido: il totale investito non supera mai il capitale scelto dall'utente.
     const investito = [...posizioni.values()].reduce((a, p) => a + p.valore, 0);
@@ -378,13 +331,21 @@ async function eseguiCicloInterno(
 
     for (const ticker of universo) {
       const chiusure = storico[ticker] ?? storico[ticker.replace("/", "")] ?? [];
-      const scelta = applicaLezioni(
+      let scelta = applicaLezioni(
         decide(input.strategia, ticker, chiusure, posizioni.get(ticker), quota),
         input.strategia,
         ticker,
         posizioni.get(ticker),
         lezioni,
       );
+      const liquidazioneMensile = input.strategia === "aggressivo"
+        ? decisioneDrawdownMensile(drawdownMensileBloccato, posizioni.get(ticker))
+        : null;
+      if (liquidazioneMensile) {
+        scelta = liquidazioneMensile;
+      } else if (input.strategia === "aggressivo" && !drawdownMensileVerificato && scelta.azione === "compra") {
+        scelta = { azione: "attendi", importo: 0, motivo: "Drawdown mensile non verificabile: nuovi acquisti sospesi per sicurezza." };
+      }
       const chiave = ticker.replace("/", "").toUpperCase();
       if (scelta.azione !== "attendi" && (!ordiniApertiOk || aperti.has(chiave))) {
         scelta.azione = "attendi";
