@@ -67,7 +67,7 @@ export const STRATEGIE: Strategy[] = [
     universo: ["NVDA", "TSLA", "PLTR", "COIN", "BTC", "SOL"],
     regole: [
       "Ingresso quando RSI < 30 e il prezzo è sotto -2 deviazioni standard",
-      "Obiettivo di profitto +15%, senza tetto massimo: trailing stop dal picco +5% con distanza di 5 punti percentuali",
+      "Obiettivo di profitto +15%, senza tetto massimo: trailing stop dal picco +5%, distanza 5 punti e profitto minimo protetto +2%",
       "Stop loss fisso al -7%, chiusura totale se il drawdown mensile supera il 20%",
     ],
     volatilita: 0.021,
