@@ -102,7 +102,7 @@ export async function valutaCandidato(c: Contesto): Promise<{ procedi: boolean; 
   const [fond, news] = await Promise.all([fondamentali(c.ticker, c.cripto), notizie(c.ticker, c.alpacaHeaders)]);
   const profiloAggressivo = c.strategia === "aggressivo";
   const dati = { ticker: c.ticker, strategia: c.strategia, regoleStrategia: profiloAggressivo
-    ? ["RSI14 < 30", "prezzo <= media20 - 2 deviazioni standard", "obiettivo di profitto +15% (non è un tetto di uscita)", "trailing stop persistente: si attiva dopo un picco di +5% e protegge con distanza di 5 punti percentuali dal massimo", "stop loss iniziale fisso -7%"]
+    ? ["RSI14 < 30", "prezzo <= media20 - 2 deviazioni standard", "obiettivo di profitto +15% (non è un tetto di uscita)", "trailing stop persistente: si attiva dopo un picco di +5% e protegge con distanza di 5 punti percentuali dal massimo", "stop loss iniziale fisso -7%", "drawdown mensile massimo 20% dal massimo equity del mese: blocco fino al mese successivo e liquidazione totale"]
     : [], propostaMotore: { azione: "BUY", importoUSD: c.importo, motivo: c.motivo }, tecnici, fondamentali: fond, notizie: news, posizioneAttuale: c.posizione ?? null, conto: c.conto };
 
   // 1. Tre analisti in parallelo sugli stessi dati condivisi.
@@ -138,7 +138,7 @@ export async function valutaCandidato(c: Contesto): Promise<{ procedi: boolean; 
 
   // 3. Risk Manager indipendente (veto assoluto), 4. Coordinatore.
   const rischio = await agente<Rischio>("risk", profiloAggressivo
-    ? "Sei il Risk Manager di una strategia AGGRESSIVA (rischio dichiarato 9/10, drawdown di strategia fino al 38%). NON applicare criteri conservativi: trend ribassista, RSI basso e volatilità elevata sono attesi e non giustificano da soli veto o riduzione. Metti veto=true solo per dati incoerenti/non verificabili, ordine non eseguibile, violazione dei limiti di capitale/esposizione o rischio di perdita oltre i limiti configurati. Rispetta comunque il limite giornaliero e il capitale disponibile. fattoreMassimo tra 0 e 1."
+    ? "Sei il Risk Manager di una strategia AGGRESSIVA (rischio dichiarato 9/10, drawdown strutturale dichiarato 38%, con stop operativo mensile tassativo al 20% dal massimo equity del mese). NON applicare criteri conservativi: trend ribassista, RSI basso e volatilità elevata sono attesi e non giustificano da soli veto o riduzione. Metti veto=true solo per dati incoerenti/non verificabili, ordine non eseguibile, violazione dei limiti di capitale/esposizione o rischio di perdita oltre i limiti configurati. Rispetta comunque il limite giornaliero e il capitale disponibile. fattoreMassimo tra 0 e 1."
     : "Sei il Risk Manager: valuta in modo indipendente rischio, volatilità, esposizione, dimensione della posizione e protezione del capitale. Metti veto=true se il rischio non è accettabile o i dati sono incoerenti. fattoreMassimo tra 0 e 1 = quota massima dell'importo proposto.", { dati, analisti, dibattito: { turni, esito } }, sRischio);
   const coord = rischio && !rischio.veto
     ? await agente<Coordinatore>("coordinatore", profiloAggressivo
