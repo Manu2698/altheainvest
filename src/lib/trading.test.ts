@@ -1,6 +1,6 @@
 import { describe, expect, it, vi, afterEach } from "vitest";
 import { decide, serieStorica } from "./trading.server";
-import { problemaAccumulo } from "./protezioni";
+import { problemaAccumulo, valutaDrawdownMensile } from "./protezioni";
 
 afterEach(() => vi.unstubAllGlobals());
 describe("protezione accumulo dopo il segnale reale", () => {
@@ -8,12 +8,41 @@ describe("protezione accumulo dopo il segnale reale", () => {
     const posizione = { ticker: "TEST", valore: 1, pnlPct: -2 };
     const serie = [...Array(19).fill(10), 9];
     expect(decide("aggressivo", "TEST", serie, posizione, 10).azione).toBe("compra");
-    expect(problemaAccumulo("aggressivo", posizione, serie)).not.toBeNull();
+    expect(problemaAccumulo("aggressivo", posizione, serie)).toBeNull();
   });
   it("mantiene la vendita di protezione invariata", () => {
     const scelta = decide("aggressivo", "TEST", Array(20).fill(10), { ticker: "TEST", valore: 10, pnlPct: -8 }, 20);
     expect(scelta.azione).toBe("vendi");
     expect(scelta.importo).toBe(10);
+  });
+});
+describe("uscite della strategia aggressiva", () => {
+  it("non vende automaticamente al raggiungimento del +15%", () => {
+    const scelta = decide("aggressivo", "TEST", Array(20).fill(10), { ticker: "TEST", valore: 10, pnlPct: 16, piccoPnlPct: 16 }, 10);
+    expect(scelta.azione).toBe("attendi");
+  });
+  it("attiva il trailing dopo +5% e protegge 5 punti dal massimo", () => {
+    const scelta = decide("aggressivo", "TEST", Array(20).fill(10), { ticker: "TEST", valore: 10, pnlPct: 17, piccoPnlPct: 22 }, 10);
+    expect(scelta.azione).toBe("vendi");
+    expect(scelta.motivo).toContain("massimo profitto +22.0%");
+  });
+  it("mantiene lo stop iniziale fisso a -7%", () => {
+    const scelta = decide("aggressivo", "TEST", Array(20).fill(10), { ticker: "TEST", valore: 10, pnlPct: -7.1 }, 10);
+    expect(scelta.azione).toBe("vendi");
+  });
+});
+describe("drawdown mensile aggressivo", () => {
+  it("usa il primo equity del mese come riferimento e aggiorna il massimo", () => {
+    expect(valutaDrawdownMensile(1050, null, false)).toEqual({ piccoEquity: 1050, drawdownPercentuale: 0, bloccato: false });
+    expect(valutaDrawdownMensile(1100, 1050, false)?.piccoEquity).toBe(1100);
+  });
+  it("blocca a -20% dal massimo mensile e non si sblocca nel mese", () => {
+    const stato = valutaDrawdownMensile(800, 1000, false);
+    expect(stato?.bloccato).toBe(true);
+    expect(valutaDrawdownMensile(950, 1000, true)?.bloccato).toBe(true);
+  });
+  it("rifiuta equity non verificabile", () => {
+    expect(valutaDrawdownMensile(Number.NaN, 1000, false)).toBeNull();
   });
 });
 describe("storico mercato offline", () => {
