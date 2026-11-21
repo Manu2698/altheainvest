@@ -32,11 +32,14 @@ export function indicatoriTecnici(chiusure: number[]) {
     volatilita20 = r2(Math.sqrt(media(rend.map((x) => (x - m) ** 2))) * 100);
   }
   const finestra = c.slice(-20);
+  const media20 = finestra.length === 20 ? media(finestra) : null;
+  const deviazione20 = media20 == null ? null : Math.sqrt(media(finestra.map((x) => (x - media20) ** 2)));
   return {
     osservazioni: c.length,
     ultimo,
     sma10: sma(10),
     sma20: sma(20),
+    bandaInferiore2Sigma: media20 == null || deviazione20 == null ? null : r2(media20 - 2 * deviazione20),
     rsi14,
     variazione5g: variazione(5),
     variazione20g: variazione(20),
