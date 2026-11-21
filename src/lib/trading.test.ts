@@ -27,6 +27,11 @@ describe("uscite della strategia aggressiva", () => {
     expect(scelta.azione).toBe("vendi");
     expect(scelta.motivo).toContain("massimo profitto +22.0%");
   });
+  it("protegge almeno +2% quando il trailing si è attivato a +5%", () => {
+    const scelta = decide("aggressivo", "TEST", Array(20).fill(10), { ticker: "TEST", valore: 10, pnlPct: 1, piccoPnlPct: 5 }, 10);
+    expect(scelta.azione).toBe("vendi");
+    expect(scelta.motivo).toContain("protezione attivata a +2.0%");
+  });
   it("mantiene lo stop iniziale fisso a -7%", () => {
     const scelta = decide("aggressivo", "TEST", Array(20).fill(10), { ticker: "TEST", valore: 10, pnlPct: -7.1 }, 10);
     expect(scelta.azione).toBe("vendi");
