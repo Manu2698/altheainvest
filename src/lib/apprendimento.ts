@@ -130,7 +130,7 @@ export function applicaLezioni(
   if (pos && scelta.azione !== "vendi") {
     // Per Aggressivo lo stop -7% è una regola esplicita della strategia: l'apprendimento
     // non può restringerlo né modificarlo silenziosamente.
-    const stop = strategia === "aggressivo" ? STOP.aggressivo! : (STOP[strategia] ?? -8) * l.fattoreStop;
+    const stop = strategia === "aggressivo" ? STOP["aggressivo"]! : (STOP[strategia] ?? -8) * l.fattoreStop;
     if (pos.pnlPct <= stop)
       return { azione: "vendi", importo: pos.valore, motivo: `Stop appreso a ${stop.toFixed(1)}% (perdite passate): taglio a ${pos.pnlPct.toFixed(1)}%.` };
     if (strategia !== "aggressivo" && l.bloccati.has(ticker) && pos.pnlPct > 0)
