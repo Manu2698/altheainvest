@@ -128,9 +128,11 @@ export async function selezionaUniverso(
     motivo = "strumenti con i movimenti più ampi";
   }
 
-  if (!scelti.length) {
+  if (!scelti.length && strategia !== "aggressivo") {
     scelti = [...misure].sort((a, b) => b.momentum - a.momentum).slice(0, 6);
     motivo = "migliori andamenti disponibili";
+  } else if (!scelti.length) {
+    motivo = "nessuno strumento raggiunge la volatilità minima prevista dal profilo aggressivo";
   }
 
   return {
