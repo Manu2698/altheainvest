@@ -128,7 +128,9 @@ export function applicaLezioni(
 ): Scelta {
   const pos = posizione && posizione.valore > 0 ? posizione : undefined;
   if (pos && scelta.azione !== "vendi") {
-    const stop = (STOP[strategia] ?? -8) * l.fattoreStop;
+    // Per Aggressivo lo stop -7% è una regola esplicita della strategia: l'apprendimento
+    // non può restringerlo né modificarlo silenziosamente.
+    const stop = strategia === "aggressivo" ? STOP.aggressivo! : (STOP[strategia] ?? -8) * l.fattoreStop;
     if (pos.pnlPct <= stop)
       return { azione: "vendi", importo: pos.valore, motivo: `Stop appreso a ${stop.toFixed(1)}% (perdite passate): taglio a ${pos.pnlPct.toFixed(1)}%.` };
     if (l.bloccati.has(ticker) && pos.pnlPct > 0)
@@ -143,7 +145,7 @@ export function applicaLezioni(
     if (segnale && l.segnaliPerdenti.has(segnale))
       return { azione: "attendi", importo: 0, motivo: `Segnale "${segnale}" scartato: in passato ha fatto perdere.` };
     // Una riduzione di rischio appresa non può essere annullata da un aumento; gli aumenti non si cumulano.
-    let fattore = l.fattoreQuota;
+    let fattore = strategia === "aggressivo" ? 1 : l.fattoreQuota;
     if (fattore >= 1 && l.aumentiValidati) {
       if (l.favoriti.has(ticker)) fattore = Math.max(fattore, 1.2);
       if (segnale && l.segnaliVincenti.has(segnale)) fattore = Math.max(fattore, 1.3);
