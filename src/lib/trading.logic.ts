@@ -72,7 +72,7 @@ export function decide(
   if (posseduto > 0 && pnl <= -7)
     return { azione: "vendi", importo: posseduto, motivo: `Stop loss fisso della strategia aggressiva a -7% (attuale ${pnl.toFixed(1)}%).` };
   const picco = Math.max(pnl, posizione?.piccoPnlPct ?? pnl);
-  const sogliaTrailing = picco - 5;
+  const sogliaTrailing = Math.max(2, picco - 5);
   if (posseduto > 0 && picco >= 5 && pnl <= sogliaTrailing)
     return { azione: "vendi", importo: posseduto, motivo: `Trailing stop aggressivo: massimo profitto +${picco.toFixed(1)}%, protezione attivata a +${sogliaTrailing.toFixed(1)}%, attuale +${pnl.toFixed(1)}%.` };
   if (rsi14 != null && bandaInferiore2σ != null && rsi14 < 30 && ultimo <= bandaInferiore2σ && mancante > quotaTarget * 0.2)
