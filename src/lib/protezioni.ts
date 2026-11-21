@@ -77,3 +77,18 @@ export function problemaDati(chiusure: number[], ultimoGiorno: string | undefine
 export function simboliAperti(ordini: { symbol?: unknown }[]): Set<string> {
   return new Set(ordini.map((o) => String(o.symbol ?? "").replace("/", "").toUpperCase()).filter(Boolean));
 }
+
+
+/** Aggiorna il massimo equity del mese e blocca definitivamente il mese al drawdown soglia. */
+export function valutaDrawdownMensile(
+  equity: number,
+  piccoPrecedente: number | null,
+  bloccatoPrecedente: boolean,
+  sogliaPercentuale = 20,
+): { piccoEquity: number; drawdownPercentuale: number; bloccato: boolean } | null {
+  if (!Number.isFinite(equity) || equity <= 0 || (piccoPrecedente != null && (!Number.isFinite(piccoPrecedente) || piccoPrecedente <= 0))
+    || !Number.isFinite(sogliaPercentuale) || sogliaPercentuale <= 0 || sogliaPercentuale >= 100) return null;
+  const piccoEquity = Math.max(equity, piccoPrecedente ?? equity);
+  const drawdownPercentuale = (piccoEquity - equity) / piccoEquity * 100;
+  return { piccoEquity, drawdownPercentuale, bloccato: bloccatoPrecedente || drawdownPercentuale >= sogliaPercentuale };
+}
