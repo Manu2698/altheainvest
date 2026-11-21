@@ -112,6 +112,22 @@ export function decide(
   const sma10 = media(chiusure.slice(-10));
   const sma20 = media(chiusure.slice(-20));
   const scostamento = ((ultimo - sma10) / sma10) * 100;
+  const ultimi15 = chiusure.slice(-15);
+  let rsi14: number | null = null;
+  if (ultimi15.length === 15) {
+    let guadagni = 0, perdite = 0;
+    for (let i = 1; i < ultimi15.length; i++) {
+      const delta = ultimi15[i]! - ultimi15[i - 1]!;
+      if (delta > 0) guadagni += delta;
+      else perdite -= delta;
+    }
+    rsi14 = perdite === 0 ? 100 : 100 - 100 / (1 + guadagni / perdite);
+  }
+  const finestra20 = chiusure.slice(-20);
+  const deviazione20 = finestra20.length === 20
+    ? Math.sqrt(media(finestra20.map((p) => (p - sma20) ** 2)))
+    : null;
+  const bandaInferiore2σ = deviazione20 == null ? null : sma20 - 2 * deviazione20;
   const posseduto = posizione?.valore ?? 0;
   const mancante = Math.max(0, quotaTarget - posseduto);
   const pnl = posizione?.pnlPct ?? 0;
@@ -155,13 +171,15 @@ export function decide(
     };
   if (posseduto > 0 && pnl <= -7)
     return { azione: "vendi", importo: posseduto, motivo: `Taglio perdita a ${pnl.toFixed(1)}%.` };
-  if (scostamento <= -2 && mancante > quotaTarget * 0.2)
+  if (rsi14 != null && bandaInferiore2σ != null && rsi14 < 30 && ultimo <= bandaInferiore2σ && mancante > quotaTarget * 0.2)
     return {
       azione: "compra",
       importo: mancante,
-      motivo: `Ribasso del ${scostamento.toFixed(1)}% sotto la media 10g: entrata sul calo.`,
+      motivo: `Segnale aggressivo completo: RSI14 ${rsi14.toFixed(1)} (<30) e prezzo sotto la banda inferiore a -2σ (${bandaInferiore2σ.toFixed(2)}); ingresso sul ribasso estremo.`,
     };
-  return { azione: "attendi", importo: 0, motivo: "Prezzo non ancora abbastanza sceso." };
+  return { azione: "attendi", importo: 0, motivo: rsi14 == null || bandaInferiore2σ == null
+    ? "Storico insufficiente per RSI14 e bande a 2 deviazioni standard."
+    : `Segnale aggressivo non completo: RSI14 ${rsi14.toFixed(1)}, prezzo ${ultimo.toFixed(2)}, soglia -2σ ${bandaInferiore2σ.toFixed(2)}.` };
 }
 
 export async function leggiOrdini(
