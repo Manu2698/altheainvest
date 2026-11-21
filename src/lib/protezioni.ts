@@ -14,11 +14,11 @@ export function problemaAccumulo(
   chiusure: number[],
 ): string | null {
   if (!posizione) return null;
+  if (!Number.isFinite(posizione.valore) || !Number.isFinite(posizione.pnlPct))
+    return "Posizione non verificabile: nessun acquisto aggiuntivo.";
   // Il profilo aggressivo può accumulare su un nuovo trigger tecnico, ma decide() limita
   // ogni ingresso alla quota target residua e il motore applica comunque i tetti di capitale.
   if (strategia === "aggressivo") return null;
-  if (!Number.isFinite(posizione.valore) || !Number.isFinite(posizione.pnlPct))
-    return "Posizione non verificabile: nessun acquisto aggiuntivo.";
   if (posizione.valore <= 0) return null;
   const ultimi = chiusure.slice(-20);
   const prezzo = ultimi.at(-1);
