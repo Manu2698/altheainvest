@@ -1,5 +1,5 @@
 import { describe, expect, it, vi, afterEach } from "vitest";
-import { decide, serieStorica } from "./trading.server";
+import { decide, serieStorica } from "./trading.logic";
 import { problemaAccumulo, valutaDrawdownMensile } from "./protezioni";
 
 afterEach(() => vi.unstubAllGlobals());
