@@ -65,13 +65,20 @@ export function decisioneFinale(s: {
   dibattito: "BUY" | "SELL" | "HOLD";
   rischio: Rischio | null;
   coordinatore: Coordinatore | null;
+  strategia?: string;
 }): { procedi: boolean; importo: number; motivo: string } {
   const stop = (motivo: string) => ({ procedi: false, importo: 0, motivo });
   if (!s.rischio) return stop("Risk Manager non disponibile: nessuna operazione.");
   if (s.rischio.veto) return stop(`Veto del Risk Manager: ${s.rischio.motivi.slice(0, 2).join("; ") || "rischio non accettabile"}.`);
-  if (s.analisti.some((a) => !a)) return stop("Analisi incomplete: prevale HOLD.");
-  const validi = s.analisti.filter((a): a is Analisi => a != null && a.voto !== "dati_insufficienti");
-  if (validi.length < 2) return stop("Dati insufficienti per almeno due analisti: prevale HOLD.");
+  if (s.strategia === "aggressivo") {
+    const tecnico = s.analisti[1];
+    if (!tecnico || tecnico.voto === "dati_insufficienti")
+      return stop("Profilo aggressivo: analisi tecnica verificabile assente, prevale HOLD.");
+  } else {
+    if (s.analisti.some((a) => !a)) return stop("Analisi incomplete: prevale HOLD.");
+    const validi = s.analisti.filter((a): a is Analisi => a != null && a.voto !== "dati_insufficienti");
+    if (validi.length < 2) return stop("Dati insufficienti per almeno due analisti: prevale HOLD.");
+  }
   if (s.dibattito !== s.proposta) return stop("Dual Risk Debate senza conclusione affidabile: prevale HOLD.");
   if (!s.coordinatore || s.coordinatore.decisione !== "procedi") return stop(`Coordinatore: ${s.coordinatore?.motivazione || "non intervenire"}.`);
   const fattore = Math.max(0, Math.min(1, s.coordinatore.fattore, s.rischio.fattoreMassimo));
