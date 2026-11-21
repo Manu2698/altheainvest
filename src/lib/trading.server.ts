@@ -96,7 +96,7 @@ export async function serieStorica(
 
 const media = (v: number[]) => (v.length ? v.reduce((a, b) => a + b, 0) / v.length : 0);
 
-type Posizione = { ticker: string; valore: number; pnlPct: number };
+type Posizione = { ticker: string; valore: number; pnlPct: number; piccoPnlPct?: number };
 
 export function decide(
   strategia: StrategyId,
@@ -162,17 +162,13 @@ export function decide(
     return { azione: "attendi", importo: 0, motivo: "Nessun segnale netto sul trend." };
   }
 
-  // aggressivo: compra sui ribassi, vende sui rimbalzi
-  if (posseduto > 0 && pnl >= 5)
-    return {
-      azione: "vendi",
-      importo: posseduto,
-      motivo: `Presa di profitto a +${pnl.toFixed(1)}% prima del rientro.`,
-    };
+  // aggressivo: ingresso contrarian, stop iniziale -7% e trailing profit persistente.
   if (posseduto > 0 && pnl <= -7)
     return { azione: "vendi", importo: posseduto, motivo: `Stop loss fisso della strategia aggressiva a -7% (attuale ${pnl.toFixed(1)}%).` };
-  if (posseduto > 0 && pnl > 0 && ultimo < sma10)
-    return { azione: "vendi", importo: posseduto, motivo: "Momentum del rimbalzo esaurito: prezzo tornato sotto la media 10g, chiusura della posizione." };
+  const picco = Math.max(pnl, posizione?.piccoPnlPct ?? pnl);
+  const sogliaTrailing = picco - 5;
+  if (posseduto > 0 && picco >= 5 && pnl <= sogliaTrailing)
+    return { azione: "vendi", importo: posseduto, motivo: `Trailing stop aggressivo: massimo profitto +${picco.toFixed(1)}%, protezione attivata a +${sogliaTrailing.toFixed(1)}%, attuale +${pnl.toFixed(1)}%.` };
   if (rsi14 != null && bandaInferiore2σ != null && rsi14 < 30 && ultimo <= bandaInferiore2σ && mancante > quotaTarget * 0.2)
     return {
       azione: "compra",
@@ -387,6 +383,32 @@ async function eseguiCicloInterno(
 
     // Le posizioni già aperte vengono sempre rianalizzate (per poterle vendere).
     for (const t of posizioni.keys()) if (!universo.includes(t)) universo.push(t);
+
+    // Memoria persistente del massimo P&L per il trailing stop aggressivo.
+    // Se la lettura DB fallisce, restano attivi gli stop rigidi ma non si inventa un massimo storico.
+    if (input.strategia === "aggressivo" && contoId && posRes.ok) {
+      const { data: stati, error: erroreStati } = await supabaseAdmin
+        .from("stato_trailing_aggressivo")
+        .select("ticker,picco_pnl_pct")
+        .eq("user_id", userId).eq("piattaforma", "alpaca")
+        .eq("ambiente", reale ? "reale" : "paper").eq("conto_id", contoId);
+      if (erroreStati) {
+        logServer("trading.trailing.lettura", erroreStati, { reale });
+      } else {
+        const picchi = new Map((stati ?? []).map((r: {ticker:string;picco_pnl_pct:number}) => [r.ticker, Number(r.picco_pnl_pct)]));
+        for (const [ticker, p] of posizioni) {
+          const piccoPrecedente = picchi.get(ticker);
+          const picco = Math.max(p.pnlPct, Number.isFinite(piccoPrecedente) ? piccoPrecedente! : p.pnlPct);
+          p.piccoPnlPct = picco;
+          const { error } = await supabaseAdmin.from("stato_trailing_aggressivo").upsert({
+            user_id: userId, piattaforma: "alpaca", ambiente: reale ? "reale" : "paper",
+            conto_id: contoId, ticker, picco_pnl_pct: picco, aggiornato_al: new Date().toISOString(),
+          }, { onConflict: "user_id,piattaforma,ambiente,conto_id,ticker" });
+          if (error) logServer("trading.trailing.scrittura", error, { ticker, reale });
+        }
+      }
+    }
+
     const mancanti = universo.filter((t) => !storico[t]);
     if (mancanti.length) Object.assign(storico, await serieStorica(mancanti, headers, ultimiGiorni));
 
@@ -401,6 +423,12 @@ async function eseguiCicloInterno(
     let comitatoStop: string | null = null;
 
     for (const ticker of universo) {
+      if (input.strategia === "aggressivo" && contoId && posRes.ok && !posizioni.has(ticker)) {
+        const { error } = await supabaseAdmin.from("stato_trailing_aggressivo").delete()
+          .eq("user_id", userId).eq("piattaforma", "alpaca")
+          .eq("ambiente", reale ? "reale" : "paper").eq("conto_id", contoId).eq("ticker", ticker);
+        if (error) logServer("trading.trailing.reset", error, { ticker, reale });
+      }
       const chiusure = storico[ticker] ?? storico[ticker.replace("/", "")] ?? [];
       const scelta = applicaLezioni(
         decide(input.strategia, ticker, chiusure, posizioni.get(ticker), quota),
