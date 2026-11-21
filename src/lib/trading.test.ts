@@ -1,5 +1,5 @@
 import { describe, expect, it, vi, afterEach } from "vitest";
-import { decide } from "./trading.logic";
+import { decide, decisioneDrawdownMensile } from "./trading.logic";
 import { serieStorica } from "./market-data";
 import { problemaAccumulo, valutaDrawdownMensile } from "./protezioni";
 
@@ -35,6 +35,17 @@ describe("uscite della strategia aggressiva", () => {
   it("mantiene lo stop iniziale fisso a -7%", () => {
     const scelta = decide("aggressivo", "TEST", Array(20).fill(10), { ticker: "TEST", valore: 10, pnlPct: -7.1 }, 10);
     expect(scelta.azione).toBe("vendi");
+  });
+});
+describe("liquidazione al drawdown mensile", () => {
+  it("chiude l'intera posizione quando il mese è bloccato", () => {
+    expect(decisioneDrawdownMensile(true, { valore: 125 })).toMatchObject({ azione: "vendi", importo: 125 });
+  });
+  it("non compra e resta in pausa quando non ci sono posizioni", () => {
+    expect(decisioneDrawdownMensile(true, undefined)).toMatchObject({ azione: "attendi", importo: 0 });
+  });
+  it("non modifica le decisioni quando il limite non è raggiunto", () => {
+    expect(decisioneDrawdownMensile(false, { valore: 125 })).toBeNull();
   });
 });
 describe("drawdown mensile aggressivo", () => {
