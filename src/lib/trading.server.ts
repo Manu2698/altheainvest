@@ -319,22 +319,44 @@ async function eseguiCicloInterno(
         if (erroreMese) {
           logServer("trading.drawdown_mensile.lettura", erroreMese, { reale });
         } else {
-          const valutazione = valutaDrawdownMensile(
-            Number(a["equity"]),
-            statoMese?.picco_equity == null ? null : Number(statoMese.picco_equity),
-            Boolean(statoMese?.bloccato),
-          );
-          if (!valutazione) {
-            logServer("trading.drawdown_mensile.dati", new Error("Equity o picco mensile non valido."), { reale });
-          } else {
-            drawdownMensileBloccato = valutazione.bloccato;
-            const { error: erroreSalvataggio } = await supabaseAdmin.from("stato_drawdown_mensile").upsert({
-              user_id: userId, piattaforma: "alpaca", ambiente: reale ? "reale" : "paper",
-              conto_id: contoId, mese: partiMese, picco_equity: valutazione.piccoEquity,
-              bloccato: drawdownMensileBloccato, aggiornato_al: new Date().toISOString(),
-            }, { onConflict: "user_id,piattaforma,ambiente,conto_id,mese" });
-            if (erroreSalvataggio) logServer("trading.drawdown_mensile.scrittura", erroreSalvataggio, { reale });
-            else drawdownMensileVerificato = true;
+          let piccoPrecedente = statoMese?.picco_equity == null ? null : Number(statoMese.picco_equity);
+          let storicoMeseVerificato = true;
+          if (piccoPrecedente == null) {
+            // Prima attivazione nel mese: recupera il massimo MTD da Alpaca.
+            try {
+              const storicoEquityRes = await fetch(url + "/v2/account/portfolio/history?period=1M&timeframe=1D&cashflow_types=ALL", { headers, signal: AbortSignal.timeout(15000) });
+              if (!storicoEquityRes.ok) throw new Error("HTTP " + storicoEquityRes.status + " sullo storico equity mensile.");
+              const storicoEquity = await storicoEquityRes.json() as { timestamp?: number[]; equity?: number[] };
+              if (!Array.isArray(storicoEquity.timestamp) || !Array.isArray(storicoEquity.equity) || storicoEquity.timestamp.length !== storicoEquity.equity.length)
+                throw new Error("Storico equity mensile incompleto.");
+              const meseDi = (secondi: number) => {
+                const parti = new Intl.DateTimeFormat("en-US", { timeZone: "Europe/Rome", year: "numeric", month: "2-digit" }).formatToParts(new Date(secondi * 1000));
+                return (parti.find(x => x.type === "year")?.value ?? "") + "-" + (parti.find(x => x.type === "month")?.value ?? "");
+              };
+              const valoriMese = storicoEquity.timestamp.flatMap((ts, i) => {
+                const valore = Number(storicoEquity.equity?.[i]);
+                return Number.isFinite(ts) && meseDi(ts) === partiMese && Number.isFinite(valore) && valore > 0 ? [valore] : [];
+              });
+              piccoPrecedente = valoriMese.length ? Math.max(...valoriMese) : Number(a["equity"]);
+            } catch (erroreStorico) {
+              storicoMeseVerificato = false;
+              logServer("trading.drawdown_mensile.storico", erroreStorico, { reale });
+            }
+          }
+          if (storicoMeseVerificato) {
+            const valutazione = valutaDrawdownMensile(Number(a["equity"]), piccoPrecedente, Boolean(statoMese?.bloccato));
+            if (!valutazione) {
+              logServer("trading.drawdown_mensile.dati", new Error("Equity o picco mensile non valido."), { reale });
+            } else {
+              drawdownMensileBloccato = valutazione.bloccato;
+              const { error: erroreSalvataggio } = await supabaseAdmin.from("stato_drawdown_mensile").upsert({
+                user_id: userId, piattaforma: "alpaca", ambiente: reale ? "reale" : "paper",
+                conto_id: contoId, mese: partiMese, picco_equity: valutazione.piccoEquity,
+                bloccato: drawdownMensileBloccato, aggiornato_al: new Date().toISOString(),
+              }, { onConflict: "user_id,piattaforma,ambiente,conto_id,mese" });
+              if (erroreSalvataggio) logServer("trading.drawdown_mensile.scrittura", erroreSalvataggio, { reale });
+              else drawdownMensileVerificato = true;
+            }
           }
         }
       }
