@@ -3,7 +3,7 @@ import { getStrategia, type StrategyId } from "./strategies";
 import type { LeaseConto } from "./riconciliazione.server";
 import { capitalePendenti } from "./esecuzioni";
 import { valutaDrawdownMensile } from "./protezioni";
-import { decide } from "./trading.logic";
+import { decide, decisioneDrawdownMensile } from "./trading.logic";
 export { decide };
 import { serieStorica } from "./market-data";
 export { serieStorica } from "./market-data";
@@ -338,11 +338,11 @@ async function eseguiCicloInterno(
         posizioni.get(ticker),
         lezioni,
       );
-      if (input.strategia === "aggressivo" && drawdownMensileBloccato) {
-        const posizione = posizioni.get(ticker);
-        scelta = posizione && posizione.valore > 0
-          ? { azione: "vendi", importo: posizione.valore, motivo: "Drawdown mensile superiore al 20%: liquidazione totale della posizione e blocco acquisti fino al mese successivo." }
-          : { azione: "attendi", importo: 0, motivo: "Drawdown mensile superiore al 20%: strategia in pausa fino al mese successivo." };
+      const liquidazioneMensile = input.strategia === "aggressivo"
+        ? decisioneDrawdownMensile(drawdownMensileBloccato, posizioni.get(ticker))
+        : null;
+      if (liquidazioneMensile) {
+        scelta = liquidazioneMensile;
       } else if (input.strategia === "aggressivo" && !drawdownMensileVerificato && scelta.azione === "compra") {
         scelta = { azione: "attendi", importo: 0, motivo: "Drawdown mensile non verificabile: nuovi acquisti sospesi per sicurezza." };
       }
