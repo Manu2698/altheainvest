@@ -102,7 +102,7 @@ export async function valutaCandidato(c: Contesto): Promise<{ procedi: boolean; 
   const [fond, news] = await Promise.all([fondamentali(c.ticker, c.cripto), notizie(c.ticker, c.alpacaHeaders)]);
   const profiloAggressivo = c.strategia === "aggressivo";
   const dati = { ticker: c.ticker, strategia: c.strategia, regoleStrategia: profiloAggressivo
-    ? ["RSI14 < 30", "prezzo <= media20 - 2 deviazioni standard", "take profit al rimbalzo +5%", "stop loss fisso -7%"]
+    ? ["RSI14 < 30", "prezzo <= media20 - 2 deviazioni standard", "obiettivo di profitto +15% (non è un tetto di uscita)", "trailing stop persistente: si attiva dopo un picco di +5% e protegge con distanza di 5 punti percentuali dal massimo", "stop loss iniziale fisso -7%"]
     : [], propostaMotore: { azione: "BUY", importoUSD: c.importo, motivo: c.motivo }, tecnici, fondamentali: fond, notizie: news, posizioneAttuale: c.posizione ?? null, conto: c.conto };
 
   // 1. Tre analisti in parallelo sugli stessi dati condivisi.
