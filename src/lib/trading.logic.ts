@@ -86,3 +86,15 @@ export function decide(
     : `Segnale aggressivo non completo: RSI14 ${rsi14.toFixed(1)}, prezzo ${ultimo.toFixed(2)}, soglia -2σ ${bandaInferiore2σ.toFixed(2)}.` };
 }
 
+
+
+/** Decisione operativa quando il limite di drawdown mensile aggressivo è stato raggiunto. */
+export function decisioneDrawdownMensile(
+  bloccato: boolean,
+  posizione: { valore: number } | undefined,
+): { azione: "vendi" | "attendi"; importo: number; motivo: string } | null {
+  if (!bloccato) return null;
+  if (posizione && Number.isFinite(posizione.valore) && posizione.valore > 0)
+    return { azione: "vendi", importo: posizione.valore, motivo: "Drawdown mensile superiore al 20%: liquidazione totale della posizione e blocco acquisti fino al mese successivo." };
+  return { azione: "attendi", importo: 0, motivo: "Drawdown mensile superiore al 20%: strategia in pausa fino al mese successivo." };
+}
