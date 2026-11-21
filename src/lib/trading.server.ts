@@ -395,7 +395,8 @@ async function eseguiCicloInterno(
       if (erroreStati) {
         logServer("trading.trailing.lettura", erroreStati, { reale });
       } else {
-        const picchi = new Map((stati ?? []).map((r: {ticker:string;picco_pnl_pct:number}) => [r.ticker, Number(r.picco_pnl_pct)]));
+        const picchi = new Map<string, number>();
+        for (const r of stati ?? []) picchi.set(r.ticker, Number(r.picco_pnl_pct));
         for (const [ticker, p] of posizioni) {
           const piccoPrecedente = picchi.get(ticker);
           const picco = Math.max(p.pnlPct, Number.isFinite(piccoPrecedente) ? piccoPrecedente! : p.pnlPct);
