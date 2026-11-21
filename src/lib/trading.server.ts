@@ -294,6 +294,8 @@ async function eseguiCicloInterno(
   let perditaOggi: number | null = null;
   let contoId: string | null = null; // solo per registrare a quale conto appartiene l'ordine
   let contoOk = false;
+  let drawdownMensileBloccato = false;
+  let drawdownMensileVerificato = input.strategia !== "aggressivo";
   try {
     const acc = await fetch(`${url}/v2/account`, { headers });
     if (acc.ok) {
@@ -306,6 +308,28 @@ async function eseguiCicloInterno(
       liquidita = fondiUtilizzabili(num(a["cash"]), num(a["buying_power"]), fondi?.liquidita_limite == null ? null : Number(fondi.liquidita_limite), fondi?.acquisto_limite == null ? null : Number(fondi.acquisto_limite));
       if (fondi?.limiti_conto_id && fondi.limiti_conto_id !== contoId) { contoOk = false; liquidita = 0; }
       if (input.modalita === "conto") capitale = num(a["portfolio_value"] ?? a["equity"]);
+      // Drawdown mensile aggressivo: massimo equity osservato nel mese (fuso Italia).
+      // Al primo ciclo del mese si crea il riferimento; oltre -20% si blocca il mese e si liquidano le posizioni.
+      if (input.strategia === "aggressivo" && contoId && Number.isFinite(Number(a["equity"])) && Number(a["equity"]) > 0) {
+        const partiMese = new Intl.DateTimeFormat("en-CA", { timeZone: "Europe/Rome", year: "numeric", month: "2-digit" }).format(new Date());
+        const { data: statoMese, error: erroreMese } = await supabaseAdmin.from("stato_drawdown_mensile")
+          .select("picco_equity,bloccato").eq("user_id", userId).eq("piattaforma", "alpaca")
+          .eq("ambiente", reale ? "reale" : "paper").eq("conto_id", contoId).eq("mese", partiMese).maybeSingle();
+        if (erroreMese) {
+          logServer("trading.drawdown_mensile.lettura", erroreMese, { reale });
+        } else {
+          const equity = Number(a["equity"]);
+          const picco = Math.max(equity, statoMese?.picco_equity == null ? equity : Number(statoMese.picco_equity));
+          drawdownMensileBloccato = Boolean(statoMese?.bloccato) || equity <= picco * 0.8;
+          const { error: erroreSalvataggio } = await supabaseAdmin.from("stato_drawdown_mensile").upsert({
+            user_id: userId, piattaforma: "alpaca", ambiente: reale ? "reale" : "paper",
+            conto_id: contoId, mese: partiMese, picco_equity: picco,
+            bloccato: drawdownMensileBloccato, aggiornato_al: new Date().toISOString(),
+          }, { onConflict: "user_id,piattaforma,ambiente,conto_id,mese" });
+          if (erroreSalvataggio) logServer("trading.drawdown_mensile.scrittura", erroreSalvataggio, { reale });
+          else drawdownMensileVerificato = true;
+        }
+      }
       // Perdita della giornata: valore a chiusura di ieri meno valore attuale.
       if (a["last_equity"] != null && a["equity"] != null && Number.isFinite(Number(a["last_equity"])) && Number.isFinite(Number(a["equity"]))) {
         perditaOggi = num(a["last_equity"]) - num(a["equity"]);
@@ -432,13 +456,21 @@ async function eseguiCicloInterno(
         if (error) logServer("trading.trailing.reset", error, { ticker, reale });
       }
       const chiusure = storico[ticker] ?? storico[ticker.replace("/", "")] ?? [];
-      const scelta = applicaLezioni(
+      let scelta = applicaLezioni(
         decide(input.strategia, ticker, chiusure, posizioni.get(ticker), quota),
         input.strategia,
         ticker,
         posizioni.get(ticker),
         lezioni,
       );
+      if (input.strategia === "aggressivo" && drawdownMensileBloccato) {
+        const posizione = posizioni.get(ticker);
+        scelta = posizione && posizione.valore > 0
+          ? { azione: "vendi", importo: posizione.valore, motivo: "Drawdown mensile superiore al 20%: liquidazione totale della posizione e blocco acquisti fino al mese successivo." }
+          : { azione: "attendi", importo: 0, motivo: "Drawdown mensile superiore al 20%: strategia in pausa fino al mese successivo." };
+      } else if (input.strategia === "aggressivo" && !drawdownMensileVerificato && scelta.azione === "compra") {
+        scelta = { azione: "attendi", importo: 0, motivo: "Drawdown mensile non verificabile: nuovi acquisti sospesi per sicurezza." };
+      }
       const chiave = ticker.replace("/", "").toUpperCase();
       if (scelta.azione !== "attendi" && (!ordiniApertiOk || aperti.has(chiave))) {
         scelta.azione = "attendi";
