@@ -424,10 +424,11 @@ async function eseguiCicloInterno(
     let comitatoStop: string | null = null;
 
     for (const ticker of universo) {
-      if (input.strategia === "aggressivo" && contoId && posRes.ok && !posizioni.has(ticker)) {
+      const tickerStato = ticker.replace("/", "").toUpperCase();
+      if (input.strategia === "aggressivo" && contoId && posRes.ok && !posizioni.has(tickerStato)) {
         const { error } = await supabaseAdmin.from("stato_trailing_aggressivo").delete()
           .eq("user_id", userId).eq("piattaforma", "alpaca")
-          .eq("ambiente", reale ? "reale" : "paper").eq("conto_id", contoId).eq("ticker", ticker);
+          .eq("ambiente", reale ? "reale" : "paper").eq("conto_id", contoId).eq("ticker", tickerStato);
         if (error) logServer("trading.trailing.reset", error, { ticker, reale });
       }
       const chiusure = storico[ticker] ?? storico[ticker.replace("/", "")] ?? [];
