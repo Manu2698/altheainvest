@@ -70,7 +70,7 @@ async function notizie(ticker: string, headers: Record<string, string>) {
 export async function valutaCandidato(c: Contesto): Promise<{ procedi: boolean; importo: number; motivo: string; cache: boolean }> {
   const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
   const dal = new Date(Date.now() - CACHE_ORE * 3600_000).toISOString();
-  const { data: prec } = await supabaseAdmin.from("analisi_comitato").select("decisione, motivo, agenti").eq("user_id", c.userId).eq("ambiente", c.ambiente).eq("ticker", c.ticker).eq("proposta", "BUY").is("errore", null).gte("created_at", dal).order("created_at", { ascending: false }).limit(1).maybeSingle();
+  const { data: prec } = await supabaseAdmin.from("analisi_comitato").select("decisione, motivo, agenti").eq("user_id", c.userId).eq("ambiente", c.ambiente).eq("ticker", c.ticker).eq("strategia", c.strategia).eq("proposta", "BUY").is("errore", null).gte("created_at", dal).order("created_at", { ascending: false }).limit(1).maybeSingle();
   if (prec) {
     const fattore = Number((prec.agenti as { fattoreFinale?: number } | null)?.fattoreFinale ?? 0);
     const importo = prec.decisione === "BUY" ? Math.floor(c.importo * Math.max(0, Math.min(1, fattore)) * 100) / 100 : 0;
@@ -153,7 +153,8 @@ export async function valutaCandidato(c: Contesto): Promise<{ procedi: boolean; 
     proposta: "BUY", decisione: finale.procedi ? "BUY" : "HOLD", veto: Boolean(rischio?.veto), esito_dibattito: esito, motivo: finale.motivo,
     agenti: JSON.parse(JSON.stringify({ ...analisti, rischio, coordinatore: coord, fattoreFinale })),
     dibattito: JSON.parse(JSON.stringify(turni)), dati: JSON.parse(JSON.stringify(dati)),
-    errore: [af, at, an, rischio].some((x) => !x) ? "Uno o più agenti non hanno risposto: HOLD." : null,
+    errore: (profiloAggressivo ? [at, rischio] : [af, at, an, rischio]).some((x) => !x)
+      ? "Uno o più agenti essenziali per il profilo selezionato non hanno risposto: HOLD." : null,
   });
   return { ...finale, motivo: `Comitato: ${finale.motivo}`, cache: false };
 }
