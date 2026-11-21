@@ -59,7 +59,7 @@ export const STRATEGIE: Strategy[] = [
     nome: "Aggressivo",
     claim: "Compra sui ribassi, lascia correre i rialzi",
     descrizione:
-      "Opera solo su titoli estremamente volatili, ma con metodo: l'IA accumula quando il prezzo è sceso in modo eccessivo rispetto alla sua media e liquida sul rimbalzo, prima che il movimento si esaurisca. Nessuna posizione resta aperta oltre il necessario.",
+      "Opera solo su titoli estremamente volatili, ma con metodo: accumula sui ribassi estremi e lascia correre i rialzi. Punta a +15%, attiva una protezione dinamica del profitto dopo +5% e mantiene uno stop iniziale fisso. Nessun tetto limita i guadagni se il trend continua.",
     rischio: 9,
     rendimentoAtteso: "+20 / +45% annuo",
     drawdownMax: "-38%",
