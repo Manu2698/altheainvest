@@ -4,7 +4,7 @@ import type { LeaseConto } from "./riconciliazione.server";
 import { capitalePendenti } from "./esecuzioni";
 import { valutaDrawdownMensile } from "./protezioni";
 import { decide } from "./trading.logic";
-export { decide } from "./trading.logic";
+export { decide };
 import { serieStorica } from "./market-data";
 export { serieStorica } from "./market-data";
 import type { DecisioneIA, EsitoCiclo, OrdineBroker } from "./trading.types";
